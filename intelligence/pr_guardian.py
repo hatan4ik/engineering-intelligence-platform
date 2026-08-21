@@ -23,7 +23,9 @@ def policy_for(assessment: RiskAssessment) -> PRPolicyDecision:
 
 def render_markdown(assessment: RiskAssessment) -> str:
     policy = policy_for(assessment)
-    factors = "\n".join(f"- **+{f.points}** {f.reason}" for f in assessment.factors) or "- No material risk factors detected"
+    factors = "\n".join(
+        f"- **+{f.points}** `{f.name}` — {f.evidence}" for f in assessment.factors
+    ) or "- No material risk factors detected"
     controls = []
     if policy.require_extended_tests:
         controls.append("extended test suite")
