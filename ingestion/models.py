@@ -51,6 +51,8 @@ class Chunk:
     owner: str | None = None
     service: str | None = None
     acl: ACL = field(default_factory=ACL)
+    embedding: tuple[float, ...] = ()
+    content_hash: str | None = None
 
     def as_index_document(self) -> dict[str, object]:
         return {
@@ -69,4 +71,6 @@ class Chunk:
             "service": self.service,
             "acl_groups": list(self.acl.groups),
             "acl_users": list(self.acl.users),
+            "embedding": list(self.embedding),
+            "content_hash": self.content_hash,
         }
