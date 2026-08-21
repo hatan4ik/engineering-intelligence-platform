@@ -6,7 +6,6 @@ from pathlib import PurePosixPath
 
 from .graph import ServiceGraph, ServiceNode
 
-
 @dataclass(frozen=True)
 class ServiceMetadata:
     service: str
@@ -14,9 +13,7 @@ class ServiceMetadata:
     tier: int = 3
     dependencies: tuple[str, ...] = ()
 
-
 def metadata_from_manifest(path: str, content: str) -> ServiceMetadata | None:
-    """Extract lightweight service metadata without adding a YAML dependency."""
     if not path.endswith((".yaml", ".yml")):
         return None
     service = _match(content, r"(?m)^\s*(?:app(?:\.kubernetes\.io/name)?|service):\s*[\"']?([^\s\"']+)")
@@ -24,20 +21,16 @@ def metadata_from_manifest(path: str, content: str) -> ServiceMetadata | None:
         return None
     owner = _match(content, r"(?m)^\s*(?:owner|team):\s*[\"']?([^\s\"']+)")
     raw_tier = (_match(content, r"(?m)^\s*(?:tier|service-tier):\s*[\"']?([^\s\"']+)") or "3").lower()
-    tier = _tier_value(raw_tier)
     raw_deps = _match(content, r"(?m)^\s*(?:dependencies|depends-on):\s*[\"']?([^\n\"']+)")
     deps = tuple(sorted({d.strip() for d in (raw_deps or "").split(",") if d.strip()}))
-    return ServiceMetadata(service=service, owner=owner, tier=tier, dependencies=deps)
-
+    return ServiceMetadata(service, owner, _tier_value(raw_tier), deps)
 
 def service_from_path(path: str, known_services: set[str]) -> str | None:
-    parts = PurePosixPath(path).parts
-    for part in parts:
+    for part in PurePosixPath(path).parts:
         if part in known_services:
             return part
     stem = PurePosixPath(path).stem
     return stem if stem in known_services else None
-
 
 def build_graph(metadata: list[ServiceMetadata]) -> ServiceGraph:
     graph = ServiceGraph()
@@ -49,11 +42,8 @@ def build_graph(metadata: list[ServiceMetadata]) -> ServiceGraph:
         graph.add(ServiceNode(name=item.service, owner=item.owner, tier=item.tier, dependencies=item.dependencies))
     return graph
 
-
 def _tier_value(value: str) -> int:
-    aliases = {"critical": 1, "tier-1": 1, "1": 1, "high": 2, "tier-2": 2, "2": 2, "standard": 3, "tier-3": 3, "3": 3}
-    return aliases.get(value, 3)
-
+    return {"critical":1,"tier-1":1,"1":1,"high":2,"tier-2":2,"2":2,"standard":3,"tier-3":3,"3":3}.get(value, 3)
 
 def _match(content: str, pattern: str) -> str | None:
     m = re.search(pattern, content)
