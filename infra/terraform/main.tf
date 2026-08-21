@@ -92,13 +92,13 @@ resource "azurerm_search_service" "this" {
 # Enterprise model endpoint. A custom subdomain is required for Entra token auth
 # and Private Endpoint attachment.
 resource "azurerm_cognitive_account" "openai" {
-  name                          = "aoai-eip-${local.name_suffix}"
-  location                      = azurerm_resource_group.this.location
-  resource_group_name           = azurerm_resource_group.this.name
-  kind                          = "OpenAI"
-  sku_name                      = "S0"
-  custom_subdomain_name         = "aoai-eip-${local.name_suffix}"
-  public_network_access_enabled = false
+  name                               = "aoai-eip-${local.name_suffix}"
+  location                           = azurerm_resource_group.this.location
+  resource_group_name                = azurerm_resource_group.this.name
+  kind                               = "OpenAI"
+  sku_name                           = "S0"
+  custom_subdomain_name              = "aoai-eip-${local.name_suffix}"
+  public_network_access_enabled      = false
   outbound_network_access_restricted = true
 
   identity {
