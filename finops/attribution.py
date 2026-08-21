@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from telemetry.events import OperationEvent
+
 
 @dataclass(frozen=True)
 class CostEvent:
@@ -16,7 +18,24 @@ class CostEvent:
 
     @property
     def total_usd(self) -> float:
-        return self.model_cost_usd + self.search_cost_usd + self.embedding_cost_usd + self.tool_cost_usd
+        return (
+            self.model_cost_usd
+            + self.search_cost_usd
+            + self.embedding_cost_usd
+            + self.tool_cost_usd
+        )
+
+
+def from_operation(event: OperationEvent) -> CostEvent:
+    return CostEvent(
+        service=event.service or "unknown",
+        repo=event.repo or "unknown",
+        agent=event.agent or "unknown",
+        user=event.user,
+        model_cost_usd=event.model_cost_usd,
+        search_cost_usd=event.search_cost_usd,
+        tool_cost_usd=event.tool_cost_usd,
+    )
 
 
 def aggregate_by(events: list[CostEvent], field: str) -> dict[str, float]:
