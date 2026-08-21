@@ -1,0 +1,59 @@
+# P1 Secure Azure Foundation
+
+This slice closes the largest implementation gap identified in `ALIGNMENT-REVIEW.md`: the original architecture required a private Azure trust boundary, while the initial Terraform only created a VNet, AKS, Search and Log Analytics with default public service access.
+
+## Implemented in this slice
+
+- Dedicated Private Endpoint subnet.
+- Azure AI Search with public network access disabled and API-key authentication disabled.
+- Azure OpenAI cognitive account with a custom subdomain, public access disabled and restricted outbound access.
+- Azure Key Vault using RBAC authorization with public access disabled.
+- Private DNS zones and VNet links for Search, OpenAI and Key Vault.
+- Private Endpoints for Search (`searchService`), OpenAI (`account`) and Key Vault (`vault`).
+- AKS OIDC issuer and Workload Identity.
+- User-assigned workload identity federated to the `eip/eip-api` Kubernetes service account by default.
+- Explicit least-privilege runtime roles: Search Index Data Reader, Cognitive Services OpenAI User and Key Vault Secrets User.
+- Helm ServiceAccount and pod labels required by Azure Workload Identity.
+- Terraform outputs for application endpoint/client configuration.
+
+## Trust boundary
+
+```text
+AKS EIP workload
+  |
+  | Entra workload identity
+  v
+Private DNS inside VNet
+  |
+  +--> Azure AI Search Private Endpoint
+  +--> Azure OpenAI Private Endpoint
+  +--> Key Vault Private Endpoint
+
+Public PaaS data-plane ingress: disabled
+API keys for Search runtime: disabled
+```
+
+Clients must continue using the normal Search/OpenAI/Key Vault service hostnames. Private DNS resolves those names to Private Link addresses for clients inside the VNet.
+
+## Deliberately not claimed complete
+
+The following target-state controls remain follow-on work:
+
+1. Private ingress/API gateway in front of the EIP API.
+2. Authoritative PostgreSQL/Cosmos metadata/workflow/audit state store plus Private Link.
+3. Controlled outbound egress/NAT/firewall and explicit network policy.
+4. Azure OpenAI model deployments and embedding deployment configuration; deployments are capacity/region dependent and should be explicit variables/modules rather than assumed.
+5. Separate deployment/index-management identity with Search Index Data Contributor/Search Service Contributor as needed. The runtime is read-only by design.
+6. Diagnostic settings for all PaaS resources and end-to-end OTel correlation.
+7. Private AKS API server decision. The architecture requires private dependent data services; private-cluster operation is a separate operational choice with developer/CI connectivity implications.
+
+## Validation
+
+```bash
+terraform -chdir=infra/terraform fmt -check
+terraform -chdir=infra/terraform init -backend=false
+terraform -chdir=infra/terraform validate
+helm lint helm/eip
+```
+
+After deployment, validate DNS and public-access denial from both inside and outside the VNet before treating the environment as compliant with the target trust boundary.
