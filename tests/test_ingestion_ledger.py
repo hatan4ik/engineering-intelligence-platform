@@ -1,19 +1,20 @@
+from ingestion.events import NormalizedEvent
 from ingestion.ledger import SqliteEventLedger
-from ingestion.models import IngestionEvent, SourceDocument
+from ingestion.models import ACL, ChangeType, FileChange, SourceIdentity
 
 
-def event(event_id: str = "evt-1") -> IngestionEvent:
-    return IngestionEvent(
+def event(event_id: str = "evt-1") -> NormalizedEvent:
+    source = SourceIdentity("github", "acme/payments", "main", "abc", "app.py")
+    return NormalizedEvent(
         event_id=event_id,
-        action="upsert",
-        document=SourceDocument(
-            provider="github",
-            repo="acme/payments",
-            path="app.py",
-            ref="main",
-            commit_sha="abc",
-            content="print('ok')",
-            acl_groups=("payments",),
+        changes=(
+            FileChange(
+                source=source,
+                change_type=ChangeType.UPSERT,
+                content="print('ok')",
+                language="py",
+                acl=ACL(groups=("payments",)),
+            ),
         ),
     )
 
