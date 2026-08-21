@@ -1,0 +1,18 @@
+replicaCount: 2
+image:
+  repository: ghcr.io/hatan4ik/engineering-intelligence-platform
+  tag: latest
+  pullPolicy: IfNotPresent
+service:
+  port: 80
+  targetPort: 8000
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+env:
+  EIP_BACKEND: deterministic
+podAnnotations: {}

@@ -2,7 +2,7 @@ name: Reference Implementation CI
 
 on:
   push:
-    branches: [main, portfolio-reference-implementation]
+    branches: [main, portfolio-reference-implementation, milestone-2-vertical-slice]
   pull_request:
 
 jobs:
@@ -16,7 +16,11 @@ jobs:
       - run: pip install -r app/requirements.txt
       - run: pytest -q
       - run: python eval/evaluate.py
+      - run: python demo/aks/scenario_runner.py
       - uses: hashicorp/setup-terraform@v3
       - run: terraform -chdir=infra/terraform fmt -check
       - run: terraform -chdir=infra/terraform init -backend=false
       - run: terraform -chdir=infra/terraform validate
+      - uses: azure/setup-helm@v4
+      - run: helm lint helm/eip
+      - run: docker build -t eip:ci .
