@@ -63,12 +63,15 @@ class SqliteAuditLog:
         previous: str | None = None
         with self._connect() as db:
             rows = db.execute("SELECT payload, event_hash FROM audit_events ORDER BY sequence").fetchall()
-        for row in rows:
-            raw = json.loads(row["payload"])
-            event = AuditEvent(**raw)
-            if event.previous_hash != previous:
-                return False
-            if compute_event_hash(replace(event, event_hash=None)) != row["event_hash"]:
-                return False
-            previous = row["event_hash"]
+        try:
+            for row in rows:
+                raw = json.loads(row["payload"])
+                event = AuditEvent(**raw)
+                if event.previous_hash != previous:
+                    return False
+                if compute_event_hash(replace(event, event_hash=None)) != row["event_hash"]:
+                    return False
+                previous = row["event_hash"]
+        except (TypeError, ValueError, KeyError, json.JSONDecodeError):
+            return False
         return True
