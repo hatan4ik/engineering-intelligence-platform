@@ -20,6 +20,7 @@ class ExecutionResult:
     execution_ref: str | None = None
     verified: bool = False
     rollback_ref: str | None = None
+    error: str | None = None
 
 
 def execute_control_loop(
@@ -34,8 +35,23 @@ def execute_control_loop(
     if not decision.allowed:
         return ExecutionResult(status="denied", policy=decision)
 
-    execution_ref = adapter.execute(runbook.id, request)
-    verified = adapter.verify(runbook.verify_signal, request)
+    try:
+        execution_ref = adapter.execute(runbook.id, request)
+    except Exception as exc:
+        return ExecutionResult(
+            status="escalate",
+            policy=decision,
+            error=f"execution failed: {type(exc).__name__}: {exc}",
+        )
+
+    try:
+        verified = adapter.verify(runbook.verify_signal, request)
+    except Exception as exc:
+        verified = False
+        verification_error = f"verification failed: {type(exc).__name__}: {exc}"
+    else:
+        verification_error = None
+
     if verified:
         return ExecutionResult(
             status="succeeded",
@@ -45,12 +61,19 @@ def execute_control_loop(
         )
 
     rollback_ref = None
+    rollback_error = None
     if runbook.rollback_id:
-        rollback_ref = adapter.rollback(runbook.rollback_id, request)
+        try:
+            rollback_ref = adapter.rollback(runbook.rollback_id, request)
+        except Exception as exc:
+            rollback_error = f"rollback failed: {type(exc).__name__}: {exc}"
+
+    error = "; ".join(e for e in (verification_error, rollback_error) if e) or None
     return ExecutionResult(
         status="rolled_back" if rollback_ref else "escalate",
         policy=decision,
         execution_ref=execution_ref,
         verified=False,
         rollback_ref=rollback_ref,
+        error=error,
     )
