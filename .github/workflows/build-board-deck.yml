@@ -1,0 +1,29 @@
+name: Build Board Deck
+
+on:
+  push:
+    paths:
+      - 'slides/**'
+      - 'docs/board-deck-narrative.md'
+  pull_request:
+    paths:
+      - 'slides/**'
+      - 'docs/board-deck-narrative.md'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r slides/requirements.txt
+      - run: python slides/build_deck.py
+      - run: test -s slides/engineering-intelligence-board-deck.pptx
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engineering-intelligence-board-deck
+          path: slides/engineering-intelligence-board-deck.pptx
+          if-no-files-found: error
