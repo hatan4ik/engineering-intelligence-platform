@@ -7,11 +7,9 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Protocol
 
-from .models import SourceDocument
-
 
 class FileLoader(Protocol):
-    def load(self, *, repo: str, path: str, ref: str) -> str: ...
+    def __call__(self, repo: str, ref: str, path: str) -> str: ...
 
 
 @dataclass
@@ -19,7 +17,7 @@ class GitHubFileLoader:
     token: str
     api_url: str = "https://api.github.com"
 
-    def load(self, *, repo: str, path: str, ref: str) -> str:
+    def __call__(self, repo: str, ref: str, path: str) -> str:
         quoted = urllib.parse.quote(path, safe="/")
         url = f"{self.api_url}/repos/{repo}/contents/{quoted}?ref={urllib.parse.quote(ref)}"
         req = urllib.request.Request(
@@ -40,10 +38,12 @@ class GitHubFileLoader:
 @dataclass
 class AzureDevOpsFileLoader:
     organization_url: str
-    project: str
     token: str
 
-    def load(self, *, repo: str, path: str, ref: str) -> str:
+    def __call__(self, repo: str, ref: str, path: str) -> str:
+        if "/" not in repo:
+            raise ValueError("Azure DevOps repo identifier must be project/repository")
+        project, repository = repo.split("/", 1)
         params = urllib.parse.urlencode(
             {
                 "path": path,
@@ -53,8 +53,8 @@ class AzureDevOpsFileLoader:
             }
         )
         url = (
-            f"{self.organization_url.rstrip('/')}/{urllib.parse.quote(self.project)}/"
-            f"_apis/git/repositories/{urllib.parse.quote(repo)}/items?{params}"
+            f"{self.organization_url.rstrip('/')}/{urllib.parse.quote(project)}/"
+            f"_apis/git/repositories/{urllib.parse.quote(repository)}/items?{params}"
         )
         basic = base64.b64encode(f":{self.token}".encode()).decode()
         req = urllib.request.Request(url, headers={"Authorization": f"Basic {basic}"})
@@ -67,18 +67,3 @@ class AzureDevOpsFileLoader:
                 raise ValueError("Azure DevOps response did not contain file content")
             return payload["content"]
         return body.decode("utf-8")
-
-
-def load_source_document(loader: FileLoader, source: SourceDocument) -> SourceDocument:
-    return SourceDocument(
-        provider=source.provider,
-        repo=source.repo,
-        path=source.path,
-        ref=source.ref,
-        commit_sha=source.commit_sha,
-        content=loader.load(repo=source.repo, path=source.path, ref=source.commit_sha or source.ref),
-        acl_groups=source.acl_groups,
-        acl_users=source.acl_users,
-        owner=source.owner,
-        service=source.service,
-    )

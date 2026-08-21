@@ -6,15 +6,11 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .models import IngestionEvent
+from .events import NormalizedEvent
 
 
 class SqliteEventLedger:
-    """Durable idempotency ledger + DLQ for single-worker/local deployments.
-
-    Production deployments can implement the same interface on Cosmos DB,
-    PostgreSQL or a queue-backed store without changing the processor contract.
-    """
+    """Durable idempotency ledger + DLQ for local/single-worker deployments."""
 
     def __init__(self, path: str | Path = "ingestion-ledger.db") -> None:
         self.path = str(path)
@@ -45,9 +41,7 @@ class SqliteEventLedger:
 
     def seen(self, event_id: str) -> bool:
         with self._connect() as db:
-            row = db.execute(
-                "SELECT status FROM events WHERE event_id = ?", (event_id,)
-            ).fetchone()
+            row = db.execute("SELECT status FROM events WHERE event_id=?", (event_id,)).fetchone()
         return bool(row and row[0] == "completed")
 
     def start(self, event_id: str) -> None:
@@ -68,11 +62,12 @@ class SqliteEventLedger:
                 "UPDATE events SET status='completed', updated_at=?, last_error=NULL WHERE event_id=?",
                 (now, event_id),
             )
+            db.execute("DELETE FROM dlq WHERE event_id=?", (event_id,))
 
-    def fail(self, event: IngestionEvent, error: Exception) -> None:
+    def fail(self, event: NormalizedEvent, error: Exception) -> None:
         now = datetime.now(timezone.utc).isoformat()
         message = f"{type(error).__name__}: {error}"
-        payload = json.dumps(asdict(event), sort_keys=True)
+        payload = json.dumps(asdict(event), sort_keys=True, default=str)
         with self._connect() as db:
             db.execute(
                 "UPDATE events SET status='failed', updated_at=?, last_error=? WHERE event_id=?",
