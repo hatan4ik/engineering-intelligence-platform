@@ -10,12 +10,14 @@ def test_jobs_resume_after_worker_restart_and_complete_once(tmp_path):
         workflow_id="incident:1",
         kind="investigate",
         payload={"service": "payments"},
+        not_before=100,
     )
     assert not queue.enqueue(
         job_id="job-1",
         workflow_id="incident:1",
         kind="investigate",
         payload={"service": "payments"},
+        not_before=100,
     )
 
     claimed = queue.claim(lease_seconds=10, now=100)
