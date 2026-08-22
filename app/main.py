@@ -11,12 +11,14 @@ from pydantic import BaseModel
 
 from app.gateway import ApiKeyPrincipalStore, GatewayAuthError, GatewayPolicyError, authorize_request
 from app.observability import configure_tracing, tracer
+from app.portal_api import router as portal_router
 from integrations.github.pr_guardian import normalize_pull_request_event
 from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
 
 configure_tracing()
 trace = tracer()
-app = FastAPI(title="Engineering Intelligence Platform", version="0.5.0")
+app = FastAPI(title="Engineering Intelligence Platform", version="0.6.0")
+app.include_router(portal_router)
 
 
 class QueryRequest(BaseModel):
