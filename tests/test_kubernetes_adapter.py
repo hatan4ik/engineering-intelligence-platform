@@ -7,55 +7,54 @@ from remediation.policy import ActionRequest, ServiceAutonomy
 
 
 class FakeRunner:
-    def __init__(self, *, ready=True):
+    def __init__(self, *, final_ready=True):
         self.calls = []
-        self.ready = ready
+        self.final_ready = final_ready
+        self.mutated = False
 
     def run(self, argv):
-        self.calls.append(tuple(argv))
-        if "get" in argv:
-            replicas = 2 if self.ready else 0
+        argv = tuple(argv)
+        self.calls.append(argv)
+        if argv[-3:] == ("rollout", "history", "deployment/payments"):
+            return CommandResult(0, "REVISION  CHANGE-CAUSE\n1 old\n2 current\n")
+        if "get" in argv and "deployment/payments" in argv:
+            replicas = 2 if self.mutated and self.final_ready else 0
             return CommandResult(
                 0,
-                json.dumps(
-                    {
-                        "spec": {"replicas": 2},
-                        "status": {"availableReplicas": replicas, "readyReplicas": replicas},
-                    }
-                ),
+                json.dumps({
+                    "metadata": {"annotations": {}},
+                    "spec": {"replicas": 2},
+                    "status": {"availableReplicas": replicas, "readyReplicas": replicas},
+                }),
             )
+        if "rollout" in argv and ("restart" in argv or "undo" in argv):
+            self.mutated = True
+            return CommandResult(0, "ok")
         return CommandResult(0, "ok")
 
 
-def policy():
+def policy(runbooks=("aks.rollout.undo", "aks.restart.workload")):
     return ServiceAutonomy(
         service="payments",
         environment="prod",
         level=AutonomyLevel.APPROVE_AND_EXECUTE,
-        certified_runbooks=("aks.rollout.undo", "aks.restart.workload"),
+        certified_runbooks=runbooks,
         max_blast_radius=3,
     )
 
 
-def test_restart_uses_fixed_argv_and_independent_read_verification():
+def test_restart_preflights_then_uses_fixed_argv_and_independent_verification():
     runner = FakeRunner()
     adapter = KubernetesActionAdapter(runner, namespace="prod")
-    request = ActionRequest(
-        "payments", "prod", "aks.restart.workload", 2, approval_token="approved"
-    )
-    result = execute_control_loop(
-        catalog=default_catalog(), policy=policy(), request=request, adapter=adapter
-    )
+    request = ActionRequest("payments", "prod", "aks.restart.workload", 2, approval_token="approved")
+    result = execute_control_loop(catalog=default_catalog(), policy=policy(), request=request, adapter=adapter)
     assert result.status == "succeeded"
-    assert runner.calls[0] == (
-        "kubectl", "-n", "prod", "rollout", "restart", "deployment/payments"
-    )
-    assert runner.calls[1] == (
-        "kubectl", "-n", "prod", "get", "deployment/payments", "-o", "json"
-    )
+    assert runner.calls[0] == ("kubectl", "-n", "prod", "get", "deployment/payments", "-o", "json")
+    assert runner.calls[1] == ("kubectl", "-n", "prod", "rollout", "restart", "deployment/payments")
+    assert runner.calls[2] == ("kubectl", "-n", "prod", "get", "deployment/payments", "-o", "json")
 
 
-def test_unknown_runbook_and_unsafe_names_cannot_be_interpolated():
+def test_preflight_blocks_unsafe_names_before_mutation():
     adapter = KubernetesActionAdapter(FakeRunner(), namespace="prod")
     request = ActionRequest("payments;rm -rf /", "prod", "aks.restart.workload", 1, approval_token="x")
     result = execute_control_loop(
@@ -70,15 +69,25 @@ def test_unknown_runbook_and_unsafe_names_cannot_be_interpolated():
         request=request,
         adapter=adapter,
     )
-    assert result.status == "escalate"
+    assert result.status == "denied"
     assert "invalid Kubernetes name" in result.error
 
 
 def test_failed_verification_without_safe_redo_escalates_instead_of_crashing():
-    adapter = KubernetesActionAdapter(FakeRunner(ready=False), namespace="prod")
+    adapter = KubernetesActionAdapter(FakeRunner(final_ready=False), namespace="prod")
     request = ActionRequest("payments", "prod", "aks.rollout.undo", 2, approval_token="x")
-    result = execute_control_loop(
-        catalog=default_catalog(), policy=policy(), request=request, adapter=adapter
-    )
+    result = execute_control_loop(catalog=default_catalog(), policy=policy(), request=request, adapter=adapter)
     assert result.status == "escalate"
     assert "automatic redo is not safely defined" in result.error
+
+
+def test_crashloop_runbook_requires_live_crashloop_evidence():
+    runner = FakeRunner()
+    adapter = KubernetesActionAdapter(runner, namespace="prod")
+    request = ActionRequest("payments", "prod", "aks.restart.crashloop", 2, approval_token="x")
+    result = execute_control_loop(
+        catalog=default_catalog(), policy=policy(("aks.restart.crashloop",)), request=request, adapter=adapter
+    )
+    assert result.status == "denied"
+    assert "crashloop_present" in result.error
+    assert not any("restart" in call for call in runner.calls)
