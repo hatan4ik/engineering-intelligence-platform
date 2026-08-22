@@ -40,7 +40,10 @@ def analysis():
 
 
 def l3_policy():
-    return ServiceAutonomy("payments", "prod", AutonomyLevel.APPROVE_AND_EXECUTE, ("aks.rollout.undo",), 3)
+    return ServiceAutonomy(
+        "payments", "prod", AutonomyLevel.APPROVE_AND_EXECUTE,
+        ("aks.rollout.undo", "aks.rollback.readiness"), 3,
+    )
 
 
 def test_plan_bound_approval_enqueues_and_completes_after_restart(tmp_path):
@@ -54,6 +57,7 @@ def test_plan_bound_approval_enqueues_and_completes_after_restart(tmp_path):
     )
     prepared = coordinator.prepare(analysis(), incident_id="inc-1", blast_radius=2)
     assert prepared is not None and prepared.workflow.plan_hash
+    assert prepared.plan.runbook_id == "aks.rollback.readiness"
     approval = issue_approval(workflow_id=prepared.workflow.workflow_id, approver="sre@example", plan_hash=prepared.workflow.plan_hash, secret="secret", now=1000)
     assert coordinator.approve_and_enqueue(prepared, approval=approval, now=1000)
 
@@ -61,7 +65,7 @@ def test_plan_bound_approval_enqueues_and_completes_after_restart(tmp_path):
     assert runner.run_once(now=1001) == "completed"
     assert store.get_workflow(prepared.workflow.workflow_id).status.value == "succeeded"
     assert audit.verify_chain() is True
-    assert prod.calls[0] == ("execute", "aks.rollout.undo")
+    assert prod.calls[0] == ("execute", "aks.rollback.readiness")
 
 
 def test_wrong_plan_approval_never_enqueues(tmp_path):
