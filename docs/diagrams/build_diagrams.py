@@ -122,10 +122,11 @@ class D:
     def card(self, x: float, y: float, w: float, h: float, title: str, sub: list[str] | None = None,
              *, accent: str = "neutral", title_size: int = 13, sub_size: int = 11) -> None:
         a = self.th.accents[accent]
-        tint = _mix(self.th.surface, a, 0.06 if self.th.name == "light" else 0.10)
+        tint = _mix(self.th.surface, a, 0.15 if self.th.name == "light" else 0.26)
+        border = _mix(self.th.hairline, a, 0.55)
         self.parts.append(
             f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="9" fill="{tint}" '
-            f'stroke="{self.th.hairline}" stroke-width="1" filter="url(#soft-{self.th.name})"/>'
+            f'stroke="{border}" stroke-width="1.2" filter="url(#soft-{self.th.name})"/>'
         )
         self.parts.append(
             f'<path d="M {x+3} {y} h 3 v {h} h -3 a 9 9 0 0 1 0 -{h}" fill="{a}" '
@@ -134,7 +135,7 @@ class D:
         # simpler accent strip: rounded-left bar
         self.parts.pop()
         self.parts.append(
-            f'<rect x="{x}" y="{y}" width="4" height="{h}" rx="2" fill="{a}"/>'
+            f'<rect x="{x}" y="{y}" width="5" height="{h}" rx="2.5" fill="{a}"/>'
         )
         cx = x + w / 2
         ty = y + (h + title_size * 0.72) / 2 - (0 if not sub else (len(sub) * 14) / 2 + 1)
@@ -144,15 +145,19 @@ class D:
 
     def chip(self, x: float, y: float, label: str, accent: str) -> None:
         a = self.th.accents[accent]
-        w = 9 + len(label) * 6.4
-        self.rect(x, y, w, 18, fill=_mix(self.th.surface, a, 0.14), rx=9)
-        self.text(x + w / 2, y + 13, label, size=10.5, color=_mix(a, self.th.ink, 0.25), weight="600", spacing="0.04em")
+        w = 18 + len(label) * 7.1
+        fill = _mix(a, "#000000", 0.25)
+        self.parts.append(
+            f'<rect x="{x}" y="{y}" width="{w}" height="20" rx="10" fill="{fill}" '
+            f'filter="url(#soft-{self.th.name})"/>'
+        )
+        self.text(x + w / 2, y + 14, label, size=10.5, color="#ffffff", weight="700", spacing="0.05em")
 
     def zone(self, x: float, y: float, w: float, h: float, label: str, accent: str = "neutral") -> None:
         a = self.th.accents[accent]
-        self.rect(x, y, w, h, fill=_mix(self.th.surface, a, 0.035), stroke=_mix(self.th.hairline, a, 0.35),
-                  rx=12, dash=None)
-        self.chip(x + 12, y + 10, label, accent)
+        self.rect(x, y, w, h, fill=_mix(self.th.surface, a, 0.08 if self.th.name == "light" else 0.13),
+                  stroke=_mix(self.th.hairline, a, 0.6), rx=12, sw=1.3)
+        self.chip(x + 12, y + 8, label, accent)
 
     def edge(self, pts: list[tuple[float, float]], *, label: str | None = None, color: str | None = None,
              dash: str | None = None, lx: float | None = None, ly: float | None = None,
@@ -174,8 +179,8 @@ class D:
         a = self.th.accents[accent]
         pts = f"{cx},{cy-h/2} {cx+w/2},{cy} {cx},{cy+h/2} {cx-w/2},{cy}"
         self.parts.append(
-            f'<polygon points="{pts}" fill="{_mix(self.th.surface, a, 0.08)}" '
-            f'stroke="{_mix(self.th.hairline, a, 0.5)}" stroke-width="1.2"/>'
+            f'<polygon points="{pts}" fill="{_mix(self.th.surface, a, 0.16 if self.th.name == "light" else 0.26)}" '
+            f'stroke="{_mix(self.th.hairline, a, 0.65)}" stroke-width="1.3"/>'
         )
         y0 = cy - (len(label) - 1) * 7 + 4
         for i, row in enumerate(label):
@@ -184,8 +189,8 @@ class D:
     def cylinder(self, cx: float, top: float, w: float, h: float, label: list[str], accent: str) -> None:
         a = self.th.accents[accent]
         rx, ry = w / 2, 9
-        fill = _mix(self.th.surface, a, 0.08 if self.th.name == "light" else 0.12)
-        stroke = _mix(self.th.hairline, a, 0.5)
+        fill = _mix(self.th.surface, a, 0.16 if self.th.name == "light" else 0.26)
+        stroke = _mix(self.th.hairline, a, 0.65)
         self.parts.append(
             f'<path d="M {cx-rx} {top+ry} v {h-2*ry} a {rx} {ry} 0 0 0 {w} 0 v {-(h-2*ry)}" '
             f'fill="{fill}" stroke="{stroke}" stroke-width="1.2"/>'
@@ -205,7 +210,8 @@ class D:
         w = max(120, 30 + len(label) * 7.6)
         self.parts.append(
             f'<rect x="{x - w/2}" y="{y0}" width="{w}" height="34" rx="8" '
-            f'fill="{_mix(self.th.surface, a, 0.08)}" stroke="{self.th.hairline}" stroke-width="1" '
+            f'fill="{_mix(self.th.surface, a, 0.18 if self.th.name == "light" else 0.28)}" '
+            f'stroke="{_mix(self.th.hairline, a, 0.6)}" stroke-width="1.2" '
             f'filter="url(#soft-{self.th.name})"/>'
         )
         self.parts.append(f'<rect x="{x - w/2}" y="{y0}" width="4" height="34" rx="2" fill="{a}"/>')
@@ -242,10 +248,10 @@ class D:
              status: str | None = None, w: float | None = None) -> tuple[float, float]:
         col = self.th.status[status] if status else self.th.accents[accent or "neutral"]
         pw = w or max(96, 20 + len(label) * 7.4)
-        fill = _mix(self.th.surface, col, 0.12 if status else 0.08)
+        fill = _mix(self.th.surface, col, 0.24 if status else 0.18)
         self.parts.append(
             f'<rect x="{cx - pw / 2}" y="{cy - 15}" width="{pw}" height="30" rx="15" fill="{fill}" '
-            f'stroke="{_mix(self.th.hairline, col, 0.5)}" stroke-width="1" '
+            f'stroke="{_mix(self.th.hairline, col, 0.75)}" stroke-width="1.2" '
             f'filter="url(#soft-{self.th.name})"/>'
         )
         self.text(cx, cy + 4.5, label, size=12, weight="600",
