@@ -7,3 +7,4 @@ ingestion-ledger.db
 slides/*.pptx
 .terraform/
 .terraform.lock.hcl
+docs/diagrams/*.png
