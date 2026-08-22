@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
+from azure.search.documents.models import VectorizedQuery
 from openai import AzureOpenAI
 
 from app.observability import tracer
@@ -41,9 +42,9 @@ def rates_from_environment() -> UsageRates:
 class AzureRagBackend:
     """Azure AI Search + Azure OpenAI adapter with correlated telemetry.
 
-    Security trimming is applied by Azure AI Search before any evidence reaches
-    model synthesis. Retrieved evidence is additionally classified for indirect
-    prompt injection; suspicious documents are quarantined from model context.
+    Retrieval combines lexical and vector evidence when an embedding deployment is
+    configured. ACL filtering is executed by Azure AI Search in the same request,
+    before evidence can enter model synthesis.
     """
 
     def __init__(
@@ -62,6 +63,7 @@ class AzureRagBackend:
             azure_ad_token_provider=self._token,
         )
         self.deployment = os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT"]
+        self.embedding_deployment = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
         self.telemetry = telemetry or NullTelemetrySink()
         self.rates = rates or rates_from_environment()
         self.trace = tracer()
@@ -76,6 +78,12 @@ class AzureRagBackend:
         escaped = [g.replace("'", "''") for g in groups]
         clauses = [f"acl_groups/any(g: g eq '{g}')" for g in escaped]
         return " or ".join(clauses)
+
+    def _query_vector(self, question: str) -> list[float] | None:
+        if not self.embedding_deployment:
+            return None
+        response = self.openai.embeddings.create(model=self.embedding_deployment, input=[question])
+        return list(response.data[0].embedding)
 
     def retrieve(
         self,
@@ -92,7 +100,7 @@ class AzureRagBackend:
         correlation = correlation_id or str(uuid.uuid4())
         filters = [f"({self._acl_filter(groups)})"]
         if repo:
-            filters.append(f"repo eq '{repo.replace(chr(39), chr(39) * 2)}'")
+            filters.append(f"repository eq '{repo.replace(chr(39), chr(39) * 2)}'")
         started = time.perf_counter()
         outcome = "success"
         docs: list[RetrievedDocument] = []
@@ -101,8 +109,15 @@ class AzureRagBackend:
             span.set_attribute("eip.repo", repo or "")
             span.set_attribute("eip.group_count", len(groups))
             try:
+                vector = self._query_vector(question)
+                vector_queries = (
+                    [VectorizedQuery(vector=vector, k_nearest_neighbors=max(top * 2, top), fields="embedding")]
+                    if vector is not None
+                    else None
+                )
                 result = self.search.search(
                     search_text=question,
+                    vector_queries=vector_queries,
                     query_type="semantic",
                     semantic_configuration_name=os.getenv("AZURE_SEARCH_SEMANTIC_CONFIG", "default"),
                     filter=" and ".join(filters),
@@ -114,14 +129,11 @@ class AzureRagBackend:
                         RetrievedDocument(
                             source=str(item.get("source", "unknown")),
                             text=str(item.get("content", "")),
-                            score=float(
-                                item.get("@search.reranker_score")
-                                or item.get("@search.score")
-                                or 0.0
-                            ),
+                            score=float(item.get("@search.reranker_score") or item.get("@search.score") or 0.0),
                         )
                     )
                 span.set_attribute("eip.search_documents", len(docs))
+                span.set_attribute("eip.search_mode", "hybrid" if vector is not None else "semantic-lexical")
             except Exception:
                 outcome = "error"
                 raise
