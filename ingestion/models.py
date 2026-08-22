@@ -21,6 +21,10 @@ class SourceIdentity:
     def document_id(self) -> str:
         return f"{self.provider}:{self.repository}:{self.branch}:{self.path}"
 
+    @property
+    def citation(self) -> str:
+        return f"{self.provider}:{self.repository}@{self.commit_sha}:{self.path}"
+
 
 @dataclass(frozen=True)
 class ACL:
@@ -63,6 +67,7 @@ class Chunk:
             "branch": self.source.branch,
             "commit_sha": self.source.commit_sha,
             "path": self.source.path,
+            "source": self.source.citation,
             "content": self.content,
             "ordinal": self.ordinal,
             "symbol": self.symbol,
