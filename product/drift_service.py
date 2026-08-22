@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Protocol
 
 from control_plane.workflows import ControlPlaneWorkflows
@@ -17,7 +17,7 @@ class DriftPublisher(Protocol):
 
 @dataclass(frozen=True)
 class DriftResult:
-    workflow_id: str
+    workflow_ids: tuple[str, ...]
     findings: tuple[DriftFinding, ...]
 
 
@@ -28,17 +28,19 @@ class DriftDetectorService:
         self.publisher = publisher
 
     def run(self, *, service: str, environment: str) -> DriftResult:
-        findings = tuple(
-            finding
-            for snapshot in self.provider.desired(service=service, environment=environment)
-            for finding in detect_drift(snapshot)
-        )
-        workflow = self.workflows.start_generic_workflow(
-            workflow_id=f"drift:{environment}:{service}",
-            service_id=service,
-            environment=environment,
-            kind="drift-detection",
-            plan_payload={"findings": [asdict(f) for f in findings]},
-        )
-        self.publisher.publish(service=service, environment=environment, findings=findings)
-        return DriftResult(workflow.workflow_id, findings)
+        snapshots = self.provider.desired(service=service, environment=environment)
+        all_findings: list[DriftFinding] = []
+        workflow_ids: list[str] = []
+        for snapshot in snapshots:
+            findings = detect_drift(snapshot)
+            all_findings.extend(findings)
+            workflow = self.workflows.start_drift_review(
+                resource_id=snapshot.resource_id,
+                service_id=service,
+                environment=environment,
+                findings=findings,
+            )
+            workflow_ids.append(workflow.workflow_id)
+        result = tuple(all_findings)
+        self.publisher.publish(service=service, environment=environment, findings=result)
+        return DriftResult(tuple(workflow_ids), result)
