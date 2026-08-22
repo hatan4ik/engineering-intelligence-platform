@@ -39,6 +39,8 @@ class KubernetesActionAdapter:
 
     Model-generated commands and free-form resources are never accepted. Safety
     conditions are evaluated from Kubernetes state immediately before mutation.
+    A digital twin may mark conditions as trusted only after the same adapter has
+    validated them against the source namespace before sandbox provisioning.
     """
 
     def __init__(
@@ -47,10 +49,12 @@ class KubernetesActionAdapter:
         *,
         namespace: str = "default",
         workload_label_key: str = "app",
+        trusted_preconditions: tuple[str, ...] = (),
     ) -> None:
         self.runner = runner or SubprocessRunner()
         self.namespace = self._safe_name(namespace)
         self.workload_label_key = self._safe_label_key(workload_label_key)
+        self.trusted_preconditions = frozenset(trusted_preconditions)
 
     @staticmethod
     def _safe_name(value: str) -> str:
@@ -112,9 +116,12 @@ class KubernetesActionAdapter:
         return False
 
     def preflight(self, runbook: Runbook, request: ActionRequest) -> tuple[bool, str]:
+        pending = tuple(c for c in runbook.preconditions if c not in self.trusted_preconditions)
+        if not pending:
+            return True, "all runbook preconditions were validated against the source environment"
         deployment = self._deployment(request)
         pods: list[dict[str, object]] | None = None
-        for condition in runbook.preconditions:
+        for condition in pending:
             if condition == "deployment.exists":
                 continue
             if condition == "deployment.degraded":
