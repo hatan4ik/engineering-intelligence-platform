@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Protocol
 
 from .catalog import RunbookCatalog
-from .policy import ActionRequest, PolicyDecision, ServiceAutonomy, authorize
+from .opa_policy import LocalReferenceEvaluator, PolicyControlState, PolicyEvaluator, as_policy_decision
+from .policy import ActionRequest, PolicyDecision, ServiceAutonomy
 
 
 class ActionAdapter(Protocol):
@@ -29,9 +31,23 @@ def execute_control_loop(
     policy: ServiceAutonomy,
     request: ActionRequest,
     adapter: ActionAdapter,
+    evaluator: PolicyEvaluator | None = None,
+    approval_verified: bool | None = None,
+    control: PolicyControlState | None = None,
 ) -> ExecutionResult:
     runbook = catalog.get(request.runbook_id)
-    decision = authorize(runbook, policy, request)
+    if evaluator is None and os.getenv("EIP_REQUIRE_OPA", "false").lower() == "true":
+        decision = PolicyDecision(False, "OPA policy evaluator is required but not configured")
+        return ExecutionResult(status="denied", policy=decision)
+    evaluator = evaluator or LocalReferenceEvaluator()
+    evaluated = evaluator.evaluate(
+        runbook=runbook,
+        policy=policy,
+        request=request,
+        approval_verified=bool(request.approval_token) if approval_verified is None else approval_verified,
+        control=control or PolicyControlState(),
+    )
+    decision = as_policy_decision(evaluated)
     if not decision.allowed:
         return ExecutionResult(status="denied", policy=decision)
 

@@ -1,21 +1,43 @@
 package engineering_intelligence.remediation
 
-default allow := false
+import rego.v1
 
-# Example: production automation is limited to low-risk, reversible,
-# explicitly allow-listed runbooks. Expand only through reviewed policy.
-allow if {
-  input.environment == "production"
-  input.risk == "low"
-  input.reversible == true
-  input.runbook in {"restart_workload", "rollback_last_release", "rotate_expired_certificate"}
-  input.audit_enabled == true
-  input.verification_defined == true
+policy_revision := "eip-remediation-v1"
+
+decision := {"allowed": false, "reason": deny_reason, "policy_revision": policy_revision} if {
+  deny_reason != ""
 }
 
-allow if {
-  input.environment != "production"
-  input.risk != "high"
-  input.reversible == true
-  input.audit_enabled == true
+decision := {"allowed": true, "reason": "authorized by OPA remediation policy", "policy_revision": policy_revision} if {
+  deny_reason == ""
 }
+
+# Ordered precedence guarantees exactly one deterministic reason even when
+# several controls fail simultaneously.
+deny_reason := "service kill switch is enabled" if {
+  input.policy.kill_switch == true
+} else := "request is outside service/environment policy scope" if {
+  input.request.service != input.policy.service
+} else := "request is outside service/environment policy scope" if {
+  input.request.environment != input.policy.environment
+} else := "runbook is not permitted in this environment" if {
+  not input.request.environment in input.runbook.environments
+} else := "blast radius exceeds certified limit" if {
+  input.request.blast_radius > input.runbook.max_blast_radius
+} else := "blast radius exceeds certified limit" if {
+  input.request.blast_radius > input.policy.max_blast_radius
+} else := "service autonomy level is below runbook requirement" if {
+  input.policy.level < input.runbook.required_level
+} else := "runbook is not certified for this service" if {
+  not input.runbook.id in input.policy.certified_runbooks
+} else := "verified human approval is required" if {
+  input.policy.level == 3
+  input.request.approval_verified != true
+} else := "error budget exhausted; autonomous mutation disabled" if {
+  input.policy.level >= 4
+  input.request.error_budget_remaining <= 0
+} else := "audit control unavailable" if {
+  input.control.audit_available != true
+} else := "verification control unavailable" if {
+  input.control.verification_defined != true
+} else := ""

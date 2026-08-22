@@ -9,13 +9,14 @@ from typing import Protocol
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel
 
+from app.gateway import ApiKeyPrincipalStore, GatewayAuthError, GatewayPolicyError, authorize_request
 from app.observability import configure_tracing, tracer
 from integrations.github.pr_guardian import normalize_pull_request_event
 from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
 
 configure_tracing()
 trace = tracer()
-app = FastAPI(title="Engineering Intelligence Platform", version="0.3.0")
+app = FastAPI(title="Engineering Intelligence Platform", version="0.4.0")
 
 
 class QueryRequest(BaseModel):
@@ -62,6 +63,40 @@ class InMemoryRetriever:
 
 def authorized_groups(raw: str | None) -> list[str]:
     return [g.strip() for g in (raw or "engineering").split(",") if g.strip()]
+
+
+def _gateway_identity(
+    *,
+    question: str,
+    api_key: str | None,
+    requested_model_tier: str | None,
+    fallback_groups: str | None,
+    fallback_user: str | None,
+) -> tuple[str, list[str], str, str]:
+    """Return sanitized question, trusted groups, user, and model tier.
+
+    Demo mode preserves the credential-free local workflow. Production mode
+    (`EIP_REQUIRE_AUTH=true`) never trusts caller-supplied group headers.
+    """
+    require_auth = os.getenv("EIP_REQUIRE_AUTH", "false").lower() == "true"
+    if not require_auth:
+        return question, authorized_groups(fallback_groups), fallback_user or "local-demo", "standard"
+    try:
+        decision = authorize_request(
+            question=question,
+            api_key=api_key,
+            requested_model_tier=requested_model_tier,
+            estimated_cost_usd=float(os.getenv("EIP_ESTIMATED_REQUEST_USD", "0.05")),
+            store=ApiKeyPrincipalStore.from_environment(),
+        )
+    except (GatewayAuthError, GatewayPolicyError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=401 if isinstance(exc, GatewayAuthError) else 403, detail=str(exc)) from exc
+    return (
+        decision.sanitized_question,
+        list(decision.principal.groups),
+        decision.principal.subject,
+        decision.model_tier,
+    )
 
 
 @app.get("/healthz")
@@ -115,10 +150,18 @@ def query(
     x_eip_groups: str | None = Header(default=None),
     x_correlation_id: str | None = Header(default=None),
     x_eip_user: str | None = Header(default=None),
+    x_eip_api_key: str | None = Header(default=None),
+    x_eip_model_tier: str | None = Header(default=None),
 ) -> QueryResponse:
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="question must not be empty")
-    groups = authorized_groups(x_eip_groups)
+    question, groups, user, model_tier = _gateway_identity(
+        question=req.question,
+        api_key=x_eip_api_key,
+        requested_model_tier=x_eip_model_tier,
+        fallback_groups=x_eip_groups,
+        fallback_user=x_eip_user,
+    )
     correlation_id = (x_correlation_id or str(uuid.uuid4())).strip()
     if not correlation_id or len(correlation_id) > 128:
         raise HTTPException(status_code=400, detail="invalid correlation id")
@@ -128,18 +171,26 @@ def query(
         span.set_attribute("eip.repo", req.repo or "")
         span.set_attribute("eip.service", req.service or "")
         span.set_attribute("eip.group_count", len(groups))
+        span.set_attribute("eip.model_tier", model_tier)
+        span.set_attribute("eip.user", user)
+        span.set_attribute("eip.redacted", question != req.question)
 
         if os.getenv("EIP_BACKEND", "deterministic") == "azure":
             from app.rag.azure_backend import AzureRagBackend
 
-            backend = AzureRagBackend()
+            deployment = (
+                os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT_ADVANCED")
+                if model_tier == "advanced"
+                else os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT_STANDARD")
+            ) or os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT")
+            backend = AzureRagBackend(deployment=deployment)
             docs = backend.retrieve(
-                req.question,
+                question,
                 req.repo,
                 groups,
                 correlation_id=correlation_id,
                 service=req.service,
-                user=x_eip_user,
+                user=user,
             )
             evidence = [Evidence(source=d.source, text=d.text, score=d.score) for d in docs]
             if not evidence:
@@ -150,21 +201,21 @@ def query(
                     correlation_id=correlation_id,
                 )
             answer = backend.synthesize(
-                req.question,
+                question,
                 docs,
                 correlation_id=correlation_id,
                 service=req.service,
                 repo=req.repo,
-                user=x_eip_user,
+                user=user,
             )
             return QueryResponse(
                 answer=answer,
                 evidence=evidence,
-                model=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "azure"),
+                model=deployment or "azure",
                 correlation_id=correlation_id,
             )
 
-        evidence = InMemoryRetriever().search(req.question, req.repo, groups)
+        evidence = InMemoryRetriever().search(question, req.repo, groups)
         citations = "; ".join(e.source for e in evidence)
         answer = (
             "Guardrailed automation should use policy-authorized, reversible runbooks. "
