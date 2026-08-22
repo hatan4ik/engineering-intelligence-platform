@@ -37,7 +37,7 @@ def policy(level=AutonomyLevel.APPROVE_AND_EXECUTE):
         service="payments",
         environment="prod",
         level=level,
-        certified_runbooks=("aks.rollout.undo", "aks.restart.workload"),
+        certified_runbooks=("aks.rollout.undo", "aks.rollback.readiness", "aks.restart.workload"),
         max_blast_radius=5,
     )
 
@@ -56,9 +56,9 @@ def test_l3_simulates_then_executes_certified_runbook():
     service = SelfHealingService(catalog=default_catalog(), policy=policy(), adapter=prod, sandbox_adapter=sandbox)
     result = service.handle_incident(incident(), blast_radius=2, approval_token="approved:plan")
     assert result.status == "succeeded"
-    assert result.plan.runbook_id == "aks.rollout.undo"
-    assert sandbox.calls[0] == ("execute", "aks.rollout.undo")
-    assert prod.calls[0] == ("execute", "aks.rollout.undo")
+    assert result.plan.runbook_id == "aks.rollback.readiness"
+    assert sandbox.calls[0] == ("execute", "aks.rollback.readiness")
+    assert prod.calls[0] == ("execute", "aks.rollback.readiness")
 
 
 def test_failed_production_verification_rolls_back():
