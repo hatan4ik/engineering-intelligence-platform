@@ -40,8 +40,9 @@ class TwinEnvironment:
 class KubernetesDigitalTwin:
     """Ephemeral namespace sandbox for a single certified workload simulation.
 
-    It clones a Deployment spec only. Secrets, external traffic, cloud identities,
-    and production namespace metadata are deliberately not copied implicitly.
+    Source-only safety preconditions are checked against the real source namespace
+    before cloning. The isolated clone then tests action execution and independent
+    post-action verification; it does not invent rollout history or incident state.
     """
 
     def __init__(self, runner: InputCommandRunner | None = None) -> None:
@@ -92,7 +93,6 @@ class KubernetesDigitalTwin:
             "labels": labels,
             "annotations": {"eip.openai/source-uid": str(metadata.get("uid") or "unknown")},
         }
-        # Service-account/cloud identity inheritance is not safe in a simulation.
         template = dict(spec.get("template") or {})
         pod_spec = dict(template.get("spec") or {})
         pod_spec.pop("serviceAccountName", None)
@@ -108,7 +108,6 @@ class KubernetesDigitalTwin:
 
     def destroy(self, namespace: str) -> None:
         namespace = self._safe_name(namespace)
-        # Cleanup is best-effort but never hidden from callers that invoke it explicitly.
         result = self.runner.run(("kubectl", "delete", "namespace", namespace, "--wait=false"))
         if result.returncode != 0 and "notfound" not in result.stderr.lower() and "not found" not in result.stderr.lower():
             raise RuntimeError(result.stderr.strip() or "failed to delete sandbox namespace")
@@ -122,13 +121,33 @@ class KubernetesDigitalTwin:
         policy: ServiceAutonomy,
         request: ActionRequest,
     ) -> SimulationResult:
+        runbook = catalog.get(request.runbook_id)
+        source_adapter = KubernetesActionAdapter(self.runner, namespace=source_namespace)
+        allowed, reason = source_adapter.preflight(runbook, request)
+        if not allowed:
+            from remediation.executor import ExecutionResult
+            from remediation.policy import PolicyDecision
+            return SimulationResult(
+                safe_to_promote=False,
+                execution=ExecutionResult(
+                    status="denied",
+                    policy=PolicyDecision(False, reason),
+                    error=reason,
+                ),
+                notes=("source preconditions failed; sandbox was not provisioned",),
+            )
+
         env = self.provision(
             simulation_id=simulation_id,
             service=request.service,
             source_namespace=source_namespace,
         )
         try:
-            adapter = KubernetesActionAdapter(self.runner, namespace=env.namespace)
+            adapter = KubernetesActionAdapter(
+                self.runner,
+                namespace=env.namespace,
+                trusted_preconditions=runbook.preconditions,
+            )
             return simulate(
                 catalog=catalog,
                 policy=policy,
