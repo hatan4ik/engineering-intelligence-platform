@@ -11,6 +11,8 @@ class ChangeContext:
     files_changed: int
     touches_iac: bool = False
     touches_identity_or_security: bool = False
+    touches_delivery_pipeline: bool = False
+    unmapped_service_change: bool = False
     weak_test_evidence: bool = False
     similar_failed_changes: int = 0
 
@@ -46,9 +48,17 @@ def assess_change(graph: ServiceGraph, ctx: ChangeContext) -> RiskAssessment:
     elif ctx.files_changed >= 10:
         factors.append(RiskFactor("medium-diff", 8, f"{ctx.files_changed} files changed"))
     if ctx.touches_iac:
-        factors.append(RiskFactor("infrastructure-change", 12, "IaC files changed"))
+        factors.append(RiskFactor("infrastructure-change", 12, "IaC or deployment infrastructure changed"))
+    if ctx.touches_delivery_pipeline:
+        factors.append(RiskFactor("delivery-control-change", 15, "CI/CD or repository automation changed"))
     if ctx.touches_identity_or_security:
         factors.append(RiskFactor("security-boundary-change", 20, "identity/security controls changed"))
+    if ctx.unmapped_service_change:
+        factors.append(RiskFactor(
+            "unmapped-service-change",
+            12,
+            "non-documentation code/control files changed but could not be mapped to an owned service",
+        ))
     if ctx.weak_test_evidence:
         factors.append(RiskFactor("weak-test-evidence", 10, "test evidence is missing or weak"))
     if ctx.similar_failed_changes:

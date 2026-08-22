@@ -1,0 +1,29 @@
+name: PR Guardian
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  guardian:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime dependencies
+        run: pip install -r app/requirements.txt
+      - name: Run PR Guardian
+        env:
+          PYTHONPATH: .
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EIP_STATE_DIR: .eip
+        run: python scripts/run_pr_guardian.py
