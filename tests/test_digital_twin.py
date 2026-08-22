@@ -30,7 +30,10 @@ class Runner:
                         },
                     },
                 },
+                "status": {"availableReplicas": 0, "readyReplicas": 0},
             }))
+        if argv[-3:] == ("rollout", "history", "deployment/payments"):
+            return CommandResult(0, "REVISION CHANGE-CAUSE\n1 v1\n2 v2\n")
         if argv[-3:] == ("apply", "-f", "-"):
             if self.fail_apply:
                 return CommandResult(1, "", "apply failed")
