@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 
+COMMENT_MARKER = "<!-- eip-pr-guardian -->"
+
+
 @dataclass(frozen=True)
 class PullRequestEvent:
     repository: str
@@ -113,4 +116,16 @@ class GitHubRestPRClient:
         )
 
     def publish_comment(self, *, repository: str, pr_number: int, body: str) -> None:
-        self._request("POST", f"/repos/{repository}/issues/{pr_number}/comments", {"body": body})
+        marked_body = f"{COMMENT_MARKER}\n{body}"
+        comments = self._request("GET", f"/repos/{repository}/issues/{pr_number}/comments?per_page=100")
+        if isinstance(comments, list):
+            for comment in reversed(comments):
+                if COMMENT_MARKER in str(comment.get("body", "")):
+                    comment_id = int(comment["id"])
+                    self._request(
+                        "PATCH",
+                        f"/repos/{repository}/issues/comments/{comment_id}",
+                        {"body": marked_body},
+                    )
+                    return
+        self._request("POST", f"/repos/{repository}/issues/{pr_number}/comments", {"body": marked_body})
