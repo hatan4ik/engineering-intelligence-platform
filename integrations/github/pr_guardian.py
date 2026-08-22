@@ -123,12 +123,21 @@ class GitHubRestPRClient:
             },
         )
 
-    def publish_comment(self, *, repository: str, pr_number: int, body: str) -> None:
-        marked_body = f"{COMMENT_MARKER}\n{body}"
+    def publish_sticky_comment(
+        self,
+        *,
+        repository: str,
+        pr_number: int,
+        marker: str,
+        body: str,
+    ) -> None:
+        if not marker.startswith("<!-- eip-") or not marker.endswith(" -->"):
+            raise ValueError("sticky marker must be an EIP HTML marker")
+        marked_body = body if marker in body else f"{marker}\n{body}"
         comments = self._request("GET", f"/repos/{repository}/issues/{pr_number}/comments?per_page=100")
         if isinstance(comments, list):
             for comment in reversed(comments):
-                if COMMENT_MARKER in str(comment.get("body", "")):
+                if marker in str(comment.get("body", "")):
                     comment_id = int(comment["id"])
                     self._request(
                         "PATCH",
@@ -137,3 +146,46 @@ class GitHubRestPRClient:
                     )
                     return
         self._request("POST", f"/repos/{repository}/issues/{pr_number}/comments", {"body": marked_body})
+
+    def publish_comment(self, *, repository: str, pr_number: int, body: str) -> None:
+        self.publish_sticky_comment(
+            repository=repository,
+            pr_number=pr_number,
+            marker=COMMENT_MARKER,
+            body=body,
+        )
+
+    def ensure_maintenance_issue(
+        self,
+        *,
+        repository: str,
+        marker: str,
+        title: str,
+        body: str,
+        labels: tuple[str, ...] = (),
+    ) -> int:
+        if not marker.startswith("<!-- eip-") or not marker.endswith(" -->"):
+            raise ValueError("issue marker must be an EIP HTML marker")
+        marked_body = body if marker in body else f"{marker}\n{body}"
+        issues = self._request("GET", f"/repos/{repository}/issues?state=open&per_page=100")
+        if isinstance(issues, list):
+            for issue in issues:
+                # Pull requests appear in the issues API; do not repurpose one.
+                if "pull_request" in issue:
+                    continue
+                if marker in str(issue.get("body", "")):
+                    number = int(issue["number"])
+                    self._request(
+                        "PATCH",
+                        f"/repos/{repository}/issues/{number}",
+                        {"title": title, "body": marked_body, "labels": list(labels)},
+                    )
+                    return number
+        created = self._request(
+            "POST",
+            f"/repos/{repository}/issues",
+            {"title": title, "body": marked_body, "labels": list(labels)},
+        )
+        if not isinstance(created, dict) or "number" not in created:
+            raise RuntimeError("GitHub issue creation did not return an issue number")
+        return int(created["number"])
