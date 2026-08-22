@@ -314,12 +314,12 @@ def system_overview(th: Theme) -> D:
     # Knowledge plane
     d.zone(28, 204, 452, 118, "KNOWLEDGE PLANE — ingestion/", "knowledge")
     d.card(52, 240, 190, 62, "Governed ingestion", ["chunk · ACL · ledger / DLQ"], accent="knowledge")
-    d.cylinder(330, 238, 120, 66, ["Search index", "+ metadata"], "knowledge")
+    d.cylinder(330, 238, 120, 66, ["Hybrid index", "BM25 + vector"], "knowledge")
 
     # Gateway plane
     d.zone(500, 204, 452, 118, "AI GATEWAY — app/", "gateway")
-    d.card(524, 240, 404, 62, "ACL filter → retrieve → LLM → citations",
-           ["authorization happens before retrieval"], accent="gateway")
+    d.card(524, 240, 404, 62, "Entra AuthN → ACL filter → LLM → citations",
+           ["hybrid retrieval · redaction · budgets — auth before retrieval"], accent="gateway")
 
     # Intelligence plane
     d.zone(28, 350, 452, 118, "INTELLIGENCE — intelligence/, product/", "intelligence")
@@ -365,39 +365,34 @@ DIAGRAMS = {
 # 2. Ingestion pipeline
 # ===========================================================================
 def ingestion_pipeline(th: Theme) -> D:
-    d = D(980, 420, th, "Ingestion pipeline: normalize, dedupe via ledger, chunk, attach ACLs, index; failures dead-letter and replay")
+    d = D(980, 420, th, "Ingestion pipeline: normalize, dedupe via ledger, chunk, attach ACLs, embed, index; failures dead-letter and replay")
     d.text(28, 40, "Knowledge plane — governed ingestion", size=16, weight="700", anchor="start")
     d.text(28, 60, "A changed file is replaced independently; failures dead-letter, never crash-loop", size=12, color=th.ink2, anchor="start")
     Y = 130
-    d.card(36, Y - 26, 118, 52, "Push event", ["GitHub / ADO"], accent="neutral")
-    d.card(196, Y - 26, 116, 52, "Normalize", ["events.py"], accent="knowledge")
-    d.diamond(408, Y, 128, 66, ["seen before?", "ledger.py"], accent="knowledge")
-    d.card(520, Y - 26, 116, 52, "Load files", ["providers.py"], accent="knowledge")
-    d.card(678, Y - 26, 122, 52, "Chunk + ACL", ["AST · text · acl"], accent="knowledge")
-    d.cylinder(898, Y - 34, 118, 68, ["Search", "index"], "knowledge")
-    d.edge([(154, Y), (196, Y)])
-    d.edge([(312, Y), (344, Y)])
-    d.edge([(472, Y), (520, Y)], label="new", ly=Y - 8)
-    d.edge([(636, Y), (678, Y)])
-    d.edge([(800, Y), (839, Y)], label="replace", ly=Y - 8, lx=812)
-    # duplicate path
-    d.edge([(408, Y - 33), (408, 78), (254, 78), (254, 104)], label="duplicate — acknowledge, no work", lx=470, ly=74)
-    # completion
-    d.edge([(898, Y + 34), (898, 214), (466, 214)], label="ledger: completed", lx=700, ly=208)
-    d.card(408, 196, 58, 36, "✓", accent="knowledge")
-    d.parts.pop()  # remove card text; replace with checkmark styling
-    d.text(437, 219, "done", size=11.5, weight="600")
-    # failure lane
-    d.zone(196, 268, 640, 116, "FAILURE PATH", "neutral")
-    d.cylinder(320, 292, 110, 62, ["Dead-letter", "queue"], "intelligence")
-    d.card(520, 296, 150, 54, "Operator replay", ["replay.py — explicit"], accent="intelligence")
-    d.edge([(560, Y + 26), (560, 268)], label="load / index failure", color=th.status["serious"],
-           marker="arrow-warn", lx=628, ly=250)
-    d.edge([(375, 323), (440, 323)], marker="", color=th.hairline)
-    d.edge([(377, 323), (520, 323)], label="after fix", ly=316)
-    d.edge([(670, 323), (740, 323), (740, 240), (560, 156)], marker="", color=th.hairline)
-    d.parts.pop()
-    d.edge([(670, 323), (760, 323), (760, 176), (600, 176), (600, 156)], label="re-enqueue", lx=800, ly=250)
+    d.card(30, Y - 26, 112, 52, "Push event", ["GitHub / ADO"], accent="neutral")
+    d.card(168, Y - 26, 104, 52, "Normalize", ["events.py"], accent="knowledge")
+    d.diamond(362, Y, 132, 66, ["seen before?", "ledger.py"], accent="knowledge")
+    d.card(452, Y - 26, 100, 52, "Load files", ["providers.py"], accent="knowledge")
+    d.card(576, Y - 26, 112, 52, "Chunk + ACL", ["AST · text · acl"], accent="knowledge")
+    d.card(712, Y - 26, 96, 52, "Embed", ["Azure OpenAI"], accent="knowledge")
+    d.cylinder(896, Y - 34, 110, 68, ["Hybrid", "index"], "knowledge")
+    d.edge([(142, Y), (168, Y)])
+    d.edge([(272, Y), (296, Y)])
+    d.edge([(428, Y), (452, Y)], label="new", ly=Y - 8)
+    d.edge([(552, Y), (576, Y)])
+    d.edge([(688, Y), (712, Y)])
+    d.edge([(808, Y), (839, Y)], label="replace", ly=Y - 8, lx=822)
+    d.edge([(362, Y - 33), (362, 78), (220, 78), (220, 104)], label="duplicate — acknowledge, no work", lx=480, ly=74)
+    d.edge([(896, Y + 34), (896, 214), (412, 214)], label="ledger: completed", lx=690, ly=208)
+    d.card(352, 196, 58, 36, "", accent="knowledge")
+    d.text(384, 219, "done", size=11.5, weight="600")
+    d.zone(168, 268, 640, 116, "FAILURE PATH", "neutral")
+    d.cylinder(300, 292, 110, 62, ["Dead-letter", "queue"], "intelligence")
+    d.card(500, 296, 150, 54, "Operator replay", ["replay.py — explicit"], accent="intelligence")
+    d.edge([(502, Y + 26), (502, 268)], label="load / index failure", color=th.status["serious"],
+           marker="arrow-warn", lx=580, ly=250)
+    d.edge([(357, 323), (500, 323)], label="after fix", ly=316)
+    d.edge([(650, 323), (762, 323), (762, 176), (540, 176), (540, 156)], label="re-enqueue", lx=802, ly=250)
     return d
 
 
@@ -405,25 +400,25 @@ def ingestion_pipeline(th: Theme) -> D:
 # 3. Query sequence (ACL before model)
 # ===========================================================================
 def query_sequence(th: Theme) -> D:
-    d = D(880, 580, th, "Query path: the ACL filter is compiled into the search request, so unauthorized content never reaches the model")
-    d.text(28, 40, "Retrieval — authorization before the model", size=16, weight="700", anchor="start")
+    d = D(880, 610, th, "Query path: authenticate, then compile the ACL filter into a hybrid search request so unauthorized content never reaches the model")
+    d.text(28, 40, "Retrieval — authenticate, authorize, then the model", size=16, weight="700", anchor="start")
     d.text(28, 60, "Unauthorized content never enters the candidate set — there is nothing to redact later", size=12, color=th.ink2, anchor="start")
     C, A, S, L = 120, 360, 600, 790
-    top, bot = 84, 552
+    top, bot = 84, 580
     d.lifeline(C, "Caller", top, bot, "neutral")
-    d.lifeline(A, "API  /v1/query", top, bot, "gateway")
+    d.lifeline(A, "AI gateway", top, bot, "gateway")
     d.lifeline(S, "Azure AI Search", top, bot, "knowledge")
     d.lifeline(L, "Azure OpenAI", top, bot, "gateway")
-    d.msg(C, A, 168, "question + identity groups")
-    d.selfmsg(A, 196, "resolve groups · correlation ID")
-    d.msg(A, S, 254, "search(query, filter = ACL)", note="trimming inside the request itself")
-    d.msg(S, A, 300, "authorized chunks only", dash="4 3")
-    d.frame(60, 330, 790, 62, "ALT — NO AUTHORIZED EVIDENCE")
-    d.msg(A, C, 374, "explicit insufficient-evidence answer", dash="4 3")
-    d.frame(60, 402, 790, 138, "ELSE — EVIDENCE FOUND")
-    d.msg(A, L, 442, "question + delimited evidence", note="system prompt: evidence is data")
-    d.msg(L, A, 486, "grounded answer", dash="4 3")
-    d.msg(A, C, 522, "answer + citations + correlation ID", dash="4 3")
+    d.msg(C, A, 168, "question + bearer token")
+    d.selfmsg(A, 196, "authenticate — Entra JWT / API key", "groups from claims · redaction · request budget")
+    d.msg(A, S, 268, "hybrid search (BM25 + vector, filter = ACL)", note="query embedded · trimming inside the request itself")
+    d.msg(S, A, 322, "authorized chunks only", dash="4 3")
+    d.frame(60, 352, 790, 62, "ALT — NO AUTHORIZED EVIDENCE")
+    d.msg(A, C, 396, "explicit insufficient-evidence answer", dash="4 3")
+    d.frame(60, 424, 790, 146, "ELSE — EVIDENCE FOUND")
+    d.msg(A, L, 466, "question + delimited evidence", note="system prompt: evidence is data")
+    d.msg(L, A, 514, "grounded answer", dash="4 3")
+    d.msg(A, C, 550, "answer + citations + correlation ID", dash="4 3")
     return d
 
 
@@ -498,7 +493,7 @@ def execution_flow(th: Theme) -> D:
     Y = 150
     d.card(24, Y - 26, 136, 52, "Proposed action", ["agent output"], accent="intelligence")
     d.diamond(258, Y, 132, 70, ["in certified", "catalog?"], accent="execution")
-    d.diamond(448, Y, 128, 70, ["policy", "authorize()?"], accent="execution")
+    d.diamond(448, Y, 128, 70, ["OPA decision", "fail closed"], accent="execution")
     d.diamond(636, Y, 132, 70, ["approval /", "simulation"], accent="execution")
     d.card(760, Y - 26, 96, 52, "Execute", ["fixed args"], accent="execution")
     d.diamond(918, Y, 100, 64, ["verify"], accent="execution")
@@ -531,7 +526,7 @@ def trust_boundaries(th: Theme) -> D:
     d.text(28, 60, "Every arrow is a control; nothing crosses a boundary implicitly", size=12, color=th.ink2, anchor="start")
     zx, zw = 36, 724
     d.zone(zx, 84, zw, 84, "UNTRUSTED INPUT", "neutral")
-    d.card(60, 116, 184, 40, "Webhooks", accent="neutral")
+    d.card(60, 116, 184, 40, "Webhooks · API calls", accent="neutral")
     d.card(300, 116, 220, 40, "Retrieved content", accent="neutral")
     d.card(560, 116, 184, 40, "Model output", accent="neutral")
     d.zone(zx, 206, zw, 68, "GOVERNED EVIDENCE", "knowledge")
@@ -539,7 +534,7 @@ def trust_boundaries(th: Theme) -> D:
     d.zone(zx, 308, zw, 68, "DETERMINISTIC AUTHORITY", "control")
     d.card(300, 324, 270, 40, "Policy · catalog · approvals", accent="control")
     d.zone(zx, 406, zw, 54, "MUTATION SURFACE — AKS / Azure", "execution")
-    d.edge([(152, 156), (152, 242), (318, 242)], label="HMAC verification — fail closed", lx=164, ly=196)
+    d.edge([(152, 156), (152, 242), (318, 242)], label="HMAC / Entra JWT — fail closed", lx=164, ly=196)
     d.edge([(410, 156), (410, 206)], label="ACL filter + injection detection", lx=410, ly=186)
     d.edge([(540, 242), (620, 242), (620, 156)], label="delimited as data", lx=634, ly=234)
     d.edge([(700, 156), (700, 176), (786, 176), (786, 344), (572, 344)])
@@ -557,7 +552,7 @@ def readme_overview(th: Theme) -> D:
     Y = 108
     d.card(30, Y - 30, 128, 64, "Sources", ["Git · ADO · ops", "telemetry"], accent="neutral")
     d.card(190, Y - 30, 140, 64, "Knowledge", ["chunk · ACL", "ledger / DLQ"], accent="knowledge")
-    d.card(362, Y - 30, 140, 64, "AI gateway", ["ACL → LLM", "citations"], accent="gateway")
+    d.card(362, Y - 30, 140, 64, "AI gateway", ["AuthN · ACL → LLM", "citations"], accent="gateway")
     d.card(534, Y - 30, 140, 64, "Agents", ["PR risk · RCA", "drift · deploy"], accent="intelligence")
     d.card(706, Y - 30, 140, 64, "Control", ["workflows · policy", "approvals · audit"], accent="control")
     d.card(878, Y - 30, 74, 64, "AKS", ["Azure"], accent="execution")
