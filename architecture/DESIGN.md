@@ -137,9 +137,18 @@ Key decisions:
   </picture>
 </p>
 
-The critical property is step 3: the ACL filter is part of the search request itself, so
+The gateway authenticates before anything else: bearer tokens are validated as Entra ID
+JWTs (`app/entra_identity.py` — issuer, audience, expiry, JWKS signature) or hashed API
+keys (`app/gateway.py`), and the caller's groups come from token claims, never from
+request headers. The same gateway step applies prompt redaction, selects the model tier
+the principal is entitled to, and enforces a per-request cost budget.
+
+The critical property is the search call: the ACL filter is part of the request itself, so
 content the caller is not entitled to **never enters the candidate set** — there is no code
 path in which the model sees unauthorized text and the platform must "remember" to redact it.
+Retrieval is hybrid (`ingestion/vector_search.py`): the query is embedded via Azure OpenAI
+and issued as a combined BM25 + vector query with semantic reranking, with the ACL filter
+applied to both arms.
 
 Runtime modes: `EIP_BACKEND=deterministic` (local/CI, no cloud dependency) and
 `EIP_BACKEND=azure` (Azure AI Search + Azure OpenAI via `DefaultAzureCredential`).
@@ -319,7 +328,7 @@ diff and posts its evidence — the platform dogfoods itself.
 | Decision | Chosen | Rejected | Why |
 |---|---|---|---|
 | Model hosting | Enterprise API (Azure OpenAI) under tenant isolation | Self-hosted open-weights on bare metal | Zero-retention enterprise terms give the IP guarantee without the GPU estate and MLOps burden; the RAG plane, not the model, is the differentiator |
-| Retrieval store | Azure AI Search (semantic + planned vector profile) | pgvector | Managed security trimming, semantic ranking, and Entra integration outweigh portability; the `Index` protocol keeps pgvector possible |
+| Retrieval store | Azure AI Search (hybrid BM25 + vector + semantic rerank) | pgvector | Managed security trimming, semantic ranking, and Entra integration outweigh portability; the `Index` protocol keeps pgvector possible |
 | Risk authority | Deterministic, explainable scoring | LLM-judged risk | A merge gate must be reproducible, auditable, and immune to prompt injection; the LLM contributes evidence, not the verdict |
 | Mutation policy | Typed in-code policy converging on OPA as the single decision service | Prose runbooks + human judgment only | Policy-as-code is testable and versioned; OPA convergence is tracked work — the current Python/OPA duplication is a known defect, not a design choice |
 | Local durability | SQLite implementations of production contracts | Mocks, or cloud services required for tests | Real concurrency/durability semantics in CI; production adapters (PostgreSQL/Cosmos, Service Bus) implement the same interfaces |
@@ -330,15 +339,20 @@ diff and posts its evidence — the platform dogfoods itself.
 Tracked honestly; grades and queue live in the
 [capability reconciliation](CAPABILITY-RECONCILIATION.md).
 
-1. **API identity is not yet Entra-backed** — group headers are a development affordance;
-   production requires token-validated identity before the gateway can be exposed.
-2. **Policy duplication** — Python policy and OPA examples coexist; until OPA is the single
-   decision service, drift between them is possible.
-3. **Vector retrieval is contract-only** — semantic reranking works today; embedding
-   deployment and hybrid query are queued, and recall claims should not be made before the
-   evaluation harness gates them.
+1. **Identity is implemented but not yet universally enforced** — Entra JWT validation and
+   hashed-API-key principals exist (`app/entra_identity.py`, `app/gateway.py`); the residual
+   risk is rollout: every ingress must require the gateway path, and on-behalf-of flows and
+   group-to-ACL mapping against real Entra groups still need production hardening.
+2. **Policy parity** — OPA is the authoritative, fail-closed decision adapter for
+   remediation (`remediation/opa_policy.py`); the residual risk is drift between the local
+   reference evaluator used in CI and the deployed Rego bundle — parity tests between the
+   two are the control.
+3. **Retrieval quality is implemented but not yet gated** — hybrid BM25 + vector retrieval
+   with ACL filtering exists (`ingestion/vector_search.py`); recall/precision claims should
+   still wait on the evaluation harness gating index and chunking changes in CI.
 4. **Verification independence** — some verification signals still derive from the action
    path; SLO-based independent verification is required before L4 certification is credible.
-5. **Local contracts vs production adapters** — SQLite semantics are proven; the
-   PostgreSQL/Cosmos/Service Bus adapters are not yet written, and subtle semantic drift
-   (isolation, lease clocks) is a real risk when they are.
+5. **Local contracts vs production adapters** — SQLite semantics are proven and the Cosmos
+   state adapter now exists (`state/cosmos_store.py`); the durable job queue's Service Bus
+   adapter is still unwritten, and semantic drift between local and production adapters
+   (isolation, lease clocks, compare-and-swap behavior) remains the risk to test for.
