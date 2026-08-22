@@ -16,7 +16,7 @@ class Runner:
     def run(self, argv, input_text=None):
         argv = tuple(argv)
         self.calls.append((argv, input_text))
-        if argv[-4:] == ("get", "deployment/payments", "-o", "json"):
+        if len(argv) > 3 and argv[1:3] == ("-n", "prod") and argv[-4:] == ("get", "deployment/payments", "-o", "json"):
             return CommandResult(0, json.dumps({
                 "metadata": {"name": "payments", "uid": "prod-uid", "labels": {"app": "payments"}},
                 "spec": {
@@ -41,7 +41,7 @@ class Runner:
             return CommandResult(0, "deployment.apps/payments created")
         if "rollout" in argv:
             return CommandResult(0, "deployment.apps/payments rolled back")
-        if argv[-4:] == ("deployment/payments", "-o", "json"):
+        if argv[-4:] == ("get", "deployment/payments", "-o", "json"):
             return CommandResult(0, json.dumps({
                 "spec": {"replicas": 1},
                 "status": {"availableReplicas": 1, "readyReplicas": 1},
