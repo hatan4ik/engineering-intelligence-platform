@@ -94,7 +94,7 @@ flowchart TD
         RAG["Identity → ACL filter → retrieve<br/>→ enterprise LLM → citations"]
     end
 
-    subgraph AGENTS["Intelligence plane — intelligence/, sdlc/"]
+    subgraph AGENTS["Intelligence plane — intelligence/, product/"]
         PRG["PR Guardian"]
         DFI["Deployment Failure Investigator"]
         INC["Incident Investigator"]

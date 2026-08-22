@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -9,6 +10,7 @@ from intelligence.graph import ServiceGraph
 from intelligence.pr_guardian import PRPolicyDecision, render_markdown
 from intelligence.risk import ChangeContext, RiskAssessment, assess_change
 from integrations.github.pr_guardian import GitHubPRClient, PullRequestEvent
+from telemetry.events import NullTelemetrySink, OperationEvent, TelemetrySink
 
 
 class HistoricalFailureProvider(Protocol):
@@ -38,13 +40,16 @@ class PRGuardianService:
         github: GitHubPRClient,
         workflows: ControlPlaneWorkflows,
         history: HistoricalFailureProvider | None = None,
+        telemetry: TelemetrySink | None = None,
     ) -> None:
         self.graph = graph
         self.github = github
         self.workflows = workflows
         self.history = history
+        self.telemetry = telemetry or NullTelemetrySink()
 
     def evaluate(self, event: PullRequestEvent) -> PRGuardianResult:
+        started = time.monotonic()
         files = self.github.list_changed_files(event.repository, event.number)
         filenames = tuple(item.filename for item in files)
         known_services = set(self.graph.nodes)
@@ -108,6 +113,22 @@ class PRGuardianService:
             pr_number=event.number,
             body=summary,
         )
+        self.telemetry.emit(OperationEvent(
+            correlation_id=workflow.correlation_id,
+            operation="pr-guardian-review",
+            component="product.pr_guardian",
+            outcome=conclusion,
+            latency_ms=(time.monotonic() - started) * 1000.0,
+            repo=event.repository,
+            service=primary_service,
+            agent="pr-guardian",
+            attributes={
+                "pr": str(event.number),
+                "head_sha": event.head_sha,
+                "score": str(assessment.score),
+                "band": assessment.band,
+            },
+        ))
         return PRGuardianResult(
             assessment=assessment,
             policy=policy,

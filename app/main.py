@@ -10,7 +10,8 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from app.observability import configure_tracing, tracer
-from sdlc.github_events import parse_pull_request_event, verify_webhook_signature
+from integrations.github.pr_guardian import normalize_pull_request_event
+from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
 
 configure_tracing()
 trace = tracer()
@@ -83,25 +84,28 @@ async def github_webhook(
         return {"status": "pong"}
     if x_github_event != "pull_request":
         return {"status": "ignored", "event": x_github_event or "unknown"}
-    event = parse_pull_request_event(json.loads(body), delivery_id=x_github_delivery)
-    if event is None:
+    try:
+        event = normalize_pull_request_event(json.loads(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if event.action not in REVIEW_ACTIONS:
         return {"status": "ignored", "reason": "action does not trigger review"}
     guardian = getattr(app.state, "pr_guardian", None)
     if guardian is None:
         raise HTTPException(status_code=503, detail="PR Guardian is not configured on this deployment")
     with trace.start_as_current_span("eip.pr_guardian") as span:
         span.set_attribute("eip.repo", event.repository)
-        span.set_attribute("eip.pr", event.pr_number)
-        result = guardian.handle(event)
-        span.set_attribute("eip.correlation_id", result.correlation_id)
+        span.set_attribute("eip.pr", event.number)
+        span.set_attribute("eip.delivery_id", x_github_delivery or "")
+        result = guardian.evaluate(event)
         span.set_attribute("eip.risk_score", result.assessment.score)
     return {
         "status": "reviewed",
         "workflow_id": result.workflow_id,
-        "correlation_id": result.correlation_id,
         "score": result.assessment.score,
         "band": result.assessment.band,
-        "conclusion": result.check.conclusion,
+        "conclusion": result.conclusion,
+        "changed_services": list(result.changed_services),
     }
 
 

@@ -149,7 +149,7 @@ Suggested reading order within each audience.
 | `ingestion/` | Knowledge | Source events, AST/text chunking, ACLs, index adapters, ledger/DLQ/replay, embedding contract |
 | `app/` | Gateway | FastAPI API, Azure RAG backend, webhook ingress, OTel bootstrap |
 | `intelligence/` | Intelligence | Service graph, change risk, PR Guardian, incident/deployment/drift analysis, SLO context |
-| `sdlc/` | Intelligence | PR Guardian E2E: GitHub events, diff/check adapters, self-review CLI |
+| `product/` `integrations/` `scripts/` | Intelligence | PR Guardian E2E: product service, GitHub REST/webhook adapters, CI runner |
 | `control_plane/` `state/` `orchestration/` | Control | Durable workflows, authoritative state + audit chain, job queue, plan-bound approvals |
 | `remediation/` | Execution | Runbook catalog, deterministic policy, Kubernetes adapter, simulation, verify/rollback |
 | `security/` `resilience/` | Control | Adversarial/provenance controls, degraded-mode policy, L4 certification |
