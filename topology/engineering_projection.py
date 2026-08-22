@@ -116,7 +116,7 @@ def project_service_governance(
 def impacted_owners(store: SqliteTopologyStore, origin_ids: set[str]) -> tuple[str, ...]:
     radius = store.blast_radius(origin_ids)
     owners: set[str] = set()
-    for node_id in radius.impacted_nodes:
+    for node_id in radius.impacted_ids:
         node = store.get_node(node_id)
         if node and node.owner:
             owners.add(node.owner)
