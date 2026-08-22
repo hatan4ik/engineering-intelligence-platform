@@ -25,4 +25,6 @@ jobs:
       - run: terraform -chdir=infra/terraform validate
       - uses: azure/setup-helm@v4
       - run: helm lint helm/eip
+      - name: Validate OPA policy bundle
+        run: docker run --rm -v "$PWD/infra/policy:/policy" openpolicyagent/opa:1.0.0 test /policy
       - run: docker build -t eip:ci .
