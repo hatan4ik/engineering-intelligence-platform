@@ -1,202 +1,112 @@
-import hashlib
-import hmac
-import json
-
-from fastapi.testclient import TestClient
-
-from app.main import app
+from integrations.github.pr_guardian import ChangedFile, PullRequestEvent, normalize_pull_request_event
+from intelligence.graph import ServiceGraph, ServiceNode
+from product.pr_guardian_service import PRGuardianService
 from control_plane.workflows import ControlPlaneWorkflows
-from intelligence.extractors import ServiceMetadata, build_graph
-from sdlc.github_checks import CheckRun, InMemoryCheckPublisher, conclusion_for
-from sdlc.github_events import (
-    ChangedFile,
-    parse_pull_request_event,
-    verify_webhook_signature,
-)
-from sdlc.pr_guardian_service import PRGuardianService
-from sdlc.pr_guardian_service import tests_present as detect_tests
 from state.audit import SqliteAuditLog
 from state.store import SqliteStateStore
-from telemetry.events import InMemoryTelemetrySink
 
 
-def make_service(tmp_path, changed, metadata=None):
-    workflows = ControlPlaneWorkflows(
-        SqliteStateStore(tmp_path / "state.db"),
-        SqliteAuditLog(tmp_path / "audit.db"),
-    )
-    graph = build_graph(metadata or [
-        ServiceMetadata(service="api", owner="platform", tier=1, dependencies=("auth", "database")),
-        ServiceMetadata(service="auth", owner="identity", tier=1),
+class FakeGitHub:
+    def __init__(self, files):
+        self.files = files
+        self.checks = []
+        self.comments = []
+
+    def list_changed_files(self, repository, pr_number):
+        return list(self.files)
+
+    def publish_check(self, **kwargs):
+        self.checks.append(kwargs)
+
+    def publish_comment(self, **kwargs):
+        self.comments.append(kwargs)
+
+
+class History:
+    def similar_failed_changes(self, *, repository, filenames):
+        return 1
+
+
+def graph():
+    g = ServiceGraph()
+    g.add(ServiceNode(name="payments", tier=1, dependencies=("identity",)))
+    g.add(ServiceNode(name="identity", tier=1))
+    g.add(ServiceNode(name="checkout", tier=2, dependencies=("payments",)))
+    return g
+
+
+def test_normalize_github_pr_payload():
+    event = normalize_pull_request_event({
+        "action": "synchronize",
+        "number": 42,
+        "repository": {"full_name": "acme/platform"},
+        "pull_request": {"head": {"sha": "abc123"}},
+    })
+    assert event.repository == "acme/platform"
+    assert event.number == 42
+    assert event.head_sha == "abc123"
+
+
+def test_pr_guardian_maps_services_scores_persists_and_publishes(tmp_path):
+    github = FakeGitHub([
+        ChangedFile("services/payments/auth.py", "modified", 20, 3),
+        ChangedFile("infra/payments/rbac.tf", "modified", 10, 1),
     ])
-
-    class Diff:
-        def changed_files(self, repository, pr_number):
-            return changed
-
-    publisher = InMemoryCheckPublisher()
-    telemetry = InMemoryTelemetrySink()
+    store = SqliteStateStore(tmp_path / "state.db")
+    audit = SqliteAuditLog(tmp_path / "audit.db")
     service = PRGuardianService(
-        diff_provider=Diff(),
-        graph_provider=lambda repo: graph,
-        workflows=workflows,
-        check_publisher=publisher,
-        telemetry=telemetry,
+        graph=graph(),
+        github=github,
+        workflows=ControlPlaneWorkflows(store, audit),
+        history=History(),
     )
-    return service, workflows, publisher, telemetry
 
+    result = service.evaluate(PullRequestEvent("acme/platform", 7, "deadbeef", "opened"))
 
-def make_event(**overrides):
-    payload = {
-        "action": "opened",
-        "repository": {"full_name": "acme/platform"},
-        "pull_request": {
-            "number": 7,
-            "title": "change auth",
-            "user": {"login": "dev"},
-            "head": {"sha": "abc123", "ref": "feature"},
-            "base": {"ref": "main"},
-        },
-    }
-    payload.update(overrides)
-    return parse_pull_request_event(payload, delivery_id="d-1")
-
-
-def test_webhook_signature_round_trip():
-    secret, body = "s3cret", b'{"zen": "ok"}'
-    sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    assert verify_webhook_signature(secret=secret, body=body, signature_header=sig)
-    assert not verify_webhook_signature(secret=secret, body=body, signature_header="sha256=deadbeef")
-    assert not verify_webhook_signature(secret=secret, body=body, signature_header=None)
-    assert not verify_webhook_signature(secret="", body=body, signature_header=sig)
-
-
-def test_ignored_actions_do_not_trigger_review():
-    assert parse_pull_request_event({"action": "labeled"}) is None
-    assert make_event(action="synchronize") is not None
-
-
-def test_high_risk_pr_produces_action_required_and_audit_chain(tmp_path):
-    changed = [
-        ChangedFile(path="services/auth/rbac_policy.py"),
-        ChangedFile(path="infra/terraform/identity.tf"),
-    ] + [ChangedFile(path=f"services/auth/mod_{i}.py") for i in range(30)]
-    service, workflows, publisher, telemetry = make_service(tmp_path, changed)
-
-    result = service.handle(make_event())
-
+    assert result.changed_services == ("payments",)
     assert result.assessment.score >= 70
-    assert result.policy.require_additional_approval
-    assert publisher.published[0].conclusion in {"neutral", "action_required"}
-    assert "security-boundary-change" in publisher.published[0].summary
-    workflow = workflows.store.get_workflow("pr:acme/platform:7")
-    assert workflow is not None and workflow.plan_hash is not None
-    assert workflows.audit.verify_chain()
-    assert telemetry.events[0].operation == "pr-guardian-review"
+    assert result.policy.require_additional_approval is True
+    assert store.get_workflow("pr:acme/platform:7") is not None
+    assert audit.verify_chain() is True
+    assert github.checks[0]["head_sha"] == "deadbeef"
+    assert github.checks[0]["name"] == "Engineering Intelligence / PR Guardian"
+    assert github.comments and "Risk score" in github.comments[0]["body"]
 
 
-def test_low_risk_pr_with_tests_is_success(tmp_path):
-    changed = [
-        ChangedFile(path="services/api/handlers.py"),
-        ChangedFile(path="tests/test_handlers.py"),
-    ]
-    service, _, publisher, _ = make_service(tmp_path, changed)
-    result = service.handle(make_event())
-    assert result.check.conclusion == "success"
-    assert not result.policy.block_merge
-    assert publisher.published[0].head_sha == "abc123"
-
-
-def test_redelivery_bumps_workflow_version_only(tmp_path):
-    changed = [ChangedFile(path="services/api/handlers.py")]
-    service, workflows, publisher, _ = make_service(tmp_path, changed)
-    service.handle(make_event())
-    service.handle(make_event())
-    workflow = workflows.store.get_workflow("pr:acme/platform:7")
-    assert workflow.version == 2
-    assert len(publisher.published) == 2
-    assert workflows.audit.verify_chain()
-
-
-def test_tests_present_detection():
-    assert detect_tests(["tests/test_api.py"])
-    assert detect_tests(["pkg/handlers_test.py"])
-    assert not detect_tests(["services/api/handlers.py", "README.md"])
-
-
-def test_conclusion_mapping():
-    from intelligence.pr_guardian import PRPolicyDecision
-
-    assert conclusion_for(PRPolicyDecision(False, False, False)) == "success"
-    assert conclusion_for(PRPolicyDecision(True, False, False)) == "neutral"
-    assert conclusion_for(PRPolicyDecision(True, True, True)) == "action_required"
-
-
-def signed(body: bytes, secret: str) -> dict:
-    return {
-        "X-Hub-Signature-256": "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest(),
-        "X-GitHub-Event": "pull_request",
-        "X-GitHub-Delivery": "d-42",
-        "Content-Type": "application/json",
-    }
-
-
-def test_webhook_endpoint_rejects_bad_signature(monkeypatch):
-    monkeypatch.setenv("EIP_GITHUB_WEBHOOK_SECRET", "hooksecret")
-    client = TestClient(app)
-    body = json.dumps({"action": "opened"}).encode()
-    response = client.post(
-        "/v1/events/github",
-        content=body,
-        headers={"X-Hub-Signature-256": "sha256=wrong", "X-GitHub-Event": "pull_request"},
+def test_unmapped_delivery_change_is_not_false_low(tmp_path):
+    github = FakeGitHub([
+        ChangedFile(".github/workflows/deploy.yml", "modified", 5, 2),
+        ChangedFile("product/new_control.py", "added", 30, 0),
+        ChangedFile("tests/test_control.py", "added", 20, 0),
+    ])
+    service = PRGuardianService(
+        graph=ServiceGraph(),
+        github=github,
+        workflows=ControlPlaneWorkflows(
+            SqliteStateStore(tmp_path / "state.db"),
+            SqliteAuditLog(tmp_path / "audit.db"),
+        ),
     )
-    assert response.status_code == 401
+    result = service.evaluate(PullRequestEvent("acme/platform", 9, "feedface", "opened"))
+    names = {factor.name for factor in result.assessment.factors}
+    assert "delivery-control-change" in names
+    assert "unmapped-service-change" in names
+    assert result.assessment.score >= 25
 
 
-def test_webhook_endpoint_reviews_pull_request(monkeypatch, tmp_path):
-    monkeypatch.setenv("EIP_GITHUB_WEBHOOK_SECRET", "hooksecret")
-    changed = [ChangedFile(path="infra/terraform/identity.tf")]
-    service, _, publisher, _ = make_service(tmp_path, changed)
-    app.state.pr_guardian = service
-    try:
-        client = TestClient(app)
-        payload = {
-            "action": "opened",
-            "repository": {"full_name": "acme/platform"},
-            "pull_request": {
-                "number": 9,
-                "title": "iac change",
-                "user": {"login": "dev"},
-                "head": {"sha": "ff00", "ref": "feature"},
-                "base": {"ref": "main"},
-            },
-        }
-        body = json.dumps(payload).encode()
-        response = client.post("/v1/events/github", content=body, headers=signed(body, "hooksecret"))
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "reviewed"
-        assert data["workflow_id"] == "pr:acme/platform:9"
-        assert publisher.published[0].head_sha == "ff00"
-    finally:
-        app.state.pr_guardian = None
-
-
-def test_webhook_endpoint_503_when_unconfigured(monkeypatch):
-    monkeypatch.setenv("EIP_GITHUB_WEBHOOK_SECRET", "hooksecret")
-    app.state.pr_guardian = None
-    client = TestClient(app)
-    payload = {
-        "action": "opened",
-        "repository": {"full_name": "acme/platform"},
-        "pull_request": {
-            "number": 1,
-            "title": "x",
-            "user": {"login": "dev"},
-            "head": {"sha": "aa", "ref": "f"},
-            "base": {"ref": "main"},
-        },
-    }
-    body = json.dumps(payload).encode()
-    response = client.post("/v1/events/github", content=body, headers=signed(body, "hooksecret"))
-    assert response.status_code == 503
+def test_low_risk_docs_only_pr_publishes_success(tmp_path):
+    github = FakeGitHub([
+        ChangedFile("docs/README.md", "modified", 2, 1),
+    ])
+    service = PRGuardianService(
+        graph=graph(),
+        github=github,
+        workflows=ControlPlaneWorkflows(
+            SqliteStateStore(tmp_path / "state.db"),
+            SqliteAuditLog(tmp_path / "audit.db"),
+        ),
+    )
+    result = service.evaluate(PullRequestEvent("acme/platform", 8, "cafebabe", "opened"))
+    assert result.assessment.score == 0
+    assert result.conclusion == "success"
+    assert github.checks[0]["conclusion"] == "success"

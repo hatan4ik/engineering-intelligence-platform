@@ -2,16 +2,16 @@ name: PR Guardian
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
 
 permissions:
   contents: read
   pull-requests: write
+  checks: write
 
 jobs:
-  change-risk:
+  guardian:
     runs-on: ubuntu-latest
-    env:
-      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,11 +19,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Run PR Guardian on this pull request
+      - name: Install runtime dependencies
+        run: pip install -r app/requirements.txt
+      - name: Run PR Guardian
         env:
+          PYTHONPATH: .
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          python -m sdlc.self_review \
-            --base-ref "origin/${{ github.base_ref }}" \
-            --head-sha "${{ github.event.pull_request.head.sha }}"
+          EIP_STATE_DIR: .eip
+        run: python scripts/run_pr_guardian.py
