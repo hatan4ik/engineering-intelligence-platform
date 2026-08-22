@@ -123,7 +123,10 @@ class D:
              *, accent: str = "neutral", title_size: int = 13, sub_size: int = 11) -> None:
         a = self.th.accents[accent]
         tint = _mix(self.th.surface, a, 0.06 if self.th.name == "light" else 0.10)
-        self.rect(x, y, w, h, fill=tint, stroke=self.th.hairline, rx=9)
+        self.parts.append(
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="9" fill="{tint}" '
+            f'stroke="{self.th.hairline}" stroke-width="1" filter="url(#soft-{self.th.name})"/>'
+        )
         self.parts.append(
             f'<path d="M {x+3} {y} h 3 v {h} h -3 a 9 9 0 0 1 0 -{h}" fill="{a}" '
             f'transform="translate(-3,0)"/>'
@@ -156,7 +159,7 @@ class D:
              lsize: int = 11, marker: str = "arrow") -> None:
         c = color or self.th.line
         d = "M " + " L ".join(f"{x} {y}" for x, y in pts)
-        s = f'<path d="{d}" fill="none" stroke="{c}" stroke-width="1.6"'
+        s = f'<path d="{d}" fill="none" stroke="{c}" stroke-width="1.7"'
         if dash:
             s += f' stroke-dasharray="{dash}"'
         if marker:
@@ -200,7 +203,11 @@ class D:
     def lifeline(self, x: float, label: str, y0: float, y1: float, accent: str = "neutral") -> None:
         a = self.th.accents[accent]
         w = max(120, 30 + len(label) * 7.6)
-        self.rect(x - w / 2, y0, w, 34, fill=_mix(self.th.surface, a, 0.08), stroke=self.th.hairline, rx=8)
+        self.parts.append(
+            f'<rect x="{x - w/2}" y="{y0}" width="{w}" height="34" rx="8" '
+            f'fill="{_mix(self.th.surface, a, 0.08)}" stroke="{self.th.hairline}" stroke-width="1" '
+            f'filter="url(#soft-{self.th.name})"/>'
+        )
         self.parts.append(f'<rect x="{x - w/2}" y="{y0}" width="4" height="34" rx="2" fill="{a}"/>')
         self.text(x, y0 + 22, label, size=12.5, weight="600")
         self.parts.append(
@@ -219,7 +226,7 @@ class D:
     def selfmsg(self, x: float, y: float, label: str, note: str | None = None) -> None:
         c = self.th.line
         self.parts.append(
-            f'<path d="M {x} {y} h 46 v 18 h -46" fill="none" stroke="{c}" stroke-width="1.6" '
+            f'<path d="M {x} {y} h 46 v 18 h -46" fill="none" stroke="{c}" stroke-width="1.7" '
             f'marker-end="url(#arrow-{self.th.name})"/>'
         )
         self.text(x + 56, y + 4, label, size=11.5, anchor="start", weight="600", halo=True)
@@ -236,7 +243,11 @@ class D:
         col = self.th.status[status] if status else self.th.accents[accent or "neutral"]
         pw = w or max(96, 20 + len(label) * 7.4)
         fill = _mix(self.th.surface, col, 0.12 if status else 0.08)
-        self.rect(cx - pw / 2, cy - 15, pw, 30, fill=fill, stroke=_mix(self.th.hairline, col, 0.5), rx=15)
+        self.parts.append(
+            f'<rect x="{cx - pw / 2}" y="{cy - 15}" width="{pw}" height="30" rx="15" fill="{fill}" '
+            f'stroke="{_mix(self.th.hairline, col, 0.5)}" stroke-width="1" '
+            f'filter="url(#soft-{self.th.name})"/>'
+        )
         self.text(cx, cy + 4.5, label, size=12, weight="600",
                   color=_mix(col, self.th.ink, 0.55) if status else self.th.ink)
         return pw, 30
@@ -244,10 +255,15 @@ class D:
     # ---- output -----------------------------------------------------------
     def render(self) -> str:
         th = self.th
-        defs = "".join(
-            f'<marker id="{mid}-{th.name}" viewBox="0 0 10 10" refX="8.5" refY="5" '
-            f'markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">'
-            f'<path d="M 0 1 L 9 5 L 0 9 z" fill="{col}"/></marker>'
+        shadow_alpha = "0.10" if th.name == "light" else "0.45"
+        defs = (
+            f'<filter id="soft-{th.name}" x="-12%" y="-12%" width="124%" height="130%">'
+            f'<feDropShadow dx="0" dy="1.5" stdDeviation="2.2" flood-color="#000000" '
+            f'flood-opacity="{shadow_alpha}"/></filter>'
+        ) + "".join(
+            f'<marker id="{mid}-{th.name}" viewBox="0 0 10 10" refX="8.6" refY="5" '
+            f'markerWidth="8" markerHeight="8" orient="auto-start-reverse">'
+            f'<path d="M 0.5 1.2 L 9 5 L 0.5 8.8 z" fill="{col}"/></marker>'
             for mid, col in (
                 ("arrow", th.line),
                 ("arrow-good", th.status["good"]),
