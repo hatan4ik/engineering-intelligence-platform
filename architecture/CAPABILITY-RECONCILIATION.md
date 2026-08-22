@@ -1,6 +1,6 @@
 # Original Product Capability Reconciliation
 
-This document resets implementation grooming around the **original Engineering Intelligence Platform product architecture**. The P1–P7 corrective sequence repaired structural prerequisites; it is not the product roadmap.
+This file is the current-state reconciliation for the **original Engineering Intelligence Platform product architecture**. It replaces the earlier corrective/P-track view with what is actually present on `main` after the product-completion sequence through production identity/state and certification evidence.
 
 ## Product north-star
 
@@ -14,7 +14,7 @@ Continuous governed ingestion
 Engineering knowledge + service/resource graph
         |
         v
-Secure AI Gateway / RAG / evidence assembly
+Authenticated AI Gateway / RAG / evidence assembly
         |
         +--> Engineering Q&A / IDE
         +--> PR Guardian / Architecture Guard
@@ -22,106 +22,69 @@ Secure AI Gateway / RAG / evidence assembly
         +--> Incident Intelligence
         +--> Drift Detector
         +--> Knowledge Decay Agent
-        +--> Change-risk / predictive intelligence
+        +--> Predictive change risk
         |
         v
-Durable control plane + deterministic policy + approval
+Durable control plane + plan-bound approval + OPA policy
         |
         v
-Certified runbooks -> execute -> independent verify
+Ephemeral digital twin -> certified runbook -> independent verify
         |
-        +--> success -> audit / learn
+        +--> success -> immutable audit / telemetry / learn
         `--> failure -> rollback / escalate
 ```
 
-**Invariant:** the LLM reasons; identity and ACLs constrain evidence; deterministic policy authorizes; allow-listed automation executes; independent signals verify. L5 unrestricted autonomy is unsupported.
+**Invariant:** models reason and recommend; authenticated identity and ACLs constrain evidence; OPA authorizes production mutations; allow-listed adapters execute; independent signals verify. L5 unrestricted autonomy remains unsupported.
 
-## Reconciled capability matrix
+## Current capability matrix
 
-Legend: **Implemented** = usable reference implementation on `main`; **Partial** = meaningful primitives exist but product workflow is incomplete; **Skeleton** = contract/example only; **Missing** = not implemented.
+Legend: **Implemented** = executable reference/product path exists and is CI-covered. **Partial** = useful production-capable path exists but operational breadth or external integration remains. **Not certified** = implementation exists but production evidence is intentionally still required.
 
-| Original product capability | Status after corrective work | Evidence in repo | Next product work |
+| Original capability | Current status | Implemented evidence | Remaining depth |
 |---|---|---|---|
-| Secure private Azure foundation | Implemented foundation | private Search/OpenAI/Key Vault, AKS Workload Identity, private DNS/endpoints | controlled egress, ingress/API auth, metadata-store private endpoint |
-| Continuous code ingestion | Partial/strong | GitHub/ADO events, AST chunks, ACL metadata, ledger/DLQ/replay | webhook auth, real ACL resolver, shared queue, reconciliation/backpressure |
-| Organizational memory | Partial | generic work-item/docs/runbook/incident/deployment/conversation model | concrete Boards/Jira/Confluence adapters and governed Teams/Slack decision |
-| Hybrid/vector RAG | Partial | Azure Search/OpenAI backend + embedding contracts | real embedding deployment/index vector profile, hybrid query/rerank, quality gates |
-| AI Gateway | Partial | FastAPI query path | auth middleware, model routing, budgets, cache, redaction, fallback/audit |
-| Service dependency graph | Partial | in-memory graph + manifest extraction | persistent graph; Terraform/Helm/K8s/runtime extraction; SLO/resource/owner links |
-| PR Guardian | Partial | deterministic risk + Markdown + durable PR workflow state | real GitHub/ADO PR event adapter, diff/service mapping, check/comment publishing, precision metrics |
-| Architecture Guard | Skeleton | risk/policy primitives only | ADR/reference-rule engine + PR evidence/output |
-| Deployment Failure Investigator | Partial | deployment-failure analysis + durable workflow | real pipeline webhook/log adapter, last-good diff, output/check/ticket integration |
-| Incident Intelligence | Partial/strong | evidence timeline, RCA hypotheses, SLO context, durable workflow | Azure Monitor/App Insights queries, topology correlation, incident-system output |
-| Drift Detector | Partial | desired/observed findings + durable workflow | Azure Resource Graph + Terraform plan/state + corrective PR workflow |
-| Knowledge Decay Agent | Missing | organizational memory has freshness fields | stale/conflicting knowledge scoring + documentation PR/ticket workflow |
-| Predictive change risk | Partial/strong | deterministic risk factors + blast radius + history input | real historical feature store, calibration, deployment gate integration |
-| Authoritative state/audit | Implemented local contract | optimistic state + hash-chained audit | production PostgreSQL/Cosmos adapter, retention/immutability/export |
-| Durable orchestration | Implemented local contract | leases, retry/backoff, restart recovery, DLQ | Service Bus/PostgreSQL production adapter, compensation/deadlines/concurrency policy |
-| Deterministic mutation policy | Partial | Python policy + OPA examples | one authoritative OPA decision contract, bundle version/audit, remove semantic duplication |
-| Human approval | Partial | plan-bound expiring approval | Entra approver auth/RBAC + portal/Teams/Slack UX |
-| Runbook library / AKS execution | Partial | typed catalog + fixed kubectl adapter + verification/rollback | expand certified failure classes, Azure resource adapters, pre/postconditions/idempotency |
-| Digital twin | Skeleton | simulation abstraction | ephemeral namespace/environment replay with independent health signals |
-| Self-healing loop | Partial/strong | policy -> execute -> verify -> rollback/escalate | SLO-aware production signals, orchestration integration, action audit and certification |
-| OpenTelemetry control-plane telemetry | Skeleton/partial | tracing bootstrap | spans/metrics across retrieval/model/policy/tool/action/workflow and dashboards |
-| AI security/red-team | Skeleton | basic injection detector/tool allow-list | adversarial corpus + poisoned index/ACL/confused deputy/egress tests in CI |
-| Supply-chain security | Skeleton | provenance contracts | SBOM/signing/attestation/admission workflow |
-| FinOps / model economics | Partial | cost attribution and ROI primitives | measured model/search/tool usage, budgets/routing/cache/anomaly alerts |
-| Executive control tower | Partial | KPI/ROI models + portal view models | live telemetry/API/dashboard and measured-vs-modeled benefit lineage |
-| Cross-cloud | Appropriate abstraction | provider contracts | defer depth until Azure reference implementation is production-deep |
-| Bounded L4 autonomy | Correct target, not certified | certification/resilience model | service+environment+runbook evidence, chaos drills, kill-switch and rollback certification |
+| Secure private Azure foundation | Implemented foundation | private Search/OpenAI/Key Vault, AKS Workload Identity, private endpoints/DNS | controlled egress and deployment-specific ingress hardening |
+| Continuous code ingestion | Partial/strong | GitHub/ADO events, AST chunks, ACL metadata, ledger/DLQ/replay | shared queue/backpressure and broader source reconciliation |
+| Organizational memory | Partial | governed work-item/docs/runbook/incident/deployment/conversation model | concrete Jira/Confluence/Teams/Slack adapters |
+| Hybrid/vector RAG | Implemented reference | Azure Search hybrid/vector retrieval, ACL filter, safe evidence synthesis, evaluation | production index tuning and quality calibration |
+| AI Gateway | Implemented production boundary | Entra bearer auth, trusted groups/roles, redaction, model routing, request budgets | Graph group-overage resolver and operator UX |
+| Service/resource graph | Implemented reference | persistent graph, service/resource/owner/SLO projections, blast radius | broader runtime/IaC extractors and scale tuning |
+| PR Guardian | Implemented E2E | GitHub event -> diff/service mapping -> graph/risk -> durable workflow -> check/comment contract | precision measurement on real org history |
+| Architecture Guard | Implemented reference | ADR/reference architecture rules with deterministic findings | broader rule catalog and PR publishing integration |
+| Deployment Failure Investigator | Implemented E2E | pipeline failure normalization, evidence/last-good correlation, hypotheses, durable output | additional pipeline providers and ticket UX |
+| Incident Intelligence | Implemented E2E | Azure Monitor evidence adapter, topology/change correlation, evidence-backed RCA | richer App Insights/OTel queries and incident-system publishing |
+| Drift Detector | Implemented E2E | Git/Terraform desired state + Azure Resource Graph observed state -> durable drift finding | corrective PR automation and more resource projections |
+| Knowledge Decay Agent | Implemented reference | stale/ownerless/conflicting knowledge scoring | documentation PR/ticket publisher |
+| Predictive change risk | Implemented reference | historical calibration, explicit confidence/evidence, deployment-risk output | real feature-store history and threshold calibration |
+| Authoritative state | Implemented production adapter | SQLite contract plus Cosmos DB adapter with `_etag` CAS and app versions | multi-region policy/backup/retention operations |
+| Audit | Implemented local contract | hash-chained audit and control-plane action audit | immutable external export/retention policy |
+| Durable orchestration | Implemented | leases, retry/backoff, restart recovery, DLQ, durable remediation jobs | Service Bus/PostgreSQL production queue adapter |
+| Mutation policy | Implemented | authoritative OPA contract, fail-closed client, OPA-native CI tests | bundle distribution/version promotion operations |
+| Human approval | Implemented L3 primitive | exact plan-hash HMAC approval with expiry + Entra identity boundary | portal/Teams/Slack approval UX and approver-role mapping |
+| Runbook library / AKS execution | Implemented reference | fixed typed runbooks, argv-only Kubernetes adapter, verify/rollback/escalation | more certified failure classes and Azure-resource actions |
+| Digital twin | Implemented | ephemeral `eip-sim-*` Kubernetes sandbox, identity stripping, same adapter/verification, guaranteed cleanup | richer dependency replay and data fixtures |
+| Self-healing loop | Implemented supervised | incident evidence -> plan -> durable approval -> OPA -> twin -> execute -> verify -> rollback/escalate -> audit | production runbook breadth and live operational drills |
+| OpenTelemetry control-plane telemetry | Implemented | correlated plan/approval/twin/action/terminal telemetry, OTLP traces/metrics, SLO projection | dashboard packaging and alert thresholds |
+| AI security/red-team | Implemented CI gate | poisoned evidence, policy bypass, secret exfiltration, ACL isolation, confused-deputy corpus | larger adversarial corpus and network-egress exercises |
+| Supply-chain security | Implemented reference gate | exact dependency pins, CycloneDX-style SBOM, provenance digest, admission verifier, CI artifact | image signing/keyless attestation and cluster admission integration |
+| FinOps / model economics | Partial/strong | token/search/tool usage events, cost rates, gateway budgets, OTel cost metrics | anomaly alerts and measured routing optimization |
+| Executive control tower | Partial | KPI/ROI models plus live telemetry primitives | dashboard/API packaging and measured benefit lineage |
+| Cross-cloud | Appropriate abstraction | provider contracts maintained | intentionally deferred until Azure depth is complete |
+| L3 supervised autonomy | Implementation ready; evidence gate added | plan-bound approval, OPA, digital twin, rollback, kill-switch/error-mode primitives, evidence-bound certification report | execute and retain real service/environment/runbook drills |
+| L4 bounded autonomy | Not certified | per-service/environment/runbook certification model and exercise evidence digest | real chaos evidence for every required control before promotion |
 
-## Product execution order from here
+## What remains before production L3/L4 promotion
 
-### Product Track A — Engineering Knowledge that developers can trust
-1. Complete hybrid/vector retrieval and evaluation.
-2. Complete concrete source adapters and ACL resolution.
-3. Persist service/resource/ownership/SLO graph.
-4. Add AI Gateway authentication, model routing, budgets, redaction and audit.
-5. Deliver authenticated engineering Q&A / IDE-facing API with citations.
+1. Execute real, retained exercises per service/environment/runbook for successful remediation, verification failure, rollback, kill switch, policy outage, audit outage and error-budget exhaustion.
+2. Add broader certified runbooks for common Kubernetes/Azure failure classes with explicit preconditions, postconditions and rollback semantics.
+3. Add immutable audit export plus production durable queue backend.
+4. Package operational dashboards/alerts around the new control-plane metrics and SLO projection.
+5. Integrate signed image attestations with cluster admission policy.
+6. Calibrate predictive-risk and PR-Guardian thresholds against real deployment history.
 
-### Product Track B — AI-native SDLC
-1. Ship real GitHub PR Guardian end-to-end.
-2. Add Architecture Guard using ADR/reference architecture rules.
-3. Wire change-risk into checks, test amplification and release gates.
-4. Ship Deployment Failure Investigator from pipeline event to evidence-backed output.
-5. Add Knowledge Decay agent that creates reviewable documentation work, never silently rewrites truth.
+## Promotion rule
 
-### Product Track C — Operational intelligence
-1. Connect Azure Monitor/App Insights/OTel evidence sources.
-2. Persist and traverse service/resource topology.
-3. Ship incident timeline/RCA with evidence citations.
-4. Connect Drift Detector to Azure Resource Graph + Terraform/Git desired state.
-5. Calibrate historical failure/change similarity and predictive deployment risk.
-
-### Product Track D — Supervised self-healing
-1. Make OPA the authoritative mutation decision service.
-2. Expand certified runbooks and Azure/AKS action adapters.
-3. Connect durable orchestration to remediation workflows.
-4. Add ephemeral digital-twin replay for risky plans.
-5. Add SLO/error-budget-aware independent verification.
-6. Add authenticated approvals and operator control surface.
-7. Certify L3 first; L4 only per service/environment/runbook after evidence and chaos drills.
-
-### Product Track E — Enterprise controls and measurable transformation
-1. Full control-plane OTel and SLO dashboards.
-2. AI red-team CI, supply-chain attestations and admission controls.
-3. Live FinOps/model-routing budgets and unit economics.
-4. Executive control tower tied to source telemetry.
-5. Measure PR cycle time, change failure rate, MTTR, recurrence, prevented incidents, accepted/rejected recommendations and autonomous-action rollback rate.
-
-## Immediate implementation queue
-
-The next code should **not** be another generic platform prerequisite. Execute the product in this order:
-
-1. **PR Guardian E2E** — GitHub PR payload/diff -> changed-service mapping -> graph/risk -> durable workflow/audit -> GitHub Check/comment contract.
-2. **Hybrid/vector RAG completion** — embedding adapter + Search vector schema/query + ACL filter + citations + evaluation gate.
-3. **Persistent service/resource graph** — repository/IaC/Kubernetes/ownership/SLO projections and blast-radius queries.
-4. **Deployment Failure Investigator E2E** — pipeline failure -> logs/deployment/last-good change -> hypotheses -> durable output.
-5. **Incident Intelligence E2E** — Azure telemetry adapters -> topology/change correlation -> evidence-backed RCA.
-6. **Drift E2E** — Resource Graph/Terraform/Git -> drift finding -> corrective PR recommendation.
-7. **Knowledge Decay** — stale/conflicting docs -> evidence -> reviewable documentation PR/ticket.
-8. **Self-healing integration** — durable job -> policy -> approval/simulation -> certified adapter -> verify -> rollback/escalate -> audit.
+No service moves to L3 or L4 because the implementation exists. Promotion is **service + environment + runbook specific** and requires a complete evidence set with no failed exercise, no missing evidence reference, no observed blast radius above the certified bound, independent verification, and security review. L4 additionally requires error-budget enforcement evidence and all bounded-autonomy controls.
 
 ## Acceptance rule
 
-Every new PR must map to one of the original product capabilities above and improve at least one measurable outcome: retrieval quality, developer workflow, change-risk precision, incident diagnosis, remediation safety, security, reliability or unit economics. Corrective P-labels are complete; future PR titles should name the **product capability being delivered**.
+Every future PR must map to an original product capability and improve at least one measurable outcome: retrieval quality, developer workflow, change-risk precision, incident diagnosis, remediation safety, security, reliability or unit economics.
