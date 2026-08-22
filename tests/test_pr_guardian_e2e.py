@@ -73,7 +73,28 @@ def test_pr_guardian_maps_services_scores_persists_and_publishes(tmp_path):
     assert github.comments and "Risk score" in github.comments[0]["body"]
 
 
-def test_low_risk_pr_publishes_success(tmp_path):
+def test_unmapped_delivery_change_is_not_false_low(tmp_path):
+    github = FakeGitHub([
+        ChangedFile(".github/workflows/deploy.yml", "modified", 5, 2),
+        ChangedFile("product/new_control.py", "added", 30, 0),
+        ChangedFile("tests/test_control.py", "added", 20, 0),
+    ])
+    service = PRGuardianService(
+        graph=ServiceGraph(),
+        github=github,
+        workflows=ControlPlaneWorkflows(
+            SqliteStateStore(tmp_path / "state.db"),
+            SqliteAuditLog(tmp_path / "audit.db"),
+        ),
+    )
+    result = service.evaluate(PullRequestEvent("acme/platform", 9, "feedface", "opened"))
+    names = {factor.name for factor in result.assessment.factors}
+    assert "delivery-control-change" in names
+    assert "unmapped-service-change" in names
+    assert result.assessment.score >= 25
+
+
+def test_low_risk_docs_only_pr_publishes_success(tmp_path):
     github = FakeGitHub([
         ChangedFile("docs/README.md", "modified", 2, 1),
     ])
