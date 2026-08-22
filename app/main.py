@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from dataclasses import dataclass
 from typing import Protocol
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from app.observability import configure_tracing, tracer
+from integrations.github.pr_guardian import normalize_pull_request_event
+from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
 
 configure_tracing()
 trace = tracer()
@@ -64,6 +67,46 @@ def authorized_groups(raw: str | None) -> list[str]:
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/v1/events/github")
+async def github_webhook(
+    request: Request,
+    x_hub_signature_256: str | None = Header(default=None),
+    x_github_event: str | None = Header(default=None),
+    x_github_delivery: str | None = Header(default=None),
+) -> dict[str, object]:
+    body = await request.body()
+    secret = os.getenv("EIP_GITHUB_WEBHOOK_SECRET", "")
+    if not verify_webhook_signature(secret=secret, body=body, signature_header=x_hub_signature_256):
+        raise HTTPException(status_code=401, detail="invalid or missing webhook signature")
+    if x_github_event == "ping":
+        return {"status": "pong"}
+    if x_github_event != "pull_request":
+        return {"status": "ignored", "event": x_github_event or "unknown"}
+    try:
+        event = normalize_pull_request_event(json.loads(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if event.action not in REVIEW_ACTIONS:
+        return {"status": "ignored", "reason": "action does not trigger review"}
+    guardian = getattr(app.state, "pr_guardian", None)
+    if guardian is None:
+        raise HTTPException(status_code=503, detail="PR Guardian is not configured on this deployment")
+    with trace.start_as_current_span("eip.pr_guardian") as span:
+        span.set_attribute("eip.repo", event.repository)
+        span.set_attribute("eip.pr", event.number)
+        span.set_attribute("eip.delivery_id", x_github_delivery or "")
+        result = guardian.evaluate(event)
+        span.set_attribute("eip.risk_score", result.assessment.score)
+    return {
+        "status": "reviewed",
+        "workflow_id": result.workflow_id,
+        "score": result.assessment.score,
+        "band": result.assessment.band,
+        "conclusion": result.conclusion,
+        "changed_services": list(result.changed_services),
+    }
 
 
 @app.post("/v1/query", response_model=QueryResponse)

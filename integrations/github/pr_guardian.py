@@ -80,18 +80,26 @@ class GitHubRestPRClient:
         return json.loads(raw) if raw else None
 
     def list_changed_files(self, repository: str, pr_number: int) -> list[ChangedFile]:
-        result = self._request("GET", f"/repos/{repository}/pulls/{pr_number}/files?per_page=100")
-        if not isinstance(result, list):
-            raise RuntimeError("GitHub files response was not a list")
-        return [
-            ChangedFile(
-                filename=str(item["filename"]),
-                status=str(item.get("status", "modified")),
-                additions=int(item.get("additions", 0)),
-                deletions=int(item.get("deletions", 0)),
+        files: list[ChangedFile] = []
+        page = 1
+        while True:
+            result = self._request(
+                "GET", f"/repos/{repository}/pulls/{pr_number}/files?per_page=100&page={page}"
             )
-            for item in result
-        ]
+            if not isinstance(result, list):
+                raise RuntimeError("GitHub files response was not a list")
+            files.extend(
+                ChangedFile(
+                    filename=str(item["filename"]),
+                    status=str(item.get("status", "modified")),
+                    additions=int(item.get("additions", 0)),
+                    deletions=int(item.get("deletions", 0)),
+                )
+                for item in result
+            )
+            if len(result) < 100:
+                return files
+            page += 1
 
     def publish_check(
         self,
