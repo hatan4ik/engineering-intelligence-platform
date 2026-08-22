@@ -16,7 +16,7 @@ from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
 
 configure_tracing()
 trace = tracer()
-app = FastAPI(title="Engineering Intelligence Platform", version="0.4.0")
+app = FastAPI(title="Engineering Intelligence Platform", version="0.5.0")
 
 
 class QueryRequest(BaseModel):
@@ -69,25 +69,33 @@ def _gateway_identity(
     *,
     question: str,
     api_key: str | None,
+    authorization: str | None,
     requested_model_tier: str | None,
     fallback_groups: str | None,
     fallback_user: str | None,
 ) -> tuple[str, list[str], str, str]:
-    """Return sanitized question, trusted groups, user, and model tier.
-
-    Demo mode preserves the credential-free local workflow. Production mode
-    (`EIP_REQUIRE_AUTH=true`) never trusts caller-supplied group headers.
-    """
     require_auth = os.getenv("EIP_REQUIRE_AUTH", "false").lower() == "true"
     if not require_auth:
         return question, authorized_groups(fallback_groups), fallback_user or "local-demo", "standard"
+
+    auth_mode = os.getenv("EIP_AUTH_MODE", "entra").lower()
     try:
+        if auth_mode == "entra":
+            from app.entra_identity import EntraPrincipalStore, EntraSettings
+            store = EntraPrincipalStore(EntraSettings.from_environment())
+            credential = authorization
+        elif auth_mode == "api-key":
+            store = ApiKeyPrincipalStore.from_environment()
+            credential = api_key
+        else:
+            raise GatewayAuthError("unsupported production auth mode")
+
         decision = authorize_request(
             question=question,
-            api_key=api_key,
+            api_key=credential,
             requested_model_tier=requested_model_tier,
             estimated_cost_usd=float(os.getenv("EIP_ESTIMATED_REQUEST_USD", "0.05")),
-            store=ApiKeyPrincipalStore.from_environment(),
+            store=store,  # type: ignore[arg-type]
         )
     except (GatewayAuthError, GatewayPolicyError, ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=401 if isinstance(exc, GatewayAuthError) else 403, detail=str(exc)) from exc
@@ -147,6 +155,7 @@ async def github_webhook(
 @app.post("/v1/query", response_model=QueryResponse)
 def query(
     req: QueryRequest,
+    authorization: str | None = Header(default=None),
     x_eip_groups: str | None = Header(default=None),
     x_correlation_id: str | None = Header(default=None),
     x_eip_user: str | None = Header(default=None),
@@ -158,6 +167,7 @@ def query(
     question, groups, user, model_tier = _gateway_identity(
         question=req.question,
         api_key=x_eip_api_key,
+        authorization=authorization,
         requested_model_tier=x_eip_model_tier,
         fallback_groups=x_eip_groups,
         fallback_user=x_eip_user,
