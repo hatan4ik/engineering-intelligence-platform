@@ -19,6 +19,7 @@ class Evidence:
                 timestamp=deployed,
                 summary="deployment recorded",
                 severity=1,
+                source="azure-devops",
             ),
             EvidenceEvent(
                 id="alert-1",
@@ -27,6 +28,7 @@ class Evidence:
                 timestamp=deployed + timedelta(minutes=4),
                 summary="readiness failures increased",
                 severity=4,
+                source="azure-monitor",
             ),
         ]
 
