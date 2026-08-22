@@ -18,6 +18,7 @@ from state.models import WorkflowRecord
 class PreparedRemediation:
     workflow: WorkflowRecord
     plan: RemediationPlan
+    blast_radius: int
 
 
 class DurableSelfHealingCoordinator:
@@ -63,7 +64,7 @@ class DurableSelfHealingCoordinator:
             confidence=plan.confidence,
         )
         workflow = self.workflows.prepare(workflow_plan)
-        return PreparedRemediation(workflow, plan)
+        return PreparedRemediation(workflow, plan, blast_radius)
 
     def approve_and_enqueue(
         self,
@@ -87,25 +88,15 @@ class DurableSelfHealingCoordinator:
                 "service": self.policy.service,
                 "environment": self.policy.environment,
                 "runbook_id": prepared.plan.runbook_id,
-                "blast_radius": prepared.workflow.plan_hash and self._blast_radius_from_workflow(prepared),
+                "blast_radius": prepared.blast_radius,
                 "approval_verified": True,
                 "error_budget_remaining": error_budget_remaining,
             },
         )
 
-    @staticmethod
-    def _blast_radius_from_workflow(prepared: PreparedRemediation) -> int:
-        # The immutable plan hash binds the original value; callers cannot alter
-        # it after approval. Current PreparedRemediation keeps only the workflow
-        # and deterministic plan, so blast radius is recovered by coordinator
-        # input in the durable payload helper below.
-        # Kept as a separate method to make replacement with a plan store trivial.
-        return int(getattr(prepared, "blast_radius", 1))
-
     def handle_job(self, job: Job) -> ExecutionResult:
-        if job.kind != self.JOB_KIND or job.workflow_id != str(job.payload.get("workflow_id", job.workflow_id)):
-            if job.kind != self.JOB_KIND:
-                raise ValueError("unexpected remediation job kind")
+        if job.kind != self.JOB_KIND:
+            raise ValueError("unexpected remediation job kind")
         if job.payload.get("approval_verified") is not True:
             raise PermissionError("durable remediation job was not created from a verified approval")
         request = ActionRequest(
