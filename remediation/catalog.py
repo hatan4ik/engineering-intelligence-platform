@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Callable
 
 
 class AutonomyLevel(IntEnum):
@@ -23,6 +22,10 @@ class Runbook:
     required_level: AutonomyLevel
     verify_signal: str
     rollback_id: str | None = None
+    failure_class: str = "generic"
+    preconditions: tuple[str, ...] = ()
+    postconditions: tuple[str, ...] = ()
+    idempotency_scope: str = "durable-workflow"
 
 
 class RunbookCatalog:
@@ -34,6 +37,10 @@ class RunbookCatalog:
             raise ValueError(f"duplicate runbook: {runbook.id}")
         if runbook.required_level >= AutonomyLevel.APPROVE_AND_EXECUTE and not runbook.reversible:
             raise ValueError("automated production runbooks must be reversible")
+        if runbook.required_level >= AutonomyLevel.APPROVE_AND_EXECUTE and not runbook.preconditions:
+            raise ValueError("automated production runbooks must declare preconditions")
+        if runbook.required_level >= AutonomyLevel.APPROVE_AND_EXECUTE and not runbook.postconditions:
+            raise ValueError("automated production runbooks must declare postconditions")
         self._items[runbook.id] = runbook
 
     def get(self, runbook_id: str) -> Runbook:
@@ -57,6 +64,22 @@ def default_catalog() -> RunbookCatalog:
         required_level=AutonomyLevel.APPROVE_AND_EXECUTE,
         verify_signal="deployment.available_replicas",
         rollback_id="aks.rollout.redo",
+        failure_class="deployment-regression",
+        preconditions=("deployment.exists", "rollout.history_available", "deployment.degraded"),
+        postconditions=("deployment.available_replicas",),
+    ))
+    catalog.register(Runbook(
+        id="aks.rollback.readiness",
+        description="Rollback a deployment when readiness regressed after a release",
+        environments=("stage", "prod"),
+        max_blast_radius=5,
+        reversible=True,
+        required_level=AutonomyLevel.APPROVE_AND_EXECUTE,
+        verify_signal="deployment.ready_replicas",
+        rollback_id="aks.rollout.redo",
+        failure_class="readiness-regression",
+        preconditions=("deployment.exists", "rollout.history_available", "deployment.degraded"),
+        postconditions=("deployment.ready_replicas",),
     ))
     catalog.register(Runbook(
         id="aks.restart.workload",
@@ -66,6 +89,33 @@ def default_catalog() -> RunbookCatalog:
         reversible=True,
         required_level=AutonomyLevel.APPROVE_AND_EXECUTE,
         verify_signal="deployment.ready_replicas",
+        failure_class="bounded-workload-recovery",
+        preconditions=("deployment.exists", "deployment.degraded"),
+        postconditions=("deployment.ready_replicas",),
+    ))
+    catalog.register(Runbook(
+        id="aks.restart.crashloop",
+        description="Restart a bounded deployment after CrashLoopBackOff evidence",
+        environments=("stage", "prod"),
+        max_blast_radius=3,
+        reversible=True,
+        required_level=AutonomyLevel.APPROVE_AND_EXECUTE,
+        verify_signal="deployment.ready_replicas",
+        failure_class="crashloop",
+        preconditions=("deployment.exists", "pods.crashloop_present"),
+        postconditions=("deployment.ready_replicas", "pods.crashloop_absent"),
+    ))
+    catalog.register(Runbook(
+        id="aks.restart.oom",
+        description="Restart a bounded deployment after OOMKilled evidence while preserving resource policy",
+        environments=("stage", "prod"),
+        max_blast_radius=3,
+        reversible=True,
+        required_level=AutonomyLevel.APPROVE_AND_EXECUTE,
+        verify_signal="deployment.ready_replicas",
+        failure_class="oomkilled",
+        preconditions=("deployment.exists", "pods.oomkilled_present"),
+        postconditions=("deployment.ready_replicas",),
     ))
     catalog.register(Runbook(
         id="aks.scale.memory",
@@ -76,5 +126,8 @@ def default_catalog() -> RunbookCatalog:
         required_level=AutonomyLevel.BOUNDED_AUTONOMOUS,
         verify_signal="container.oom_count",
         rollback_id="aks.scale.memory.rollback",
+        failure_class="memory-pressure",
+        preconditions=("deployment.exists", "pods.oomkilled_present", "memory.profile_preapproved"),
+        postconditions=("container.oom_count",),
     ))
     return catalog
