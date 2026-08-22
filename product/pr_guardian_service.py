@@ -55,10 +55,12 @@ class PRGuardianService:
         }))
 
         touches_iac = any(_is_iac(path) for path in filenames)
+        touches_delivery = any(_is_delivery_control(path) for path in filenames)
         touches_security = any(_is_security_boundary(path) for path in filenames)
         test_files = [path for path in filenames if _is_test(path)]
         source_files = [path for path in filenames if not _is_test(path) and not _is_docs(path)]
         weak_test_evidence = bool(source_files) and not test_files
+        unmapped_service_change = bool(source_files) and not changed_services
         similar_failures = (
             self.history.similar_failed_changes(repository=event.repository, filenames=filenames)
             if self.history
@@ -72,6 +74,8 @@ class PRGuardianService:
                 files_changed=len(files),
                 touches_iac=touches_iac,
                 touches_identity_or_security=touches_security,
+                touches_delivery_pipeline=touches_delivery,
+                unmapped_service_change=unmapped_service_change,
                 weak_test_evidence=weak_test_evidence,
                 similar_failed_changes=similar_failures,
             ),
@@ -126,6 +130,11 @@ def _is_docs(path: str) -> bool:
 def _is_iac(path: str) -> bool:
     lowered = path.lower()
     return lowered.endswith((".tf", ".tfvars")) or lowered.startswith(("infra/", "terraform/", "helm/", "k8s/"))
+
+
+def _is_delivery_control(path: str) -> bool:
+    lowered = path.lower()
+    return lowered.startswith((".github/workflows/", "pipelines/", "azure-pipelines")) or lowered.endswith(("azure-pipelines.yml", "jenkinsfile"))
 
 
 def _is_security_boundary(path: str) -> bool:
