@@ -85,6 +85,7 @@ class DurableSelfHealingCoordinator:
                 "approval_verified": True,
                 "error_budget_remaining": error_budget_remaining,
             },
+            not_before=float(now) if now is not None else None,
         )
 
     def handle_job(self, job: Job) -> ExecutionResult:
