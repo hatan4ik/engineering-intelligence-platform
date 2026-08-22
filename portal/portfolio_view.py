@@ -48,19 +48,26 @@ def build_portfolio_view(
     rem = snapshot.remediation
     metrics: list[MetricValue] = []
 
-    # Directly observed or deterministically aggregated operational metrics.
-    for name, unit in (
-        ("deployments", "count"),
-        ("failed_deployments", "count"),
-        ("incidents", "count"),
-        ("repeated_incidents", "count"),
-        ("mttr_minutes", "minutes"),
-        ("engineer_hours_saved", "hours"),
-        ("prevented_incidents", "count"),
-        ("platform_cost_usd", "usd"),
-    ):
+    # Engineering rates are deterministic aggregates over observed outcome events.
+    engineering_derived = (
+        ("change_failure_rate", "ratio", "failed deployments / deployments"),
+        ("incident_recurrence_rate", "ratio", "repeated incidents / incidents"),
+        ("mttr_minutes", "minutes", "mean incident restoration duration"),
+    )
+    for name, unit, formula in engineering_derived:
         if name in eng:
-            metrics.append(MetricValue(name, float(eng[name]), unit, MetricBasis.MEASURED, "outcome-events"))
+            metrics.append(MetricValue(
+                name, float(eng[name]), unit, MetricBasis.DERIVED,
+                "outcome-events", formula,
+            ))
+
+    # These values come from directly attributed outcome or operation events.
+    for name, unit in (("prevented_incidents", "count"), ("platform_cost_usd", "usd")):
+        if name in eng:
+            metrics.append(MetricValue(
+                name, float(eng[name]), unit, MetricBasis.MEASURED,
+                "outcome-events" if name == "prevented_incidents" else "operation-cost-events",
+            ))
 
     for name, unit in (
         ("success_rate", "ratio"),
@@ -79,16 +86,17 @@ def build_portfolio_view(
                 "deterministic aggregation over OperationEvent telemetry",
             ))
 
-    # Financial impact must remain visibly separate from measured engineering data.
-    for candidate in ("gross_value_usd", "net_value_usd", "roi", "roi_percent"):
+    # Financial value uses configured labor-rate assumptions and must never be
+    # rendered as a directly measured engineering result.
+    for candidate in ("labor_value_usd", "net_value_usd", "roi_multiple"):
         if candidate in eng:
             metrics.append(MetricValue(
                 candidate,
                 float(eng[candidate]),
-                "ratio" if "roi" in candidate else "usd",
+                "ratio" if candidate == "roi_multiple" else "usd",
                 MetricBasis.MODELED,
                 "benefit-model",
-                "engineering outcomes combined with configured loaded labor rate",
+                "observed engineering outcomes combined with configured loaded labor rate",
             ))
 
     if feedback.acceptance_rate is not None:
