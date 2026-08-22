@@ -50,6 +50,7 @@ class AzureRagBackend:
     def __init__(
         self,
         *,
+        deployment: str | None = None,
         telemetry: TelemetrySink | None = None,
         rates: UsageRates | None = None,
     ) -> None:
@@ -62,7 +63,7 @@ class AzureRagBackend:
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
             azure_ad_token_provider=self._token,
         )
-        self.deployment = os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT"]
+        self.deployment = deployment or os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT"]
         self.embedding_deployment = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
         self.telemetry = telemetry or NullTelemetrySink()
         self.rates = rates or rates_from_environment()
