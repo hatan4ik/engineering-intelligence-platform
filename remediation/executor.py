@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import Protocol
 
-from .catalog import RunbookCatalog
+from .catalog import Runbook, RunbookCatalog
 from .opa_policy import LocalReferenceEvaluator, PolicyControlState, PolicyEvaluator, as_policy_decision
 from .policy import ActionRequest, PolicyDecision, ServiceAutonomy
 
@@ -23,6 +23,20 @@ class ExecutionResult:
     verified: bool = False
     rollback_ref: str | None = None
     error: str | None = None
+
+
+def _preflight(adapter: ActionAdapter, runbook: Runbook, request: ActionRequest) -> tuple[bool, str]:
+    checker = getattr(adapter, "preflight", None)
+    if checker is None:
+        return True, "adapter has no preflight hook; policy/catalog controls only"
+    try:
+        result = checker(runbook, request)
+    except Exception as exc:
+        return False, f"precondition evaluation failed: {type(exc).__name__}: {exc}"
+    if isinstance(result, tuple):
+        allowed, reason = result
+        return bool(allowed), str(reason)
+    return bool(result), "runbook preconditions satisfied" if result else "runbook preconditions failed"
 
 
 def execute_control_loop(
@@ -50,6 +64,14 @@ def execute_control_loop(
     decision = as_policy_decision(evaluated)
     if not decision.allowed:
         return ExecutionResult(status="denied", policy=decision)
+
+    preflight_allowed, preflight_reason = _preflight(adapter, runbook, request)
+    if not preflight_allowed:
+        return ExecutionResult(
+            status="denied",
+            policy=PolicyDecision(False, preflight_reason),
+            error=preflight_reason,
+        )
 
     try:
         execution_ref = adapter.execute(runbook.id, request)

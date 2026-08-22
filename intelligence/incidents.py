@@ -52,8 +52,9 @@ def analyze_incident(events: list[EvidenceEvent], *, service: str) -> IncidentAn
         if e.kind in {EvidenceKind.ALERT, EvidenceKind.K8S_EVENT, EvidenceKind.LOG}
         and e.severity >= 3
     ]
-    if deployments and failures:
-        latest_deploy = deployments[-1]
+    latest_deploy = deployments[-1] if deployments else None
+
+    if latest_deploy and failures:
         first_failure = next((f for f in failures if f.timestamp >= latest_deploy.timestamp), None)
         if first_failure:
             delta = (first_failure.timestamp - latest_deploy.timestamp).total_seconds()
@@ -70,10 +71,33 @@ def analyze_incident(events: list[EvidenceEvent], *, service: str) -> IncidentAn
                     evidence_ids=(latest_deploy.id, first_failure.id),
                 ))
 
+    crashloop = [e for e in relevant if "crashloop" in e.summary.lower() or "back-off restarting" in e.summary.lower()]
+    if crashloop:
+        hypotheses.append(Hypothesis(
+            title="CrashLoopBackOff is preventing workload recovery",
+            confidence=min(0.97, 0.82 + 0.04 * len(crashloop)),
+            facts=tuple(e.summary for e in crashloop[:4]),
+            inferences=("a bounded restart is allowed only if live preflight confirms CrashLoopBackOff",),
+            evidence_ids=tuple(e.id for e in crashloop[:4]),
+        ))
+
+    readiness = [
+        e for e in relevant
+        if any(marker in e.summary.lower() for marker in ("readiness", "unready", "probe failed"))
+    ]
+    if readiness and latest_deploy and any(e.timestamp >= latest_deploy.timestamp for e in readiness):
+        hypotheses.append(Hypothesis(
+            title="Readiness regression followed the latest deployment",
+            confidence=min(0.95, 0.80 + 0.03 * len(readiness)),
+            facts=(f"latest deployment={latest_deploy.id}",) + tuple(e.summary for e in readiness[:3]),
+            inferences=("rollback is preferable to blind restart when readiness regressed after release",),
+            evidence_ids=(latest_deploy.id,) + tuple(e.id for e in readiness[:3]),
+        ))
+
     oom = [e for e in relevant if "oom" in e.summary.lower() or "memory" in e.summary.lower()]
     if len(oom) >= 2:
         hypotheses.append(Hypothesis(
-            title="Memory pressure is a likely contributing factor",
+            title="OOMKilled or memory pressure is a likely contributing factor",
             confidence=min(0.95, 0.55 + 0.1 * len(oom)),
             facts=tuple(e.summary for e in oom[:4]),
             inferences=("memory limits, leaks, or workload growth should be investigated",),

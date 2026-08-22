@@ -27,4 +27,12 @@ jobs:
       - run: helm lint helm/eip
       - name: Validate OPA policy bundle
         run: docker run --rm -v "$PWD/infra/policy:/policy" openpolicyagent/opa:1.0.0 test /policy
+      - name: Run adversarial and supply-chain gates
+        run: python supply_chain/verify_ci.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eip-supply-chain-evidence
+          path: |
+            build/sbom.cdx.json
+            build/provenance.json
       - run: docker build -t eip:ci .
