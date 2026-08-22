@@ -6,6 +6,10 @@ image:
 service:
   port: 80
   targetPort: 8000
+serviceAccount:
+  name: eip-api
+  # Set from Terraform output workload_identity_client_id for Azure-backed deployments.
+  azureClientId: ""
 resources:
   requests:
     cpu: 100m
@@ -15,4 +19,8 @@ resources:
     memory: 512Mi
 env:
   EIP_BACKEND: deterministic
+  AZURE_SEARCH_ENDPOINT: ""
+  AZURE_SEARCH_INDEX: engineering-knowledge
+  AZURE_OPENAI_ENDPOINT: ""
+  AZURE_OPENAI_CHAT_DEPLOYMENT: ""
 podAnnotations: {}

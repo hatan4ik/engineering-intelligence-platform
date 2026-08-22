@@ -1,16 +1,9 @@
-# Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
 .venv/
-venv/
-
-# Generated artifacts
+.pytest_cache/
 eval/results.json
-slides/*.pptx
 ingestion-ledger.db
-
-# Terraform
+slides/*.pptx
 .terraform/
-*.tfstate
-*.tfstate.*
+.terraform.lock.hcl

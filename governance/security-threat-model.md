@@ -9,6 +9,8 @@
 6. Model/token abuse causing cost or availability impact.
 7. Poisoned or stale knowledge influencing decisions.
 8. Automation loops causing repeated harmful mutations.
+9. Stale or replayed human approvals authorizing a changed plan.
+10. Retrieval/index poisoning altering evidence presented to operators.
 
 ## Required controls
 - Authenticate every caller with Entra ID; authorize before retrieval.
@@ -16,17 +18,21 @@
 - Scan/redact secrets and sensitive data before embedding and logging.
 - Treat retrieved content as data, never as trusted instructions.
 - Require citations/evidence for operational recommendations.
-- Separate reasoning from mutation: policy engine authorizes actions.
-- Use managed identities and least-privilege scopes.
+- Separate reasoning from mutation: a deterministic policy decision boundary authorizes actions.
+- Use managed identities/workload identity and least-privilege scopes.
 - Rate limit, quota and meter by user/team/agent.
-- Add freshness/ownership metadata and source-quality weighting.
+- Add freshness/ownership/provenance metadata and source-quality weighting.
 - Bound retries and autonomous action counts.
-- Maintain immutable audit records and emergency kill switch.
+- Bind approval tokens to the exact workflow/plan and expiration time.
+- Maintain immutable audit records and emergency kill switches.
+- Require independent verification and rollback/escalation for every autonomous mutation.
 
-## Autonomy tiers
-- Tier 0: answer/summarize only.
-- Tier 1: recommend action.
-- Tier 2: create PR/ticket/runbook proposal.
-- Tier 3: execute low-risk non-production remediation.
-- Tier 4: execute allow-listed reversible production remediation with policy approval.
-- Tier 5: broader supervised autonomy only after evidence from prior tiers.
+## Autonomy levels
+- **L0 Observe:** collect/correlate only.
+- **L1 Recommend:** evidence-backed recommendation; no mutation.
+- **L2 Human execute:** system prepares an exact action and rollback; a human executes it.
+- **L3 Approve and execute:** authenticated human approval authorizes an allow-listed deterministic runbook.
+- **L4 Bounded autonomous:** only explicitly certified service + environment + runbook combinations may execute automatically within policy, blast-radius, error-budget, time and retry limits.
+- **L5 Unrestricted autonomy:** intentionally unsupported and out of scope.
+
+Autonomy is granted per service/action/environment, never globally to an agent or model.
