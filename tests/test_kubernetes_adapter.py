@@ -27,6 +27,8 @@ class FakeRunner:
                     "status": {"availableReplicas": replicas, "readyReplicas": replicas},
                 }),
             )
+        if "get" in argv and "pods" in argv:
+            return CommandResult(0, json.dumps({"items": []}))
         if "rollout" in argv and ("restart" in argv or "undo" in argv):
             self.mutated = True
             return CommandResult(0, "ok")
