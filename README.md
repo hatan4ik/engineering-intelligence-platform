@@ -33,20 +33,12 @@ queue.
 
 ## Architecture at a glance
 
-```mermaid
-flowchart LR
-    SRC["Git · ADO · work items<br/>ADRs · runbooks · telemetry"]
-    ING["Governed ingestion<br/>chunk · ACL · ledger/DLQ"]
-    KB[("Knowledge index +<br/>service graph")]
-    GW["AI gateway<br/>ACL filter → LLM → citations"]
-    AG["Agents<br/>PR Guardian · incident RCA<br/>drift · change risk"]
-    CP["Control plane<br/>durable workflows · policy<br/>plan-bound approvals · audit"]
-    EX["Certified runbooks<br/>execute → verify → rollback"]
-    AKS["AKS / Azure"]
-
-    SRC --> ING --> KB --> GW --> AG --> CP --> EX --> AKS
-    AKS -.->|telemetry| SRC
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/readme-overview-dark.svg">
+    <img alt="The platform at a glance: sources to Azure through knowledge, gateway, agents, control and execution, with verification and telemetry feeding back" src="docs/diagrams/readme-overview-light.svg" width="940">
+  </picture>
+</p>
 
 Full design with per-plane diagrams, data model, failure modes, and alternatives considered:
 **[`architecture/DESIGN.md`](architecture/DESIGN.md)**.

@@ -6,6 +6,7 @@
 | **Owners** | Platform Engineering |
 | **Execution source of truth** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md) |
 | **Threat model** | [`../governance/security-threat-model.md`](../governance/security-threat-model.md) |
+| **Diagrams** | Generated light/dark SVGs — [`../docs/diagrams/build_diagrams.py`](../docs/diagrams/build_diagrams.py) |
 
 ## Contents
 
@@ -76,58 +77,12 @@ replacing human accountability for high-blast-radius production changes.
 
 ## 3. System overview
 
-```mermaid
-flowchart TD
-    subgraph SOURCES["Engineering and operational sources"]
-        GIT["Git / GitHub / Azure DevOps"]
-        WORK["Work items / ADRs / wiki / runbooks"]
-        OPS["AKS / Azure Monitor / logs / traces / deployments"]
-    end
-
-    subgraph KNOWLEDGE["Knowledge plane — ingestion/"]
-        ING["Governed ingestion<br/>events → chunk → ACL → index<br/>ledger / DLQ / replay"]
-        IDX[("Search index<br/>+ metadata")]
-        GRAPH["Service / dependency /<br/>ownership graph"]
-    end
-
-    subgraph GATEWAY["AI gateway — app/"]
-        RAG["Identity → ACL filter → retrieve<br/>→ enterprise LLM → citations"]
-    end
-
-    subgraph AGENTS["Intelligence plane — intelligence/, product/"]
-        PRG["PR Guardian"]
-        DFI["Deployment Failure Investigator"]
-        INC["Incident Investigator"]
-        DRIFT["Drift Detector"]
-        RISK["Change-risk engine"]
-    end
-
-    subgraph CONTROL["Control plane — control_plane/, orchestration/, state/"]
-        WF["Durable workflows + plan hashes"]
-        POL["Deterministic policy"]
-        APPR["Plan-bound human approvals"]
-        AUDIT[("Hash-chained audit log")]
-    end
-
-    subgraph EXEC["Execution plane — remediation/"]
-        RB["Certified runbook catalog"]
-        K8S["Kubernetes / Azure adapters"]
-        VER["Independent verification"]
-    end
-
-    SOURCES --> ING --> IDX
-    ING --> GRAPH
-    IDX --> RAG
-    GRAPH --> AGENTS
-    RAG --> AGENTS
-    AGENTS --> WF
-    WF --> POL --> APPR
-    APPR --> RB --> K8S --> VER
-    VER -->|healthy| AUDIT
-    VER -->|unhealthy| ROLLBACK["Rollback / escalate"] --> AUDIT
-    K8S -.->|telemetry feeds back| SOURCES
-    WF --> AUDIT
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../docs/diagrams/system-overview-dark.svg">
+    <img alt="System overview: five planes from sources to Azure, with telemetry feeding back" src="../docs/diagrams/system-overview-light.svg" width="900">
+  </picture>
+</p>
 
 The loop closes: execution telemetry re-enters the knowledge plane, so every incident,
 deployment, and remediation becomes evidence for the next decision.
@@ -155,22 +110,12 @@ design regression, not a trade-off.
 Incremental, event-driven ingestion. A changed file is replaced independently; a deletion
 removes exactly that document's chunks; full reindex is reserved for schema migrations.
 
-```mermaid
-flowchart LR
-    EV["GitHub / ADO<br/>push event"] --> NORM["Normalize<br/>ingestion/events.py"]
-    NORM --> LEDGER{"Seen before?<br/>ledger.py"}
-    LEDGER -->|duplicate| SKIP["Acknowledge,<br/>no work"]
-    LEDGER -->|new| LOAD["Load changed files<br/>providers.py"]
-    LOAD --> CHUNK["Chunk<br/>Python → AST symbols<br/>other → bounded text"]
-    CHUNK --> ACL["Attach ACL + provenance<br/>acl.py"]
-    ACL --> EMB["Embedding contract<br/>embeddings.py"]
-    EMB --> WRITE["Replace document chunks<br/>index.py / azure_search.py"]
-    WRITE --> DONE["Ledger: completed"]
-    LOAD -->|failure| DLQ[("DLQ")]
-    CHUNK -->|failure| DLQ
-    WRITE -->|failure| DLQ
-    DLQ --> REPLAY["replay.py<br/>operator-driven"] --> LOAD
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../docs/diagrams/ingestion-pipeline-dark.svg">
+    <img alt="Ingestion pipeline: normalize, dedupe via the ledger, chunk, attach ACLs, index; failures dead-letter and replay" src="../docs/diagrams/ingestion-pipeline-light.svg" width="900">
+  </picture>
+</p>
 
 Key decisions:
 
@@ -185,26 +130,12 @@ Key decisions:
 
 ### 5.2 Retrieval and AI gateway
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant C as Caller
-    participant API as FastAPI /v1/query
-    participant S as Azure AI Search
-    participant LLM as Azure OpenAI
-
-    C->>API: question + identity (groups)
-    API->>API: resolve authorized groups,<br/>correlation ID
-    API->>S: query with ACL filter<br/>compiled into the request
-    S-->>API: authorized chunks only
-    alt no authorized evidence
-        API-->>C: explicit insufficient-evidence answer
-    else evidence found
-        API->>LLM: question + delimited evidence<br/>(system prompt: evidence is data)
-        LLM-->>API: grounded answer
-        API-->>C: answer + citations + correlation ID
-    end
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../docs/diagrams/query-sequence-dark.svg">
+    <img alt="Query path: the ACL filter is compiled into the search request, so unauthorized content never reaches the model" src="../docs/diagrams/query-sequence-light.svg" width="900">
+  </picture>
+</p>
 
 The critical property is step 3: the ACL filter is part of the search request itself, so
 content the caller is not entitled to **never enters the candidate set** — there is no code
@@ -228,24 +159,12 @@ Change risk (`intelligence/risk.py`) is a deterministic, explainable score: each
 evidence, historical regressions) contributes points and a human-readable evidence line.
 The full E2E path for the flagship agent:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant GH as GitHub
-    participant API as /v1/events/github
-    participant G as PRGuardianService
-    participant CP as Control plane
-    participant CHK as GitHub Checks
-
-    GH->>API: pull_request webhook
-    API->>API: verify X-Hub-Signature-256<br/>(fail closed)
-    API->>G: normalized PR event
-    G->>GH: fetch changed files (diff API)
-    G->>G: paths → services → blast radius<br/>→ deterministic risk score
-    G->>CP: start_pr_review:<br/>durable workflow + plan hash<br/>+ audit event
-    G->>CHK: check run:<br/>success / neutral / action_required<br/>+ evidence markdown
-    CHK-->>GH: visible on the PR
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../docs/diagrams/pr-guardian-sequence-dark.svg">
+    <img alt="PR Guardian: from webhook or CI event to deterministic risk, a durable workflow and a published check" src="../docs/diagrams/pr-guardian-sequence-light.svg" width="900">
+  </picture>
+</p>
 
 Score thresholds map to controls: `≥55` extended tests, `≥70` additional approval,
 `≥90` merge block. The repository runs this agent on itself
@@ -262,25 +181,12 @@ drift detection follow the same pattern with their own evidence types.
 Every consequential decision becomes a **workflow record** with optimistic concurrency and a
 **plan hash** — the SHA-256 of the exact analysis/decision it was created from.
 
-```mermaid
-stateDiagram-v2
-    [*] --> RECEIVED
-    RECEIVED --> DIAGNOSING
-    DIAGNOSING --> PLANNED
-    PLANNED --> WAITING_APPROVAL: policy requires human
-    PLANNED --> EXECUTING: policy allows automation
-    WAITING_APPROVAL --> EXECUTING: valid plan-bound approval
-    WAITING_APPROVAL --> ESCALATED: rejected / expired
-    EXECUTING --> VERIFYING
-    VERIFYING --> SUCCEEDED: independent signals healthy
-    VERIFYING --> ROLLED_BACK: unhealthy → compensate
-    ROLLED_BACK --> ESCALATED
-    VERIFYING --> ESCALATED: rollback failed
-    EXECUTING --> FAILED: unrecoverable error
-    SUCCEEDED --> [*]
-    ESCALATED --> [*]
-    FAILED --> [*]
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../docs/diagrams/workflow-states-dark.svg">
+    <img alt="Workflow lifecycle: plans wait on plan-bound approval; verification decides success, rollback or escalation" src="../docs/diagrams/workflow-states-light.svg" width="900">
+  </picture>
+</p>
 
 **Approvals are plan-bound and expiring** (`orchestration/approvals.py`): an approval is an
 HMAC signature over `workflow_id | approver | plan_hash | issued_at`. If the plan changes,
@@ -299,23 +205,12 @@ carries correlation ID, actor, action, resource, and payload.
 
 ### 5.5 Execution plane
 
-```mermaid
-flowchart LR
-    PLAN["Proposed action<br/>(agent output)"] --> CAT{"In certified<br/>runbook catalog?"}
-    CAT -->|no| ESC1["Escalate to human"]
-    CAT -->|yes| POL{"Deterministic policy<br/>authorize()"}
-    POL -->|deny| ESC1
-    POL -->|allow + approval required| HUM{"Plan-bound<br/>approval?"}
-    POL -->|allow| SIM
-    HUM -->|no / expired| ESC1
-    HUM -->|yes| SIM["Simulation / digital-twin gate"]
-    SIM --> EXECUTE["Fixed-command adapter<br/>kubernetes_adapter.py"]
-    EXECUTE --> VERIFY{"Independent<br/>verification"}
-    VERIFY -->|healthy| CLOSE["Audit + close"]
-    VERIFY -->|unhealthy| RB["Rollback"]
-    RB -->|rolled back| ESC2["Escalate + audit"]
-    RB -->|rollback failed| ESC2
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../docs/diagrams/execution-flow-dark.svg">
+    <img alt="Execution: catalog, policy, approval and simulation gate every mutation; verification decides close or rollback" src="../docs/diagrams/execution-flow-light.svg" width="900">
+  </picture>
+</p>
 
 - The runbook catalog is **typed and closed**: an action is a fixed command template with
   declared reversibility, blast radius, and risk tier — agents select from the catalog,
@@ -332,29 +227,12 @@ flowchart LR
 
 Trust boundaries, from least to most trusted:
 
-```mermaid
-flowchart TD
-    subgraph UNTRUSTED["Untrusted input"]
-        WEB["Webhooks"]
-        DOCS["Retrieved content<br/>(code, tickets, docs)"]
-        MODEL["Model output"]
-    end
-    subgraph GOVERNED["Governed evidence"]
-        IDX2[("ACL-trimmed index")]
-    end
-    subgraph AUTHORITY["Deterministic authority"]
-        POLICY["Policy + catalog + approvals"]
-    end
-    subgraph BLAST["Mutation surface"]
-        CLUSTER["AKS / Azure resources"]
-    end
-
-    WEB -->|HMAC signature verification| GOVERNED
-    DOCS -->|ACL filter + injection detection| IDX2
-    IDX2 -->|delimited as data| MODEL
-    MODEL -->|"proposals only — validated against catalog"| AUTHORITY
-    AUTHORITY -->|allow-listed fixed commands| CLUSTER
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../docs/diagrams/trust-boundaries-dark.svg">
+    <img alt="Trust boundaries: each crossing has a named control; model output is proposals only" src="../docs/diagrams/trust-boundaries-light.svg" width="900">
+  </picture>
+</p>
 
 Threat-to-control mapping (full model in
 [`security-threat-model.md`](../governance/security-threat-model.md)):
