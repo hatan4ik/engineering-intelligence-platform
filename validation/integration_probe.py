@@ -17,13 +17,13 @@ class ProbeResult:
     detail: str
 
 
-def _run(command: list[str]) -> ProbeResult:
+def _run(command: list[str], *, name: str) -> ProbeResult:
     try:
         completed = subprocess.run(command, check=True, capture_output=True, text=True, timeout=30)
         detail = (completed.stdout or completed.stderr).strip()[:1000]
-        return ProbeResult(" ".join(command), True, detail or "ok")
+        return ProbeResult(name, True, detail or "ok")
     except (subprocess.SubprocessError, OSError) as exc:
-        return ProbeResult(" ".join(command), False, str(exc))
+        return ProbeResult(name, False, str(exc))
 
 
 def probe_http(name: str, url: str) -> ProbeResult:
@@ -45,22 +45,15 @@ def probe_dns(name: str, hostname: str) -> ProbeResult:
 
 def collect() -> tuple[ProbeResult, ...]:
     results: list[ProbeResult] = []
-    results.append(_run(["az", "account", "show", "--output", "json"]).__class__(
-        "azure-identity",
-        _run(["az", "account", "show", "--output", "none"]).passed,
-        "Azure CLI authenticated via workflow identity" if _run(["az", "account", "show", "--output", "none"]).passed else "Azure CLI authentication failed",
-    ))
-    results.append(ProbeResult(
-        "aks-context",
-        _run(["kubectl", "cluster-info"]).passed,
-        "kubectl can reach configured AKS cluster" if _run(["kubectl", "cluster-info"]).passed else "kubectl cannot reach AKS",
-    ))
+    results.append(_run(["az", "account", "show", "--output", "none"], name="azure-identity"))
+    results.append(_run(["kubectl", "cluster-info"], name="aks-context"))
 
     base_url = os.getenv("EIP_BASE_URL", "").rstrip("/")
-    if base_url:
-        results.append(probe_http("eip-health", f"{base_url}/healthz"))
-    else:
-        results.append(ProbeResult("eip-health", False, "EIP_BASE_URL is not configured"))
+    results.append(
+        probe_http("eip-health", f"{base_url}/healthz")
+        if base_url
+        else ProbeResult("eip-health", False, "EIP_BASE_URL is not configured")
+    )
 
     for env_name, probe_name in (
         ("AZURE_SEARCH_HOST", "search-private-dns"),
@@ -70,7 +63,8 @@ def collect() -> tuple[ProbeResult, ...]:
         host = os.getenv(env_name, "").strip()
         results.append(
             probe_dns(probe_name, host)
-            if host else ProbeResult(probe_name, False, f"{env_name} is not configured")
+            if host
+            else ProbeResult(probe_name, False, f"{env_name} is not configured")
         )
     return tuple(results)
 
