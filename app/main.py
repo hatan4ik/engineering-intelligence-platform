@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from app.gateway import ApiKeyPrincipalStore, GatewayAuthError, GatewayPolicyError, authorize_request
 from app.observability import configure_tracing, tracer
 from app.portal_api import router as portal_router
+from feedback.outcome_capture import normalize_github_pr_outcome
 from integrations.github.pr_guardian import normalize_pull_request_event
 from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
 
@@ -130,9 +131,23 @@ async def github_webhook(
     if x_github_event != "pull_request":
         return {"status": "ignored", "event": x_github_event or "unknown"}
     try:
-        event = normalize_pull_request_event(json.loads(body))
-    except ValueError as exc:
+        payload = json.loads(body)
+        event = normalize_pull_request_event(payload)
+        terminal = normalize_github_pr_outcome(payload)
+    except (ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if terminal is not None:
+        recorder = getattr(app.state, "feedback_recorder", None)
+        if recorder is not None:
+            recorder.record_pr_closed(
+                repository=str(terminal["repository"]),
+                pr_number=int(terminal["pr_number"]),
+                service=None,
+                merged=bool(terminal["merged"]),
+            )
+        return {"status": "outcome-recorded", "merged": bool(terminal["merged"])}
+
     if event.action not in REVIEW_ACTIONS:
         return {"status": "ignored", "reason": "action does not trigger review"}
     guardian = getattr(app.state, "pr_guardian", None)
