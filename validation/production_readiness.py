@@ -5,6 +5,7 @@ from enum import StrEnum
 from typing import Mapping
 
 from resilience.certification import CertificationReport
+from validation.soak import SoakReport
 
 
 class ReadinessArea(StrEnum):
@@ -56,10 +57,16 @@ def evaluate_production_readiness(
     *,
     l3_report: CertificationReport | None = None,
     soak_hours: float = 0.0,
+    soak_report: SoakReport | None = None,
     minimum_soak_hours: float = 168.0,
     observed_metrics: Mapping[str, float] | None = None,
 ) -> ProductionReadinessReport:
-    """Fail-closed gate separating working reference code from earned production proof."""
+    """Fail-closed gate separating working reference code from earned production proof.
+
+    `soak_hours` remains for backwards-compatible/local evaluation. Production proof
+    should pass a `SoakReport`, which binds elapsed time to continuous timestamped
+    passing evidence and contributes its artifact references to the report.
+    """
     by_key = {item.key: item for item in evidence}
     missing: list[str] = []
     passed: list[str] = []
@@ -73,7 +80,12 @@ def evaluate_production_readiness(
         passed.append(key)
         refs.append(item.evidence_ref)
 
-    if soak_hours < minimum_soak_hours:
+    effective_soak_hours = soak_report.continuous_hours if soak_report is not None else soak_hours
+    if soak_report is not None:
+        refs.extend(soak_report.evidence_refs)
+        if not soak_report.qualifies:
+            missing.append("auditable-soak-not-qualified")
+    if effective_soak_hours < minimum_soak_hours:
         missing.append(f"soak-hours<{minimum_soak_hours:g}")
     else:
         passed.append("soak-duration")
