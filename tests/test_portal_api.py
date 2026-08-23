@@ -9,7 +9,8 @@ from portal.intelligence_view import (
     KnowledgeHealth,
     ServiceIntelligenceView,
 )
-from portal.portfolio_view import build_portfolio_view
+from portal.portfolio_view import MetricBasis, build_portfolio_view
+from portal.timeseries import MetricPoint, MetricTrend
 
 
 class ServiceProvider:
@@ -58,8 +59,27 @@ class PortfolioProvider:
         return build_portfolio_view(snapshot, feedback=summarize_feedback(()))
 
 
+class TrendProvider:
+    def get_metric_trend(self, *, metric, principal):
+        if metric != "mttr_minutes" or "engineering" not in principal.groups:
+            return None
+        return MetricTrend(
+            metric="mttr_minutes",
+            points=(
+                MetricPoint("mttr_minutes", 40.0, "2026-08-01T00:00:00+00:00", MetricBasis.MEASURED, "outcome-events"),
+                MetricPoint("mttr_minutes", 25.0, "2026-08-20T00:00:00+00:00", MetricBasis.MEASURED, "outcome-events"),
+            ),
+            delta=-15.0,
+            direction="down",
+        )
+
+
 def _clear_state():
-    for name in ("service_intelligence_provider", "portfolio_intelligence_provider"):
+    for name in (
+        "service_intelligence_provider",
+        "portfolio_intelligence_provider",
+        "portfolio_trend_provider",
+    ):
         if hasattr(app.state, name):
             delattr(app.state, name)
 
@@ -103,6 +123,35 @@ def test_portfolio_portal_preserves_metric_lineage(monkeypatch):
     metrics = {item["name"]: item for item in response.json()["metrics"]}
     assert metrics["net_value_usd"]["basis"] == "modeled"
     assert response.json()["viewer"]["subject"] == "vp-eng"
+    _clear_state()
+
+
+def test_portfolio_trend_endpoint_preserves_lineage_and_direction(monkeypatch):
+    monkeypatch.setenv("EIP_REQUIRE_AUTH", "false")
+    _clear_state()
+    app.state.portfolio_trend_provider = TrendProvider()
+    response = TestClient(app).get(
+        "/v1/portal/portfolio/trends/mttr_minutes",
+        headers={"x-eip-groups": "engineering", "x-eip-user": "vp-eng"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["direction"] == "down"
+    assert payload["improved"] is True
+    assert payload["points"][0]["basis"] == "measured"
+    assert payload["viewer"]["subject"] == "vp-eng"
+    _clear_state()
+
+
+def test_portfolio_trend_hides_unknown_or_unauthorized_metric(monkeypatch):
+    monkeypatch.setenv("EIP_REQUIRE_AUTH", "false")
+    _clear_state()
+    app.state.portfolio_trend_provider = TrendProvider()
+    response = TestClient(app).get(
+        "/v1/portal/portfolio/trends/mttr_minutes",
+        headers={"x-eip-groups": "other"},
+    )
+    assert response.status_code == 404
     _clear_state()
 
 
