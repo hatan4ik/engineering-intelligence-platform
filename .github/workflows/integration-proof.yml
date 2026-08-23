@@ -1,0 +1,55 @@
+name: Integration Proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub Environment containing integration credentials/configuration
+        required: true
+        default: integration
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  evidence:
+    name: Real Environment Evidence
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Configure AKS context
+        run: >-
+          az aks get-credentials
+          --resource-group "${{ vars.AKS_RESOURCE_GROUP }}"
+          --name "${{ vars.AKS_CLUSTER_NAME }}"
+          --overwrite-existing
+
+      - name: Collect integration evidence
+        env:
+          EIP_BASE_URL: ${{ vars.EIP_BASE_URL }}
+          AZURE_SEARCH_HOST: ${{ vars.AZURE_SEARCH_HOST }}
+          AZURE_OPENAI_HOST: ${{ vars.AZURE_OPENAI_HOST }}
+          AZURE_KEYVAULT_HOST: ${{ vars.AZURE_KEYVAULT_HOST }}
+          EIP_INTEGRATION_EVIDENCE: integration-evidence.json
+        run: python validation/integration_probe.py
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-evidence-${{ github.run_id }}
+          path: integration-evidence.json
+          if-no-files-found: error
+          retention-days: 90
