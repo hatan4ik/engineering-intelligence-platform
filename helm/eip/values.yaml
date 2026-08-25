@@ -19,6 +19,12 @@ resources:
     memory: 512Mi
 env:
   EIP_BACKEND: deterministic
+  # Request-header identity (X-EIP-Groups/X-EIP-User) is a deterministic-demo
+  # affordance only. With EIP_BACKEND=azure it is refused unconditionally and a
+  # valid Entra JWT or API key is required — this flag cannot re-enable it there.
+  # For a deterministic deployment that should still require real auth, set it false.
+  EIP_ALLOW_HEADER_IDENTITY: "true"
+  EIP_AUTH_MODE: entra
   AZURE_SEARCH_ENDPOINT: ""
   AZURE_SEARCH_INDEX: engineering-knowledge
   AZURE_OPENAI_ENDPOINT: ""

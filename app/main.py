@@ -9,6 +9,7 @@ from typing import Protocol
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel
 
+from app.auth_mode import header_identity_permitted
 from app.gateway import ApiKeyPrincipalStore, GatewayAuthError, GatewayPolicyError, authorize_request
 from app.observability import configure_tracing, tracer
 from app.portal_api import router as portal_router
@@ -77,8 +78,8 @@ def _gateway_identity(
     fallback_groups: str | None,
     fallback_user: str | None,
 ) -> tuple[str, list[str], str, str]:
-    require_auth = os.getenv("EIP_REQUIRE_AUTH", "false").lower() == "true"
-    if not require_auth:
+    header_ok, _ = header_identity_permitted()
+    if header_ok:
         return question, authorized_groups(fallback_groups), fallback_user or "local-demo", "standard"
 
     auth_mode = os.getenv("EIP_AUTH_MODE", "entra").lower()

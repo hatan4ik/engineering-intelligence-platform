@@ -32,6 +32,10 @@ spec:
           env:
             - name: EIP_BACKEND
               value: {{ .Values.env.EIP_BACKEND | quote }}
+            - name: EIP_ALLOW_HEADER_IDENTITY
+              value: {{ .Values.env.EIP_ALLOW_HEADER_IDENTITY | quote }}
+            - name: EIP_AUTH_MODE
+              value: {{ .Values.env.EIP_AUTH_MODE | quote }}
             - name: AZURE_SEARCH_ENDPOINT
               value: {{ .Values.env.AZURE_SEARCH_ENDPOINT | quote }}
             - name: AZURE_SEARCH_INDEX
