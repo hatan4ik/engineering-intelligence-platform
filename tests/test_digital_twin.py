@@ -74,6 +74,7 @@ def test_ephemeral_twin_clones_without_production_identity_and_cleans_up():
         catalog=default_catalog(),
         policy=policy(),
         request=request(),
+        approval_verified=True,
     )
     assert result.safe_to_promote is True
     assert any(call[0][:3] == ("kubectl", "delete", "namespace") for call in runner.calls)

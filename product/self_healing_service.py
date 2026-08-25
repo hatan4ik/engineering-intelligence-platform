@@ -45,9 +45,19 @@ class SelfHealingService:
         *,
         blast_radius: int,
         approval_token: str | None = None,
+        approval_verified: bool = False,
         error_budget_remaining: float = 1.0,
         require_simulation: bool = True,
     ) -> SelfHealingResult:
+        """Bridge an incident to certified remediation.
+
+        ``approval_verified`` MUST be produced by the caller via
+        ``orchestration.approvals.verify_approval`` against the plan hash; the
+        opaque ``approval_token`` is carried into the policy input and audit
+        trail only and never satisfies the human-approval gate on its own. For
+        production remediation prefer ``DurableSelfHealingCoordinator``, which
+        binds the verified approval to a durable, single-use job.
+        """
         plan = plan_from_incident(analysis)
         if plan is None:
             return SelfHealingResult("no-certified-plan", None, None, None)
@@ -70,6 +80,7 @@ class SelfHealingService:
                 policy=self.policy,
                 request=request,
                 sandbox_adapter=self.sandbox_adapter,
+                approval_verified=approval_verified,
             )
             if not simulation_result.safe_to_promote:
                 return SelfHealingResult("simulation-blocked", plan, simulation_result, None)
@@ -79,5 +90,6 @@ class SelfHealingService:
             policy=self.policy,
             request=request,
             adapter=self.adapter,
+            approval_verified=approval_verified,
         )
         return SelfHealingResult(execution.status, plan, simulation_result, execution)

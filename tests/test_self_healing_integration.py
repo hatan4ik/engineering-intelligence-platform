@@ -54,7 +54,7 @@ def test_l3_simulates_then_executes_certified_runbook():
     prod = Adapter()
     sandbox = Adapter()
     service = SelfHealingService(catalog=default_catalog(), policy=policy(), adapter=prod, sandbox_adapter=sandbox)
-    result = service.handle_incident(incident(), blast_radius=2, approval_token="approved:plan")
+    result = service.handle_incident(incident(), blast_radius=2, approval_token="approved:plan", approval_verified=True)
     assert result.status == "succeeded"
     assert result.plan.runbook_id == "aks.rollback.readiness"
     assert sandbox.calls[0] == ("execute", "aks.rollback.readiness")
@@ -64,7 +64,7 @@ def test_l3_simulates_then_executes_certified_runbook():
 def test_failed_production_verification_rolls_back():
     prod = Adapter(verify=False)
     service = SelfHealingService(catalog=default_catalog(), policy=policy(), adapter=prod, sandbox_adapter=Adapter())
-    result = service.handle_incident(incident(), blast_radius=2, approval_token="approved:plan")
+    result = service.handle_incident(incident(), blast_radius=2, approval_token="approved:plan", approval_verified=True)
     assert result.status == "rolled_back"
     assert result.execution.rollback_ref == "rollback-1"
 

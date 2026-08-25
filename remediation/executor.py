@@ -46,7 +46,7 @@ def execute_control_loop(
     request: ActionRequest,
     adapter: ActionAdapter,
     evaluator: PolicyEvaluator | None = None,
-    approval_verified: bool | None = None,
+    approval_verified: bool = False,
     control: PolicyControlState | None = None,
 ) -> ExecutionResult:
     runbook = catalog.get(request.runbook_id)
@@ -54,11 +54,14 @@ def execute_control_loop(
         decision = PolicyDecision(False, "OPA policy evaluator is required but not configured")
         return ExecutionResult(status="denied", policy=decision)
     evaluator = evaluator or LocalReferenceEvaluator()
+    # approval_verified must be produced by verify_approval() upstream and passed
+    # in explicitly. The presence of an approval_token string is NOT proof of a
+    # verified approval and must never satisfy the human-approval gate.
     evaluated = evaluator.evaluate(
         runbook=runbook,
         policy=policy,
         request=request,
-        approval_verified=bool(request.approval_token) if approval_verified is None else approval_verified,
+        approval_verified=approval_verified,
         control=control or PolicyControlState(),
     )
     decision = as_policy_decision(evaluated)

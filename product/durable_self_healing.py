@@ -149,6 +149,7 @@ class DurableSelfHealingCoordinator:
             policy=self.policy,
             request=request,
             sandbox_adapter=self.sandbox_adapter,
+            approval_verified=True,
         )
         self._emit(
             workflow_id=job.workflow_id, phase="remediation.simulation", component="digital-twin",
@@ -168,6 +169,7 @@ class DurableSelfHealingCoordinator:
             policy=self.policy,
             request=request,
             adapter=self.adapter,
+            approval_verified=True,
         )
         self._emit(
             workflow_id=job.workflow_id, phase="remediation.execute", component="certified-adapter",

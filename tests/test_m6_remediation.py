@@ -50,6 +50,7 @@ def test_failed_verification_rolls_back():
         policy=policy(),
         request=ActionRequest("payments", "prod", "aks.rollout.undo", 3, approval_token="approved:abc"),
         adapter=adapter,
+        approval_verified=True,
     )
     assert result.status == "rolled_back"
     assert result.rollback_ref == "rollback-1"
@@ -61,5 +62,6 @@ def test_digital_twin_blocks_promotion_when_verification_fails():
         policy=policy(),
         request=ActionRequest("payments", "prod", "aks.rollout.undo", 3, approval_token="approved:abc"),
         sandbox_adapter=FakeAdapter(verify_result=False),
+        approval_verified=True,
     )
     assert not result.safe_to_promote
