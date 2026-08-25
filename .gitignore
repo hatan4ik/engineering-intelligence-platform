@@ -8,3 +8,6 @@ slides/*.pptx
 .terraform/
 .terraform.lock.hcl
 docs/diagrams/*.png
+
+# Locally-installed enterprise AI transformation skill pack (uploaded tooling, not vendored)
+.claude/skills/enterprise-ai-transformation/
