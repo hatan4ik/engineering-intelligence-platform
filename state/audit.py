@@ -39,19 +39,37 @@ class SqliteAuditLog:
             )
 
     def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path)
+        # isolation_level=None → autocommit, so BEGIN IMMEDIATE controls the txn.
+        db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
         db.row_factory = sqlite3.Row
+        db.execute("PRAGMA busy_timeout=30000")
         return db
 
     def append(self, event: AuditEvent) -> AuditEvent:
-        previous = self.last_hash()
-        candidate = replace(event, previous_hash=previous, event_hash=None)
-        finalized = replace(candidate, event_hash=compute_event_hash(candidate))
+        # Read the chain tip and append inside one write transaction so two
+        # concurrent appenders cannot both link to the same predecessor and
+        # fork the chain. The write lock is held from the tip read to commit.
         with self._connect() as db:
-            db.execute(
-                "INSERT INTO audit_events(event_id, payload, event_hash) VALUES (?, ?, ?)",
-                (finalized.event_id, json.dumps(asdict(finalized), sort_keys=True, default=str), finalized.event_hash),
-            )
+            db.execute("BEGIN IMMEDIATE")
+            try:
+                tip = db.execute(
+                    "SELECT event_hash FROM audit_events ORDER BY sequence DESC LIMIT 1"
+                ).fetchone()
+                previous = tip["event_hash"] if tip else None
+                candidate = replace(event, previous_hash=previous, event_hash=None)
+                finalized = replace(candidate, event_hash=compute_event_hash(candidate))
+                db.execute(
+                    "INSERT INTO audit_events(event_id, payload, event_hash) VALUES (?, ?, ?)",
+                    (
+                        finalized.event_id,
+                        json.dumps(asdict(finalized), sort_keys=True, default=str),
+                        finalized.event_hash,
+                    ),
+                )
+                db.execute("COMMIT")
+            except BaseException:
+                db.execute("ROLLBACK")
+                raise
         return finalized
 
     def last_hash(self) -> str | None:
