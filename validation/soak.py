@@ -1,7 +1,25 @@
+"""Continuous-operation soak evaluation over a timestamped telemetry export.
+
+The export is JSONL: one JSON object per line, one object per observation, in
+any order. Each object carries exactly the :class:`SoakSample` fields::
+
+    {"observed_at": "2026-08-01T00:00:00+00:00", "passed": true,
+     "evidence_ref": "run://soak/0"}
+
+``observed_at`` must be ISO-8601 with an explicit timezone (a trailing ``Z`` is
+accepted); a naive timestamp is rejected rather than assumed to be UTC.
+``passed`` is the observation's own verdict, and ``evidence_ref`` points at the
+retained artifact for it -- a sample with no reference cannot extend a window,
+because an unreferenced claim is not evidence.
+"""
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from collections.abc import Mapping as AbcMapping
+from pathlib import Path
+from typing import Mapping
 
 
 @dataclass(frozen=True)
@@ -91,3 +109,46 @@ def evaluate_soak(
         evidence_refs=tuple(dict.fromkeys(best_refs)),
         qualifies=best_hours >= minimum_hours,
     )
+
+
+class SoakExportError(ValueError):
+    """A telemetry export line could not be read as a soak sample."""
+
+
+def parse_sample(record: Mapping[str, object]) -> SoakSample:
+    """Build one sample from an export record, naming what is wrong if it is."""
+    missing = [field for field in ("observed_at", "passed", "evidence_ref") if field not in record]
+    if missing:
+        raise SoakExportError("soak sample is missing: " + ", ".join(missing))
+    if not isinstance(record["passed"], bool):
+        raise SoakExportError("soak sample 'passed' must be a JSON boolean")
+    sample = SoakSample(
+        observed_at=str(record["observed_at"]),
+        passed=bool(record["passed"]),
+        evidence_ref=str(record["evidence_ref"]),
+    )
+    try:
+        sample.timestamp()
+    except ValueError as exc:
+        raise SoakExportError(f"soak sample timestamp is unusable: {exc}") from exc
+    return sample
+
+
+def load_samples(path: str | Path) -> tuple[SoakSample, ...]:
+    """Read a JSONL telemetry export. Every unreadable line is named."""
+    samples: list[SoakSample] = []
+    text = Path(path).read_text(encoding="utf-8")
+    for number, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise SoakExportError(f"line {number} is not valid JSON: {exc}") from exc
+        if not isinstance(record, AbcMapping):
+            raise SoakExportError(f"line {number} must be a JSON object")
+        try:
+            samples.append(parse_sample(record))
+        except SoakExportError as exc:
+            raise SoakExportError(f"line {number}: {exc}") from exc
+    return tuple(samples)

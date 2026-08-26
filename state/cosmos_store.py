@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import asdict, replace
 import hashlib
-from typing import Any, Protocol
+from typing import Any, Mapping, Protocol
 
 from azure.core import MatchConditions
 from azure.cosmos import CosmosClient, exceptions
@@ -33,10 +33,11 @@ class CosmosStateStore(StateStore):
         self.container = container
 
     @classmethod
-    def from_environment(cls) -> "CosmosStateStore":
-        endpoint = os.environ["EIP_COSMOS_ENDPOINT"]
-        database = os.environ["EIP_COSMOS_DATABASE"]
-        container = os.environ["EIP_COSMOS_STATE_CONTAINER"]
+    def from_environment(cls, environ: Mapping[str, str] | None = None) -> "CosmosStateStore":
+        source = os.environ if environ is None else environ
+        endpoint = source["EIP_COSMOS_ENDPOINT"]
+        database = source["EIP_COSMOS_DATABASE"]
+        container = source["EIP_COSMOS_STATE_CONTAINER"]
         client = CosmosClient(endpoint, credential=DefaultAzureCredential())
         return cls(client.get_database_client(database).get_container_client(container))
 

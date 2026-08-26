@@ -25,6 +25,11 @@ class ExerciseResult:
     runbook_id: str
     observed_blast_radius: int
     evidence_ref: str
+    # How much this result is worth as evidence. "rehearsal" is the conservative
+    # default: a result produced against a simulated cluster, or by any caller
+    # that has not asserted otherwise, is a rehearsal of the control loop and
+    # not production certification evidence.
+    evidence_grade: str = "rehearsal"
 
 
 def certification_from_exercises(

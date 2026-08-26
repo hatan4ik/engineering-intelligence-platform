@@ -1,8 +1,10 @@
-# Release image = API runtime closure for the PR Guardian wedge and the
-# operational-intelligence triggers (see Dockerfile, app/import_closure.py).
-# product/incident_service.py now ships: it is reached by app/operations_api.py
-# and topology/ is part of the image closure. The two self-healing modules import
-# the execution plane (remediation/) and stay out until that has a product
-# decision. tests/test_image_import_closure.py keeps this list honest.
-product/durable_self_healing.py
-product/self_healing_service.py
+# Release image = API runtime closure for the PR Guardian wedge, the
+# operational-intelligence triggers, and the control-plane worker (see
+# Dockerfile, app/import_closure.py). topology/, remediation/, and resilience/
+# ship because app/operations_api.py resolves blast radius from the topology
+# store and the same image runs the opt-in Temporal remediation worker and the
+# certification exercise suite. Nothing in product/ needs to be excluded any
+# more; every consequential activity stays gated on
+# EIP_TEMPORAL_REMEDIATION_WORKFLOWS=enabled. tests/test_image_import_closure.py
+# keeps this file honest: any shipped module importing an unshipped package
+# must be listed here.

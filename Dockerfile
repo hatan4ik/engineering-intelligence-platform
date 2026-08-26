@@ -32,6 +32,12 @@ COPY --chown=eip:eip state /app/state
 # The operational-intelligence routes (app/operations_api.py) resolve a blast
 # radius from the topology store before proposing anything.
 COPY --chown=eip:eip topology /app/topology
+# The opt-in remediation workflow (orchestration/remediation_workflow.py) and
+# the certification exercise suite run in this same image. They carry no
+# authority by themselves: every consequential activity is gated on
+# EIP_TEMPORAL_REMEDIATION_WORKFLOWS=enabled.
+COPY --chown=eip:eip remediation /app/remediation
+COPY --chown=eip:eip resilience /app/resilience
 
 EXPOSE 8000
 USER eip
