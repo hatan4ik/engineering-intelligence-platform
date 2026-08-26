@@ -1,0 +1,75 @@
+"""Source-manifest reconciliation for repairing webhook and index drift."""
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from typing import Iterable
+
+from .catalog import SourceCatalog, SourceScope
+from .models import ChangeType, FileChange
+from .pipeline import IngestionPipeline
+
+
+@dataclass(frozen=True)
+class ReconciliationResult:
+    scope: SourceScope
+    unchanged: int
+    upserted: int
+    deleted: int
+    chunks: int
+
+
+@dataclass
+class SourceReconciler:
+    """Reconcile one complete, authorized source manifest against the catalog."""
+
+    pipeline: IngestionPipeline
+    catalog: SourceCatalog
+
+    def reconcile(self, scope: SourceScope, manifest: Iterable[FileChange]) -> ReconciliationResult:
+        observed: dict[str, FileChange] = {}
+        candidates: list[FileChange] = []
+        unchanged = 0
+        for change in manifest:
+            if change.change_type is not ChangeType.UPSERT:
+                raise ValueError("a reconciliation manifest must contain complete upsert records only")
+            source = change.source
+            if (source.provider, source.repository, source.branch) != (
+                scope.provider,
+                scope.repository,
+                scope.branch,
+            ):
+                raise ValueError("a reconciliation manifest cannot cross source scope")
+            document_id = source.document_id
+            if document_id in observed:
+                raise ValueError("a reconciliation manifest cannot contain duplicate document IDs")
+            observed[document_id] = change
+            if self.catalog.needs_upsert(change):
+                candidates.append(change)
+            else:
+                unchanged += 1
+
+        for record in self.catalog.active_in_scope(scope):
+            if record.source.document_id not in observed:
+                candidates.append(
+                    FileChange(
+                        source=record.source,
+                        change_type=ChangeType.DELETE,
+                        acl=record_acl_placeholder(record.source),
+                    )
+                )
+
+        result = self.pipeline.apply_changes(tuple(candidates), event_id=None)
+        return ReconciliationResult(
+            scope=scope,
+            unchanged=unchanged,
+            upserted=int(result["upserted"]),
+            deleted=int(result["deleted"]),
+            chunks=int(result["chunks"]),
+        )
+
+
+def record_acl_placeholder(_source) -> object:
+    """Deletion never indexes ACL data; retain an empty immutable placeholder."""
+    from .models import ACL
+
+    return ACL()

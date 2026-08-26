@@ -1,7 +1,6 @@
 # Security Threat Model
 
 ## Primary threats
-1. Prompt injection through retrieved code, tickets or documentation.
 1. Prompt injection through retrieved code, tickets or documentation (The Confused Deputy).
 2. Cross-repository or cross-team data exfiltration.
 3. Secret/PII leakage through ingestion, prompts or logs.
