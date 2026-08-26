@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 eval/results.json
 ingestion-ledger.db
+ingestion-ledger.db.sources
 slides/*.pptx
 .terraform/
 .terraform.lock.hcl

@@ -1,0 +1,217 @@
+"""Drive the ingestion pipeline over a checked-out repository working tree.
+
+This is the batch entry point for the knowledge plane. ``ingestion.events``
+normalizes *webhook* payloads; this module normalizes a *checkout*, so a
+repository can be indexed from CI without a webhook delivery.
+
+Idempotency comes from the durable event ledger, not from this module: every
+eligible file becomes one :class:`~ingestion.events.NormalizedEvent` whose
+``event_id`` is derived from ``(repository, ref, path, content)``. Re-running
+over an unchanged checkout therefore replays event ids the ledger has already
+completed and writes nothing.
+
+The caller supplies the :class:`~ingestion.index.Index` instance. This module
+never constructs an Azure client and never reads Azure configuration.
+"""
+from __future__ import annotations
+
+import hashlib
+import os
+from pathlib import Path
+from typing import Iterable, Iterator, Sequence
+
+from .events import NormalizedEvent
+from .index import Index
+from .models import ACL, ChangeType, FileChange, SourceIdentity
+from .pipeline import IngestionPipeline
+from .worker import sqlite_worker
+
+#: Directory *names* pruned during the walk (matched against each path segment).
+EXCLUDED_DIRECTORIES: frozenset[str] = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".idea",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".svn",
+        ".terraform",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+        "htmlcov",
+        "node_modules",
+        "site-packages",
+        "venv",
+    }
+)
+
+#: File suffixes the existing chunkers can turn into useful evidence.
+INGESTIBLE_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".bicep",
+        ".cfg",
+        ".cs",
+        ".go",
+        ".ini",
+        ".java",
+        ".js",
+        ".json",
+        ".jsx",
+        ".kt",
+        ".md",
+        ".proto",
+        ".ps1",
+        ".py",
+        ".rb",
+        ".rego",
+        ".rs",
+        ".rst",
+        ".sh",
+        ".sql",
+        ".tf",
+        ".tfvars",
+        ".toml",
+        ".ts",
+        ".tsx",
+        ".txt",
+        ".yaml",
+        ".yml",
+    }
+)
+
+#: Extension-less files that are still source knowledge.
+INGESTIBLE_NAMES: frozenset[str] = frozenset({"Dockerfile", "Makefile", "CODEOWNERS", "LICENSE"})
+
+#: Files larger than this are skipped; chunking them produces noise, not evidence.
+DEFAULT_MAX_FILE_BYTES: int = 512 * 1024
+
+
+def _is_ingestible(path: Path) -> bool:
+    return path.suffix.lower() in INGESTIBLE_SUFFIXES or path.name in INGESTIBLE_NAMES
+
+
+def _read_text(path: Path, limit: int) -> str | None:
+    """Return the file's text, or ``None`` when it is not decodable UTF-8."""
+
+    data = path.read_bytes()[: limit + 1]
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def _walk(root: Path) -> Iterator[Path]:
+    for directory, subdirectories, filenames in os.walk(root):
+        subdirectories[:] = sorted(
+            name for name in subdirectories if name not in EXCLUDED_DIRECTORIES
+        )
+        for filename in sorted(filenames):
+            yield Path(directory) / filename
+
+
+def _event_id(repository: str, ref: str, relative_path: str, content: str) -> str:
+    digest = hashlib.sha256(
+        "|".join([repository, ref, relative_path, content]).encode("utf-8")
+    ).hexdigest()
+    return f"checkout:{repository}:{ref}:{relative_path}:{digest}"
+
+
+def resolve_acl(repository: str, groups: Sequence[str]) -> ACL:
+    """Compose the checkout ACL from the repository contract plus caller groups.
+
+    ``ingestion.events`` grants ``repo:<repository>:read`` to everything it
+    normalizes; checkout ingestion keeps that contract so the same principals
+    see the same repository whichever path indexed it.
+    """
+
+    cleaned = [group.strip() for group in groups if group and group.strip()]
+    if not cleaned:
+        raise ValueError(
+            "ingest_checkout requires a non-empty groups list; refusing to index "
+            "chunks with no ACL groups because an empty ACL is readable by every caller"
+        )
+    return ACL(groups=tuple(dict.fromkeys([f"repo:{repository}:read", *cleaned])))
+
+
+def ingest_checkout(
+    root: str | os.PathLike[str],
+    *,
+    repository: str,
+    ref: str,
+    index: Index,
+    ledger_path: str | os.PathLike[str],
+    groups: Iterable[str],
+    max_file_bytes: int = DEFAULT_MAX_FILE_BYTES,
+) -> dict[str, int]:
+    """Ingest every eligible file under ``root`` into ``index``.
+
+    Returns the run counts:
+
+    ``documents``
+        Documents written to the index by this run.
+    ``chunks``
+        Chunks written to the index by this run.
+    ``skipped``
+        Files that are not ingestible source knowledge (unsupported suffix,
+        oversize, or not decodable as UTF-8).
+    ``failed``
+        Files that could not be read or that the pipeline rejected. A failure is
+        recorded in the ledger's dead-letter queue and does not abort the run.
+    ``duplicates``
+        Files whose event id the ledger had already completed — the idempotency
+        signal. A re-run over an unchanged checkout reports ``documents == 0``.
+    """
+
+    acl = resolve_acl(repository, list(groups))
+    checkout = Path(root).resolve()
+    if not checkout.is_dir():
+        raise ValueError(f"checkout root is not a directory: {checkout}")
+
+    pipeline = IngestionPipeline(index=index)
+    worker = sqlite_worker(pipeline, str(ledger_path))
+
+    counts = {"documents": 0, "chunks": 0, "skipped": 0, "failed": 0, "duplicates": 0}
+    for path in _walk(checkout):
+        if not _is_ingestible(path):
+            counts["skipped"] += 1
+            continue
+        try:
+            if path.stat().st_size > max_file_bytes:
+                counts["skipped"] += 1
+                continue
+            content = _read_text(path, max_file_bytes)
+        except OSError:
+            counts["failed"] += 1
+            continue
+        if content is None:
+            counts["skipped"] += 1
+            continue
+
+        relative_path = path.relative_to(checkout).as_posix()
+        suffix = path.suffix.lstrip(".").lower()
+        change = FileChange(
+            source=SourceIdentity("git", repository, ref, ref, relative_path),
+            change_type=ChangeType.UPSERT,
+            content=content,
+            language=suffix or None,
+            acl=acl,
+        )
+        event = NormalizedEvent(
+            event_id=_event_id(repository, ref, relative_path, content),
+            changes=(change,),
+        )
+        try:
+            result = worker.handle(event)
+        except Exception:  # noqa: BLE001 - one bad file must not abort the checkout
+            counts["failed"] += 1
+            continue
+        if result.get("duplicate"):
+            counts["duplicates"] += 1
+            continue
+        counts["documents"] += int(result.get("upserted", 0))
+        counts["chunks"] += int(result.get("chunks", 0))
+    return counts

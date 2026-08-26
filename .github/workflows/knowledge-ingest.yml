@@ -1,0 +1,122 @@
+name: Knowledge Ingest
+
+# Gives ingestion/ a runtime trigger. The in-memory job is a pipeline smoke test
+# that writes nothing outside the runner; the Azure job writes to a real search
+# index and only runs when the repository is actually configured for one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      index:
+        description: Knowledge index to write to
+        required: true
+        default: in-memory
+        type: choice
+        options:
+          - in-memory
+          - azure
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  in-memory:
+    name: Pipeline smoke (in-memory index)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # No dependency install: the in-memory path is standard library only, so a
+      # failure here is a defect in the pipeline and not in the environment.
+      - name: Ingest this checkout into an in-memory index
+        env:
+          PYTHONPATH: .
+        run: |
+          python scripts/ingest_repository.py \
+            --root . \
+            --repository "${{ github.repository }}" \
+            --ref "${{ github.sha }}" \
+            --groups engineering \
+            --index in-memory \
+            --ledger "${RUNNER_TEMP}/ingestion-ledger.db" | tee ingestion-counts.json
+      - name: Summarize counts
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Knowledge ingest (in-memory smoke)"
+            echo ""
+            echo '```json'
+            cat ingestion-counts.json 2>/dev/null || echo '{}'
+            echo '```'
+            echo ""
+            echo "This job proves the pipeline runs. It is not evidence about the deployed index."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ingestion-counts-${{ github.run_id }}
+          path: ingestion-counts.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  azure:
+    name: Azure AI Search index
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.index == 'azure' }}
+    needs: in-memory
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect Azure index configuration
+        id: azure_config
+        shell: bash
+        env:
+          AZURE_SEARCH_ENDPOINT: ${{ secrets.AZURE_SEARCH_ENDPOINT }}
+          AZURE_SEARCH_INDEX: ${{ secrets.AZURE_SEARCH_INDEX }}
+          AZURE_SEARCH_API_KEY: ${{ secrets.AZURE_SEARCH_API_KEY }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          if [ -n "$AZURE_SEARCH_ENDPOINT" ] && [ -n "$AZURE_SEARCH_INDEX" ] \
+             && { [ -n "$AZURE_SEARCH_API_KEY" ] || [ -n "$AZURE_CLIENT_ID" ]; }; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Report that the Azure index is not configured
+        if: steps.azure_config.outputs.configured != 'true'
+        shell: bash
+        run: |
+          {
+            echo "### Knowledge ingest (Azure index)"
+            echo ""
+            echo "Azure index not configured for this repository — skipped"
+            echo ""
+            echo "See \`docs/KNOWLEDGE-INGEST-RUNBOOK.md\` for the required configuration."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-python@v5
+        if: steps.azure_config.outputs.configured == 'true'
+        with:
+          python-version: '3.12'
+      - name: Install runtime dependencies
+        if: steps.azure_config.outputs.configured == 'true'
+        run: pip install -r app/requirements.txt
+      - name: Ingest this checkout into Azure AI Search
+        if: steps.azure_config.outputs.configured == 'true'
+        env:
+          PYTHONPATH: .
+          AZURE_SEARCH_ENDPOINT: ${{ secrets.AZURE_SEARCH_ENDPOINT }}
+          AZURE_SEARCH_INDEX: ${{ secrets.AZURE_SEARCH_INDEX }}
+          AZURE_SEARCH_API_KEY: ${{ secrets.AZURE_SEARCH_API_KEY }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          python scripts/ingest_repository.py \
+            --root . \
+            --repository "${{ github.repository }}" \
+            --ref "${{ github.sha }}" \
+            --groups "${{ vars.EIP_INGEST_ACL_GROUPS || 'engineering' }}" \
+            --index azure \
+            --ledger "${RUNNER_TEMP}/ingestion-ledger.db"
