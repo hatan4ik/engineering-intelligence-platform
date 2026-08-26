@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from .documents import KnowledgeChange, KnowledgeDocument
 from .models import ChangeType
+
+if TYPE_CHECKING:
+    from company_brain.memory import CompanyBrainMemoryProjector
 
 
 @dataclass(frozen=True)
@@ -108,18 +111,25 @@ def chunk_document(document: KnowledgeDocument, *, max_chars: int = 1400) -> lis
 @dataclass
 class KnowledgePipeline:
     index: KnowledgeIndex
+    brain_memory_projector: CompanyBrainMemoryProjector | None = None
 
-    def process(self, change: KnowledgeChange) -> dict[str, object]:
+    def process(self, change: KnowledgeChange, *, event_id: str | None = None) -> dict[str, object]:
         document = change.document
         document_id = document.identity.document_id
         if change.change_type is ChangeType.DELETE:
             self.index.delete_document(document_id)
+            if self.brain_memory_projector is not None:
+                self.brain_memory_projector.project_knowledge_change(change, event_id=event_id)
             return {"status": "deleted", "document_id": document_id, "chunks": 0}
 
         current = self.index.current_revision(document_id)
         if current == document.revision:
+            if self.brain_memory_projector is not None:
+                self.brain_memory_projector.project_knowledge_change(change, event_id=event_id)
             return {"status": "duplicate", "document_id": document_id, "chunks": 0}
 
         chunks = chunk_document(document)
         self.index.replace_document(document_id, document.revision, chunks)
+        if self.brain_memory_projector is not None:
+            self.brain_memory_projector.project_knowledge_change(change, event_id=event_id)
         return {"status": "indexed", "document_id": document_id, "revision": document.revision, "chunks": len(chunks)}

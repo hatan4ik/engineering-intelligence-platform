@@ -187,6 +187,24 @@ class CompanyBrain:
             )
         )
 
+    def remove_entity(self, entity_id: str) -> None:
+        """Remove a source-derived fact and every edge that names it.
+
+        This is intentionally an in-memory projection operation. Durable
+        lifecycle and audit semantics belong to ``CompanyBrainStore``.
+        """
+        self.entities.pop(entity_id, None)
+        self._relationships = {
+            key: relationship
+            for key, relationship in self._relationships.items()
+            if relationship.source_id != entity_id and relationship.target_id != entity_id
+        }
+
+    def remove_evidence(self, evidence_id: str) -> None:
+        """Remove a pointer and its structural evidence entity from this projection."""
+        self.evidence.pop(evidence_id, None)
+        self.remove_entity(evidence_id)
+
     def relate(
         self,
         *,

@@ -48,6 +48,12 @@ preserve those semantics; a retrieval or vector index cannot become the authorit
 callers backward compatible while allowing a governed file change to update the retrieval index,
 source catalog, and Company Brain projection only after the index write succeeds.
 
+For durable organizational memory, `IngestionPipeline` and `KnowledgePipeline` also accept an
+optional [`CompanyBrainMemoryProjector`](COMPANY-BRAIN-MEMORY-SYNC.md). It binds a connector to an
+explicit tenant, journals that source's graph memberships, rejects conflicting event replay, and
+propagates ACL changes and source deletion as durable evidence/relationship tombstones. The source
+catalog advances only after this projection succeeds, leaving failed projection work replayable.
+
 ## Safe product use
 
 [`PRGuardianCompanyBrainAdapter`](../product/pr_guardian/company_brain.py) converts the core into

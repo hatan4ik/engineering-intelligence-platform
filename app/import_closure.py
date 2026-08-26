@@ -22,6 +22,7 @@ from typing import Iterable
 # the Dockerfile; ``tests/test_image_import_closure.py`` asserts they match.
 SHIPPED_PACKAGES: tuple[str, ...] = (
     "app",
+    "company_brain",
     "feedback",
     "finops",
     "integrations",
