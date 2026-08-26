@@ -1,5 +1,14 @@
 # Architecture Decision Records
 
+| | |
+|---|---|
+| **Classification** | Current design |
+| **Owner** | Platform Engineering |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | index of decision records |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
+
+
 ADRs capture decisions that constrain the Engineering Intelligence Platform. Use short, immutable records; supersede old decisions rather than silently rewriting history.
 
 ## Required sections

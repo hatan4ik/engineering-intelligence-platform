@@ -1,5 +1,14 @@
 # Milestone 2 — End-to-End Vertical Slice
 
+| | |
+|---|---|
+| **Classification** | Current implementation state |
+| **Owner** | Platform Engineering |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | reference E2E slice; not deployed |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
+
+
 ## Flow
 
 `Developer/CI event → authorized retrieval → Azure AI Search → Azure OpenAI → agent plan → policy gate → runbook → verification → telemetry/audit`

@@ -1,5 +1,14 @@
 # L4 Bounded-Autonomy Certification
 
+| | |
+|---|---|
+| **Classification** | Current design |
+| **Owner** | Platform Engineering + Security |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | certification rules; no service is certified |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+
+
 L4 is not a global platform mode and not a model capability. Certification is scoped to:
 
 `service + environment + runbook + blast-radius budget`

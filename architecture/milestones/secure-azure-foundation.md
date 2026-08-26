@@ -1,6 +1,15 @@
-# P1 Secure Azure Foundation
+# Secure Azure Foundation Slice
 
-This slice closes the largest implementation gap identified in `alignment-review.md`: the original architecture required a private Azure trust boundary, while the initial Terraform only created a VNet, AKS, Search and Log Analytics with default public service access.
+| | |
+|---|---|
+| **Classification** | Current implementation state |
+| **Owner** | Platform Engineering |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | reference IaC; never planned or applied against a subscription |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
+
+
+This slice closes the largest implementation gap identified in the historical [alignment review](../ALIGNMENT-REVIEW.md) (its correction wave "P1", unrelated to finding severities elsewhere): the original architecture required a private Azure trust boundary, while the initial Terraform only created a VNet, AKS, Search and Log Analytics with default public service access.
 
 ## Implemented in this slice
 

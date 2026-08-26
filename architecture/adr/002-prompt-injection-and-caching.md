@@ -14,7 +14,7 @@ During the Principal Architecture Review, two target-state requirements were ide
 We will inject a **Guardrail Classifier** (e.g., Lakera Guard or Llama-Guard) *before* the primary LLM is invoked, strictly scoped to the **RAG Q&A path** (`app/rag/azure_backend.py`).
 - **Mechanism**: Every retrieved chunk and user prompt is scanned for adversarial patterns.
 - **Fail Closed**: If prompt injection is detected, the gateway immediately returns an explicit refusal.
-- **Exclusion**: The Phase 1 PR Guardian uses a deterministic verdict (`assess_change`) with no LLM in the critical path, so this guardrail is not required there.
+- **Exclusion**: PR Guardian (roadmap Stages 0–3) uses a deterministic verdict (`assess_change`) with no LLM in the critical path, so this guardrail is not required there.
 
 ### 2. Ephemeral Semantic Caching (Max 24h TTL)
 When Semantic Caching is implemented, it will be strictly ephemeral and tenant-isolated.

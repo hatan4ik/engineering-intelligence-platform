@@ -1,5 +1,14 @@
 # M3 Production Ingestion
 
+| | |
+|---|---|
+| **Classification** | Current implementation state |
+| **Owner** | Platform Engineering |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | implemented reference paths at the stated milestone; not deployed |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
+
+
 ## Implemented
 - GitHub and Azure DevOps push normalization
 - stable source/document identity

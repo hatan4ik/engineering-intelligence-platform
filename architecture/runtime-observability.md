@@ -1,5 +1,14 @@
 # Runtime Observability, AI Security and FinOps
 
+| | |
+|---|---|
+| **Classification** | Current design |
+| **Owner** | Platform Engineering |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | design; OTLP export is configured only when an endpoint is set |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+
+
 Every material Engineering Intelligence operation carries a correlation ID across retrieval, model synthesis, tool/runbook execution, workflow state and audit events.
 
 ## Runtime event contract

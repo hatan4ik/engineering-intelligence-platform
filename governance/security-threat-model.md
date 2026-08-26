@@ -1,5 +1,14 @@
 # Security Threat Model
 
+| | |
+|---|---|
+| **Classification** | Current design |
+| **Owner** | Security |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | threat model and required controls; not an audit result |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+
+
 ## Primary threats
 1. Prompt injection through retrieved code, tickets or documentation (The Confused Deputy).
 2. Cross-repository or cross-team data exfiltration.
