@@ -9,6 +9,21 @@ from typing import Protocol
 
 COMMENT_MARKER = "<!-- eip-pr-guardian -->"
 
+# A GitHub App installation token — the token GitHub Actions injects as
+# ``github.token`` — cannot call ``GET /user``; that call is only available to a
+# user-to-server or personal access token.  Comments written with an
+# installation token are authored by this login, so it is the identity the
+# sticky-comment lookups must compare against when ``GET /user`` is refused.
+INSTALLATION_TOKEN_LOGIN = "github-actions[bot]"
+
+
+class GitHubAPIError(RuntimeError):
+    """A GitHub REST call failed, carrying the HTTP status for callers."""
+
+    def __init__(self, message: str, status: int) -> None:
+        super().__init__(message)
+        self.status = status
+
 
 @dataclass(frozen=True)
 class PullRequestEvent:
@@ -77,7 +92,9 @@ class GitHubRestPRClient:
                 raw = response.read()
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode(errors="replace")
-            raise RuntimeError(f"GitHub API {method} {path} failed: {exc.code}: {detail}") from exc
+            raise GitHubAPIError(
+                f"GitHub API {method} {path} failed: {exc.code}: {detail}", exc.code
+            ) from exc
         return json.loads(raw) if raw else None
 
     def list_changed_files(self, repository: str, pr_number: int) -> list[ChangedFile]:
@@ -181,9 +198,21 @@ class GitHubRestPRClient:
         return None
 
     def _authenticated_login(self) -> str:
+        """Return the login that authors this client's comments.
+
+        Falls back to the Actions bot identity when ``GET /user`` is refused,
+        which is what an installation token does.  The fallback is cached like
+        any other resolved login so every marker comparison uses one identity.
+        """
         if self._actor_login is not None:
             return self._actor_login
-        actor = self._request("GET", "/user")
+        try:
+            actor = self._request("GET", "/user")
+        except GitHubAPIError as exc:
+            if exc.status not in (401, 403):
+                raise
+            self._actor_login = INSTALLATION_TOKEN_LOGIN
+            return self._actor_login
         if not isinstance(actor, dict) or not str(actor.get("login", "")):
             raise RuntimeError("GitHub authenticated-user response did not include a login")
         self._actor_login = str(actor["login"])
