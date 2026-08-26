@@ -1,0 +1,57 @@
+# Deliberately incomplete. An approved release values file must supply private
+# PostgreSQL and a pre-created Kubernetes Secret; passwords are never values.
+temporalDatabase:
+  host: ""
+  username: ""
+  passwordSecretName: ""
+  passwordSecretKey: password
+  historyShards: 512
+
+temporal:
+  schema:
+    # Schema migration is a separately approved, observable release action.
+    # The normal server release must not create databases or silently migrate.
+    useHelmHooks: false
+  server:
+    config:
+      persistence:
+        defaultStore: default
+        visibilityStore: visibility
+        # Immutable after the first Temporal deployment. Do not change without
+        # a reviewed Temporal migration plan.
+        numHistoryShards: 512
+        datastores:
+          default:
+            sql:
+              createDatabase: false
+              manageSchema: false
+              pluginName: postgres12
+              databaseName: temporal
+              connectAddr: ""
+              connectProtocol: tcp
+              user: ""
+              existingSecret: ""
+              secretKey: password
+              maxConns: 20
+              maxIdleConns: 20
+              maxConnLifetime: 1h
+              tls:
+                enabled: true
+                enableHostVerification: true
+          visibility:
+            sql:
+              createDatabase: false
+              manageSchema: false
+              pluginName: postgres12
+              databaseName: temporal_visibility
+              connectAddr: ""
+              connectProtocol: tcp
+              user: ""
+              existingSecret: ""
+              secretKey: password
+              maxConns: 20
+              maxIdleConns: 20
+              maxConnLifetime: 1h
+              tls:
+                enabled: true
+                enableHostVerification: true

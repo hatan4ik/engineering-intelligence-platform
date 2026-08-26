@@ -1,0 +1,41 @@
+{{- $host := required "temporalDatabase.host is required" .Values.temporalDatabase.host }}
+{{- $user := required "temporalDatabase.username is required" .Values.temporalDatabase.username }}
+{{- $secretName := required "temporalDatabase.passwordSecretName must name a pre-created Kubernetes Secret" .Values.temporalDatabase.passwordSecretName }}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $secretName) }}
+{{- fail "temporalDatabase.passwordSecretName must be a Kubernetes Secret name" }}
+{{- end }}
+{{- if not (regexMatch "^[A-Za-z0-9.-]+$" $host) }}
+{{- fail "temporalDatabase.host must be a private PostgreSQL hostname" }}
+{{- end }}
+{{- if not (regexMatch "^[A-Za-z0-9_@.-]+$" $user) }}
+{{- fail "temporalDatabase.administrator contains an unsafe character" }}
+{{- end }}
+{{- if ne .Values.temporal.server.config.persistence.defaultStore "default" }}
+{{- fail "Temporal defaultStore must be default" }}
+{{- end }}
+{{- if ne .Values.temporal.server.config.persistence.visibilityStore "visibility" }}
+{{- fail "Temporal visibilityStore must be visibility" }}
+{{- end }}
+{{- if ne (int .Values.temporal.server.config.persistence.numHistoryShards) (int .Values.temporalDatabase.historyShards) }}
+{{- fail "Temporal history-shard count must be declared once and treated as immutable" }}
+{{- end }}
+{{- range $name, $store := .Values.temporal.server.config.persistence.datastores }}
+{{- if ne $store.sql.connectAddr (printf "%s:5432" $host) }}
+{{- fail (printf "Temporal datastore %s must use temporalDatabase.host on PostgreSQL port 5432" $name) }}
+{{- end }}
+{{- if ne $store.sql.user $user }}
+{{- fail (printf "Temporal datastore %s must use temporalDatabase.username" $name) }}
+{{- end }}
+{{- if ne $store.sql.existingSecret $secretName }}
+{{- fail (printf "Temporal datastore %s must use temporalDatabase.passwordSecretName" $name) }}
+{{- end }}
+{{- if $store.sql.createDatabase }}
+{{- fail (printf "Temporal datastore %s must not create its database during a server release" $name) }}
+{{- end }}
+{{- if $store.sql.manageSchema }}
+{{- fail (printf "Temporal datastore %s must not manage schema during a server release" $name) }}
+{{- end }}
+{{- if not $store.sql.existingSecret }}
+{{- fail (printf "Temporal datastore %s must use a pre-created existingSecret" $name) }}
+{{- end }}
+{{- end }}

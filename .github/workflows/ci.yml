@@ -33,6 +33,18 @@ jobs:
             exit 1
           fi
           grep --quiet "image.repository must be" /tmp/eip-default-chart.err
+      - name: Build and lint Temporal control-plane chart
+        run: |
+          helm dependency build helm/temporal
+          helm lint helm/temporal --values helm/temporal/values.ci.yaml
+      - name: Ensure Temporal defaults fail closed
+        shell: bash
+        run: |
+          if helm template eip-temporal helm/temporal >/tmp/eip-temporal-default.yaml 2>/tmp/eip-temporal-default.err; then
+            echo "The Temporal chart rendered with incomplete defaults; refusing unsafe control-plane configuration."
+            exit 1
+          fi
+          grep --quiet "temporalDatabase.host is required" /tmp/eip-temporal-default.err
       - name: Validate OPA policy bundle
         run: docker run --rm -v "$PWD/infra/policy:/policy" openpolicyagent/opa:1.0.0 test /policy
       - name: Run adversarial and dependency-pin gates

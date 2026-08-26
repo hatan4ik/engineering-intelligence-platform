@@ -31,3 +31,16 @@ output "key_vault_uri" {
 output "private_endpoint_subnet_id" {
   value = azurerm_subnet.private_endpoints.id
 }
+
+output "temporal_postgresql_host" {
+  description = "Private PostgreSQL hostname for the Temporal release values; it is not a credential."
+  value       = azurerm_postgresql_flexible_server.temporal.fqdn
+}
+
+output "temporal_postgresql_databases" {
+  description = "Temporal persistence databases that require a separately approved schema migration."
+  value = [
+    azurerm_postgresql_flexible_server_database.temporal.name,
+    azurerm_postgresql_flexible_server_database.temporal_visibility.name,
+  ]
+}

@@ -8,3 +8,11 @@ environment = "integration"
 aks_admin_group_object_ids = [
   "00000000-0000-0000-0000-000000000000",
 ]
+
+# Temporal uses a private, zone-redundant PostgreSQL Flexible Server. Supply
+# the administrator password at execution time through the approved secret
+# runner, for example TF_VAR_temporal_postgresql_administrator_password; never
+# add it to this file.
+temporal_postgresql_administrator_login       = "eip_temporal_admin"
+temporal_postgresql_primary_availability_zone = "1"
+temporal_postgresql_standby_availability_zone = "2"

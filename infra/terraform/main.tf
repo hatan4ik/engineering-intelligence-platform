@@ -62,6 +62,26 @@ resource "azurerm_subnet" "private_endpoints" {
   address_prefixes     = ["10.40.4.0/24"]
 }
 
+# PostgreSQL Flexible Server uses VNet integration, which requires a dedicated
+# delegated subnet rather than a Private Endpoint subnet.
+resource "azurerm_subnet" "temporal_postgresql" {
+  name                 = "snet-temporal-postgresql"
+  resource_group_name  = azurerm_resource_group.this.name
+  virtual_network_name = azurerm_virtual_network.this.name
+  address_prefixes     = ["10.40.5.0/28"]
+
+  delegation {
+    name = "postgresql-flexible-server"
+
+    service_delegation {
+      name = "Microsoft.DBforPostgreSQL/flexibleServers"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/join/action",
+      ]
+    }
+  }
+}
+
 resource "azurerm_log_analytics_workspace" "this" {
   name                = "law-eip-${local.name_suffix}"
   location            = azurerm_resource_group.this.location
@@ -142,6 +162,12 @@ resource "azurerm_private_dns_zone" "key_vault" {
   tags                = local.tags
 }
 
+resource "azurerm_private_dns_zone" "temporal_postgresql" {
+  name                = "privatelink.postgres.database.azure.com"
+  resource_group_name = azurerm_resource_group.this.name
+  tags                = local.tags
+}
+
 resource "azurerm_private_dns_zone_virtual_network_link" "search" {
   name                  = "link-search-eip"
   resource_group_name   = azurerm_resource_group.this.name
@@ -160,6 +186,13 @@ resource "azurerm_private_dns_zone_virtual_network_link" "key_vault" {
   name                  = "link-kv-eip"
   resource_group_name   = azurerm_resource_group.this.name
   private_dns_zone_name = azurerm_private_dns_zone.key_vault.name
+  virtual_network_id    = azurerm_virtual_network.this.id
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "temporal_postgresql" {
+  name                  = "link-temporal-postgresql-eip"
+  resource_group_name   = azurerm_resource_group.this.name
+  private_dns_zone_name = azurerm_private_dns_zone.temporal_postgresql.name
   virtual_network_id    = azurerm_virtual_network.this.id
 }
 
@@ -221,6 +254,49 @@ resource "azurerm_private_endpoint" "key_vault" {
     name                 = "key-vault"
     private_dns_zone_ids = [azurerm_private_dns_zone.key_vault.id]
   }
+}
+
+# Temporal is stateful infrastructure. Its PostgreSQL persistence uses private
+# VNet integration, zone redundancy, TLS, and long backup retention. Schema
+# migration and least-privilege database-user creation are explicit release
+# prerequisites; the normal Temporal server chart does neither automatically.
+resource "azurerm_postgresql_flexible_server" "temporal" {
+  name                          = "pg-temporal-eip-${local.name_suffix}"
+  resource_group_name           = azurerm_resource_group.this.name
+  location                      = azurerm_resource_group.this.location
+  version                       = "16"
+  administrator_login           = var.temporal_postgresql_administrator_login
+  administrator_password        = var.temporal_postgresql_administrator_password
+  sku_name                      = "GP_Standard_D2ds_v5"
+  storage_mb                    = 32768
+  backup_retention_days         = 35
+  geo_redundant_backup_enabled  = false
+  public_network_access_enabled = false
+  delegated_subnet_id           = azurerm_subnet.temporal_postgresql.id
+  private_dns_zone_id           = azurerm_private_dns_zone.temporal_postgresql.id
+  zone                          = var.temporal_postgresql_primary_availability_zone
+
+  high_availability {
+    mode                      = "ZoneRedundant"
+    standby_availability_zone = var.temporal_postgresql_standby_availability_zone
+  }
+
+  depends_on = [azurerm_private_dns_zone_virtual_network_link.temporal_postgresql]
+  tags       = local.tags
+}
+
+resource "azurerm_postgresql_flexible_server_database" "temporal" {
+  name      = "temporal"
+  server_id = azurerm_postgresql_flexible_server.temporal.id
+  charset   = "UTF8"
+  collation = "en_US.utf8"
+}
+
+resource "azurerm_postgresql_flexible_server_database" "temporal_visibility" {
+  name      = "temporal_visibility"
+  server_id = azurerm_postgresql_flexible_server.temporal.id
+  charset   = "UTF8"
+  collation = "en_US.utf8"
 }
 
 resource "azurerm_user_assigned_identity" "workload" {

@@ -309,44 +309,34 @@ def system_overview(th: Theme) -> D:
     d.zone(28, 84, 924, 92, "SOURCES", "neutral")
     d.card(52, 112, 270, 48, "Git · GitHub · Azure DevOps", accent="neutral")
     d.card(354, 112, 270, 48, "Work items · ADRs · runbooks", accent="neutral")
-    d.card(656, 112, 272, 48, "AKS · Azure Monitor · deploys", accent="neutral")
     d.card(656, 112, 272, 48, "K8s · Telemetry · deploys", accent="neutral")
 
     # Knowledge plane
     d.zone(28, 204, 452, 118, "KNOWLEDGE PLANE — ingestion/", "knowledge")
-    d.card(52, 240, 190, 62, "Governed ingestion", ["chunk · ACL · ledger / DLQ"], accent="knowledge")
     d.card(52, 240, 190, 62, "Governed ingestion", ["chunk · ACL · reconcile"], accent="knowledge")
     d.cylinder(330, 238, 120, 66, ["Hybrid index", "BM25 + vector"], "knowledge")
 
     # Gateway plane
     d.zone(500, 204, 452, 118, "AI GATEWAY — app/", "gateway")
-    d.card(524, 240, 404, 62, "Entra AuthN → ACL filter → LLM → citations",
-           ["hybrid retrieval · redaction · budgets — auth before retrieval"], accent="gateway")
     d.card(524, 240, 404, 62, "Zanzibar ACLs → LLM Router → citations",
            ["semantic cache · redaction · budgets — auth before retrieval"], accent="gateway")
 
     # Intelligence plane
     d.zone(28, 350, 452, 118, "INTELLIGENCE — intelligence/, product/", "intelligence")
     d.card(52, 386, 190, 62, "PR Guardian · change risk", ["deterministic, explainable"], accent="intelligence")
-    d.card(266, 386, 190, 62, "Incident · deploy · drift", ["evidence-cited hypotheses"], accent="intelligence")
     d.card(266, 386, 190, 62, "Incident · deploy · drift", ["LLMOps trace · hypotheses"], accent="intelligence")
 
     # Control plane
     d.zone(500, 350, 452, 118, "CONTROL PLANE — control_plane/, state/", "control")
-    d.card(524, 386, 190, 62, "Durable workflows", ["plan hashes · approvals"], accent="control")
     d.card(524, 386, 190, 62, "Temporal Workflows", ["plan hashes · approvals"], accent="control")
     d.cylinder(806, 384, 130, 66, ["Audit log", "hash-chained"], "control")
 
     # Execution plane
     d.zone(28, 496, 700, 118, "EXECUTION — remediation/", "execution")
-    d.card(52, 532, 190, 62, "Certified runbooks", ["allow-listed · reversible"], accent="execution")
-    d.card(266, 532, 190, 62, "K8s / Azure adapters", ["fixed commands only"], accent="execution")
     d.card(52, 532, 190, 62, "Admission Control / Runbooks", ["allow-listed · reversible"], accent="execution")
     d.card(266, 532, 190, 62, "Multi-Cloud K8s adapters", ["fixed commands only"], accent="execution")
     d.card(480, 532, 224, 62, "Independent verification", ["healthy → close · else rollback"], accent="execution")
 
-    # Azure target
-    d.card(772, 532, 180, 62, "AKS / Azure", accent="neutral")
     # Target
     d.card(772, 532, 180, 62, "K8s (AKS/EKS/GKE)", accent="neutral")
 
@@ -384,7 +374,6 @@ def ingestion_pipeline(th: Theme) -> D:
     d.diamond(362, Y, 132, 66, ["seen before?", "ledger.py"], accent="knowledge")
     d.card(452, Y - 26, 100, 52, "Load files", ["providers.py"], accent="knowledge")
     d.card(576, Y - 26, 112, 52, "Chunk + ACL", ["AST · text · acl"], accent="knowledge")
-    d.card(712, Y - 26, 96, 52, "Embed", ["Azure OpenAI"], accent="knowledge")
     d.card(712, Y - 26, 96, 52, "Embed", ["LLM Gateway"], accent="knowledge")
     d.cylinder(896, Y - 34, 110, 68, ["Hybrid", "index"], "knowledge")
     d.edge([(142, Y), (168, Y)])
@@ -418,8 +407,6 @@ def query_sequence(th: Theme) -> D:
     top, bot = 84, 580
     d.lifeline(C, "Caller", top, bot, "neutral")
     d.lifeline(A, "AI gateway", top, bot, "gateway")
-    d.lifeline(S, "Azure AI Search", top, bot, "knowledge")
-    d.lifeline(L, "Azure OpenAI", top, bot, "gateway")
     d.lifeline(S, "Vector DB", top, bot, "knowledge")
     d.lifeline(L, "LLM Router", top, bot, "gateway")
     d.msg(C, A, 168, "question + bearer token")
@@ -568,7 +555,6 @@ def readme_overview(th: Theme) -> D:
     d.card(362, Y - 30, 140, 64, "AI gateway", ["AuthN · ACL → LLM", "citations"], accent="gateway")
     d.card(534, Y - 30, 140, 64, "Agents", ["PR risk · RCA", "drift · deploy"], accent="intelligence")
     d.card(706, Y - 30, 140, 64, "Control", ["workflows · policy", "approvals · audit"], accent="control")
-    d.card(878, Y - 30, 74, 64, "AKS", ["Azure"], accent="execution")
     d.card(878, Y - 30, 74, 64, "K8s", ["Multi-Cloud"], accent="execution")
     d.edge([(158, Y), (190, Y)], label="ingest", ly=Y - 40, lx=174)
     d.edge([(330, Y), (362, Y)])

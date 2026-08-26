@@ -46,6 +46,43 @@ variable "log_retention_days" {
   default     = 30
 }
 
+variable "temporal_postgresql_administrator_login" {
+  description = "Bootstrap-only PostgreSQL administrator login. Temporal must use a separate least-privilege runtime user."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9_]{0,62}$", var.temporal_postgresql_administrator_login))
+    error_message = "temporal_postgresql_administrator_login must start with a lowercase letter and use lowercase letters, digits, or underscores."
+  }
+}
+
+variable "temporal_postgresql_administrator_password" {
+  description = "Bootstrap-only PostgreSQL administrator password supplied by the approved private deployment runner, never a checked-in tfvars file."
+  type        = string
+  sensitive   = true
+  nullable    = false
+}
+
+variable "temporal_postgresql_primary_availability_zone" {
+  description = "Availability zone for the Temporal PostgreSQL primary. Choose an Azure-supported zone in the selected region."
+  type        = string
+
+  validation {
+    condition     = contains(["1", "2", "3"], var.temporal_postgresql_primary_availability_zone)
+    error_message = "temporal_postgresql_primary_availability_zone must be 1, 2, or 3."
+  }
+}
+
+variable "temporal_postgresql_standby_availability_zone" {
+  description = "Different availability zone for the Temporal PostgreSQL standby."
+  type        = string
+
+  validation {
+    condition     = contains(["1", "2", "3"], var.temporal_postgresql_standby_availability_zone)
+    error_message = "temporal_postgresql_standby_availability_zone must be 1, 2, or 3."
+  }
+}
+
 variable "workload_namespace" {
   description = "Kubernetes namespace containing the EIP workload service account."
   type        = string

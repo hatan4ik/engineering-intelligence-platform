@@ -71,7 +71,7 @@ implementation may exist, but no service/environment/runbook production evidence
 | Predictive change risk | Implemented reference | historical calibration, explicit confidence/evidence, deployment-risk output | real feature-store history and threshold calibration |
 | Authoritative state | Adapter present | SQLite contract plus Cosmos DB adapter with `_etag` CAS and app versions | provision/wire managed state, multi-region policy, backup/restore, retention, and production proof |
 | Audit | Implemented local contract | hash-chained audit and control-plane action audit | immutable external export/retention policy |
-| Durable orchestration | Implemented reference | leases, retry/backoff, restart recovery, DLQ, durable remediation jobs | Service Bus/PostgreSQL production queue adapter and production concurrency/recovery evidence |
+| Durable orchestration | Implemented reference; Temporal integration path selected | SQLite reference semantics plus fail-closed Temporal configuration, Helm wrapper, and private PostgreSQL declarations | Temporal worker adapter/deployment, schema migration, recovery/restore drills, immutable audit export, and production evidence |
 | Mutation policy | Implemented | authoritative OPA contract, fail-closed client, OPA-native CI tests | bundle distribution/version promotion operations |
 | Human approval | Implemented L3 primitive | exact plan-hash HMAC approval with expiry + Entra identity boundary | portal/Teams/Slack approval UX and approver-role mapping |
 | Runbook library / AKS execution | Implemented reference | fixed typed runbooks, argv-only Kubernetes adapter, verify/rollback/escalation | more certified failure classes and Azure-resource actions |

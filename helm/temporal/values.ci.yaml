@@ -1,0 +1,22 @@
+# Render-only values. These placeholders cannot identify a real database or
+# credential, and no release may use this file.
+temporalDatabase:
+  host: temporal-ci.postgres.database.azure.com
+  username: temporal_ci
+  passwordSecretName: temporal-ci-postgres
+
+temporal:
+  server:
+    config:
+      persistence:
+        datastores:
+          default:
+            sql:
+              connectAddr: temporal-ci.postgres.database.azure.com:5432
+              user: temporal_ci
+              existingSecret: temporal-ci-postgres
+          visibility:
+            sql:
+              connectAddr: temporal-ci.postgres.database.azure.com:5432
+              user: temporal_ci
+              existingSecret: temporal-ci-postgres

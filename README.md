@@ -107,6 +107,11 @@ Terraform likewise requires an explicit location, environment classification, an
 group. [`infra/terraform/terraform.tfvars.example`](infra/terraform/terraform.tfvars.example)
 is a placeholder-only starting point, not an apply authorization.
 
+For the durable control plane, the selected integration path is Temporal on private AKS with
+private PostgreSQL. Its chart has separate fail-closed defaults and requires an existing secret;
+it does not run schema migrations or create database users during a normal server release. See
+[`architecture/ADR-001-temporal-control-plane.md`](architecture/ADR-001-temporal-control-plane.md).
+
 ## Current scope and limits
 
 | Available reference capability | Not yet a production claim |
@@ -179,13 +184,13 @@ Suggested reading order within each audience.
 | `app/` | Gateway | FastAPI API, Azure RAG backend, webhook ingress, OTel bootstrap |
 | `intelligence/` | Intelligence | Service graph, change risk, PR Guardian, incident/deployment/drift analysis, SLO context |
 | `product/` `integrations/` `scripts/` | Intelligence | PR Guardian E2E: product service, GitHub REST/webhook adapters, CI runner |
-| `control_plane/` `state/` `orchestration/` | Control | Durable workflows, authoritative state + audit chain, job queue, plan-bound approvals |
+| `control_plane/` `state/` `orchestration/` | Control | Reference workflow/state/audit contracts; Temporal configuration guard and plan-bound approvals |
 | `remediation/` | Execution | Runbook catalog, deterministic policy, Kubernetes adapter, simulation, verify/rollback |
 | `security/` `resilience/` | Control | Adversarial/provenance controls, degraded-mode policy, L4 certification |
 | `telemetry/` `finops/` `portal/` | Observability | Operation events, cost attribution/outcomes, control-tower view models |
 | `eval/` | Quality | Retrieval evaluation harness |
 | `infra/` | Infra | Terraform (Azure baseline + private AI foundation), OPA policy examples |
-| `helm/eip/` · `Dockerfile` | Deploy | AKS chart and container image |
+| `helm/eip/` · `helm/temporal/` · `Dockerfile` | Deploy | Fail-closed API chart, pinned Temporal wrapper, and container image |
 | `demo/aks/` | Demo | Fault/remediation scenario runner |
 | `providers/` | Portability | Cloud-neutral provider contracts |
 | `slides/` | Program | Board-deck generator |
