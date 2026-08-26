@@ -1,7 +1,7 @@
-# Release image = API runtime closure for the PR Guardian wedge (see Dockerfile,
-# app/import_closure.py). Deferred verticals that import the execution plane
-# (remediation/, topology/) stay out of the image until they have a product
-# decision. tests/test_image_import_closure.py keeps this list honest.
-product/durable_self_healing.py
+# Release image = API runtime closure for the PR Guardian wedge plus the
+# control-plane worker (see Dockerfile, app/import_closure.py). remediation/ and
+# resilience/ ship because the same image runs the opt-in Temporal remediation
+# worker and the certification exercise suite; topology/ still does not, so the
+# module that imports it stays out. tests/test_image_import_closure.py keeps
+# this list honest.
 product/incident_service.py
-product/self_healing_service.py

@@ -29,6 +29,12 @@ COPY --chown=eip:eip telemetry /app/telemetry
 COPY --chown=eip:eip control_plane /app/control_plane
 COPY --chown=eip:eip orchestration /app/orchestration
 COPY --chown=eip:eip state /app/state
+# The opt-in remediation workflow (orchestration/remediation_workflow.py) and
+# the certification exercise suite run in this same image. They carry no
+# authority by themselves: every consequential activity is gated on
+# EIP_TEMPORAL_REMEDIATION_WORKFLOWS=enabled.
+COPY --chown=eip:eip remediation /app/remediation
+COPY --chown=eip:eip resilience /app/resilience
 
 EXPOSE 8000
 USER eip

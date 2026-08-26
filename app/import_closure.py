@@ -34,6 +34,8 @@ SHIPPED_PACKAGES: tuple[str, ...] = (
     "control_plane",
     "orchestration",
     "state",
+    "remediation",
+    "resilience",
 )
 
 
