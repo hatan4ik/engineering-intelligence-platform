@@ -1,11 +1,11 @@
 """Source-manifest reconciliation for repairing webhook and index drift."""
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Iterable
 
 from .catalog import SourceCatalog, SourceScope
-from .models import ChangeType, FileChange
+from .models import ACL, ChangeType, FileChange
 from .pipeline import IngestionPipeline
 
 
@@ -54,7 +54,7 @@ class SourceReconciler:
                     FileChange(
                         source=record.source,
                         change_type=ChangeType.DELETE,
-                        acl=record_acl_placeholder(record.source),
+                        acl=ACL(),
                     )
                 )
 
@@ -66,10 +66,3 @@ class SourceReconciler:
             deleted=int(result["deleted"]),
             chunks=int(result["chunks"]),
         )
-
-
-def record_acl_placeholder(_source) -> object:
-    """Deletion never indexes ACL data; retain an empty immutable placeholder."""
-    from .models import ACL
-
-    return ACL()

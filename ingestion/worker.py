@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from .events import NormalizedEvent
+from .catalog import SqliteSourceCatalog
 from .ledger import SqliteEventLedger
 from .pipeline import IngestionPipeline
 
@@ -34,4 +35,6 @@ class IngestionWorker:
 
 
 def sqlite_worker(pipeline: IngestionPipeline, path: str = "ingestion-ledger.db") -> IngestionWorker:
+    if pipeline.catalog is None:
+        pipeline.catalog = SqliteSourceCatalog(f"{path}.sources")
     return IngestionWorker(pipeline=pipeline, ledger=SqliteEventLedger(path))
