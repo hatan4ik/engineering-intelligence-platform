@@ -7,6 +7,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Iterator, Protocol
 
+from control_plane.runtime import require_reference_storage
 from .models import ServiceRecord, WorkflowRecord, WorkflowStatus
 
 
@@ -32,6 +33,7 @@ class SqliteStateStore:
     """
 
     def __init__(self, path: str | Path = "eip-state.db") -> None:
+        require_reference_storage(type(self).__name__)
         self.path = str(path)
         self._init_schema()
 

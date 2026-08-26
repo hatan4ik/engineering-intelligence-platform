@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from control_plane.runtime import require_reference_storage
 
 @dataclass(frozen=True)
 class Job:
@@ -26,6 +27,7 @@ class SqliteJobQueue:
     """Durable local/CI queue with lease-based claiming and DLQ semantics."""
 
     def __init__(self, path: str | Path = "eip-jobs.db") -> None:
+        require_reference_storage(type(self).__name__)
         self.path = str(path)
         with self._connect() as db:
             db.executescript(

@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass, replace
 
 from orchestration.approvals import Approval, verify_approval
-from state.audit import SqliteAuditLog
+from state.audit import AuditLog
 from state.models import AuditEvent, WorkflowRecord, WorkflowStatus
 from state.store import StateStore
 
@@ -38,7 +38,7 @@ class RemediationWorkflowPlan:
 
 
 class RemediationWorkflows:
-    def __init__(self, store: StateStore, audit: SqliteAuditLog) -> None:
+    def __init__(self, store: StateStore, audit: AuditLog) -> None:
         self.store = store
         self.audit = audit
 

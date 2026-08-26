@@ -5,7 +5,9 @@ import json
 import sqlite3
 from dataclasses import asdict, replace
 from pathlib import Path
+from typing import Protocol
 
+from control_plane.runtime import require_reference_storage
 from .models import AuditEvent
 
 
@@ -19,6 +21,12 @@ def compute_event_hash(event: AuditEvent) -> str:
     return hashlib.sha256(_canonical(event).encode()).hexdigest()
 
 
+class AuditLog(Protocol):
+    """Append-only audit contract shared by reference and managed sinks."""
+
+    def append(self, event: AuditEvent) -> AuditEvent: ...
+
+
 class SqliteAuditLog:
     """Append-only hash-chained audit log for local/test use.
 
@@ -27,6 +35,7 @@ class SqliteAuditLog:
     """
 
     def __init__(self, path: str | Path = "eip-audit.db") -> None:
+        require_reference_storage(type(self).__name__)
         self.path = str(path)
         with self._connect() as db:
             db.execute(

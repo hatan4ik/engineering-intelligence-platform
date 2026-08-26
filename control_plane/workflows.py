@@ -11,7 +11,7 @@ from intelligence.incidents import IncidentAnalysis
 from intelligence.pr_guardian import PRPolicyDecision, policy_for
 from intelligence.risk import RiskAssessment
 from orchestration.approvals import Approval, verify_approval
-from state.audit import SqliteAuditLog
+from state.audit import AuditLog
 from state.models import AuditEvent, WorkflowRecord, WorkflowStatus
 from state.store import StateStore
 
@@ -22,7 +22,7 @@ def _hash(value: object) -> str:
 
 
 class ControlPlaneWorkflows:
-    def __init__(self, store: StateStore, audit: SqliteAuditLog) -> None:
+    def __init__(self, store: StateStore, audit: AuditLog) -> None:
         self.store = store
         self.audit = audit
 
