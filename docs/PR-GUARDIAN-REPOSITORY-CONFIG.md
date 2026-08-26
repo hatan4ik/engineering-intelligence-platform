@@ -138,6 +138,15 @@ and is the only writer.
 
 `shadow` behaviour is unchanged from the shadow pilot.
 
+The sticky comment states the authority the mode actually has, and there is one
+rendering path (`product.pr_guardian_shadow.observation_comment`) for all three
+modes. In `shadow` it still says the result cannot change merge status; in
+`advisory` it says it is a non-blocking check for this repository's certified
+scope; in `enforce` it names the rule, says whether the change would block this
+pull request, and names the owner of any waiver that applied. When the publisher
+re-derives a different conclusion than the observation claimed, the comment
+discloses the conclusion that was actually published and why.
+
 Marking the check required in branch protection is a repository decision and is
 independent of this file. In `shadow` and `advisory` the check can never report
 `failure`, so making it required has no gating effect.

@@ -226,38 +226,6 @@ def explain(reason: str) -> str:
     return _REASON_SENTENCES.get(reason, reason)
 
 
-def render_enforcement_section(
-    observation: Mapping[str, object],
-    *,
-    published_conclusion: str | None = None,
-    publish_reason: str | None = None,
-) -> str:
-    """Human-readable mode and enforcement block for the sticky PR comment."""
-    mode = str(observation.get("mode", ProductMode.SHADOW.value))
-    enforcement = observation.get("enforcement")
-    enforcement = enforcement if isinstance(enforcement, Mapping) else {}
-    lines = [
-        "### Mode and enforcement",
-        "",
-        f"- **Repository mode:** `{mode}` (chosen by this repository's service owners)",
-        f"- **Would block:** `{bool(enforcement.get('would_block'))}` — {explain(str(enforcement.get('reason', '')))}",
-    ]
-    rule = enforcement.get("rule")
-    if rule:
-        lines.append(f"- **Rule:** `{rule}`")
-    waived_by = enforcement.get("waived_by")
-    if waived_by:
-        lines.append(f"- **Waived by:** `{waived_by}`")
-    if published_conclusion is not None:
-        lines.append(
-            f"- **Published check conclusion:** `{published_conclusion}` — "
-            f"{explain(publish_reason or '')}"
-        )
-    if mode != ProductMode.ENFORCE.value:
-        lines.append("- This check cannot change merge status in this mode.")
-    return "\n".join(lines)
-
-
 def _today(now: date | datetime | None) -> date:
     if now is None:
         return datetime.now(timezone.utc).date()

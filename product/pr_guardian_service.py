@@ -21,7 +21,6 @@ from product.pr_guardian.enforcement import (
     is_iac_path,
     is_security_boundary_path,
     is_test_path,
-    render_enforcement_section,
 )
 from product.pr_guardian_shadow import observation_from_assessment, observation_comment
 from telemetry.events import NullTelemetrySink, OperationEvent, TelemetrySink
@@ -176,7 +175,9 @@ class PRGuardianService:
                 mode=self.mode,
                 enforcement=decision.as_dict(),
             )
-            summary = f"{observation_comment(observation)}\n\n{render_enforcement_section(observation)}"
+            # observation_comment is the single rendering path: it states the
+            # authority this repository's mode actually has.
+            summary = observation_comment(observation)
             self.github.publish_check(
                 repository=event.repository,
                 head_sha=event.head_sha,

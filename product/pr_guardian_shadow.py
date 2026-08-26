@@ -1,9 +1,15 @@
-"""Portable, non-enforcing records for the PR Guardian shadow pilot.
+"""Portable PR Guardian observation records and their rendered comment.
 
-The records deliberately contain only deterministic assessment metadata.  They
-are safe to pass between the untrusted pull-request evaluation workflow and a
-separate, trusted publisher workflow; they are *not* production evidence or an
-authorization to enable merge enforcement.
+The records contain only deterministic assessment metadata, so they are safe to
+pass between the untrusted pull-request evaluation workflow and a separate,
+trusted publisher workflow.  They are *not* production evidence.
+
+A record carries the mode the evaluated repository chose for itself — ``shadow``,
+``advisory``, or ``enforce`` — and ``observation_comment`` renders the authority
+that mode actually has.  A record never authorizes enforcement: the mode comes
+from the repository's own ``.eip/pr-guardian.json``, and the trusted publisher
+re-derives the published conclusion from that file rather than trusting this
+record.  Closure/outcome records below remain non-enforcing calibration inputs.
 """
 
 from __future__ import annotations
@@ -257,10 +263,30 @@ def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
     }
 
 
-def observation_comment(observation: Mapping[str, object]) -> str:
+def observation_comment(
+    observation: Mapping[str, object],
+    *,
+    published_conclusion: str | None = None,
+    publish_reason: str | None = None,
+) -> str:
+    """Render the sticky comment, stating the authority this mode actually has.
+
+    This is the single rendering path for an observation.  The wording is a
+    function of the record's own ``mode``: a shadow record still says it cannot
+    change merge status, and an enforcing record names its rule, says whether it
+    would block *this* pull request, and names any waiver that applied.  A
+    trusted publisher that re-derived a different conclusion passes it in via
+    ``published_conclusion`` so the comment discloses what was actually posted.
+    """
+    # Imported here rather than at module scope so this transfer-record module
+    # keeps its narrow import surface; `explain` owns the reason wording.
+    from product.pr_guardian.enforcement import explain
+
     observation = validate_observation(observation)
+    mode = str(observation["mode"])
     assessment = _mapping(observation["assessment"], "assessment")
     policy = _mapping(observation["simulated_policy"], "simulated_policy")
+    enforcement = _mapping(observation["enforcement"], "enforcement")
     factors = assessment["factors"]
     assert isinstance(factors, list)
     evidence = "\n".join(
@@ -269,15 +295,61 @@ def observation_comment(observation: Mapping[str, object]) -> str:
     ) or "- No material risk factors detected"
     simulated_controls = _simulated_controls(policy)
     payload = json.dumps(observation, sort_keys=True, separators=(",", ":"))
+
+    if mode == "advisory":
+        heading = "## Engineering Intelligence — PR Guardian advisory review"
+        authority = (
+            "**Advisory — non-blocking check for this repository's certified scope.** "
+            "It is published as a neutral check and does not change merge status."
+        )
+        policy_heading = "### Advisory policy signals"
+    elif mode == "enforce":
+        heading = "## Engineering Intelligence — PR Guardian enforcement check"
+        would_block = bool(enforcement["would_block"])
+        verdict = (
+            "**would block this pull request**"
+            if would_block
+            else "does not block this pull request"
+        )
+        authority_lines = [
+            "**Selective enforcement is enabled for this repository by its service owners.**",
+            "",
+            f"- **Rule:** `{enforcement['rule'] or 'none'}`",
+            f"- **Result:** this change {verdict} — {explain(str(enforcement['reason']))}",
+        ]
+        if enforcement["waived_by"]:
+            authority_lines.append(
+                f"- **Waiver applied by:** `{enforcement['waived_by']}` "
+                "(a service owner accepted this risk in `.eip/pr-guardian.json`)"
+            )
+        authority = "\n".join(authority_lines)
+        policy_heading = "### Advisory policy signals"
+    else:
+        heading = "## Engineering Intelligence — PR Guardian shadow observation"
+        authority = (
+            "**Advisory only.** This result cannot approve, block, or otherwise change merge status."
+        )
+        policy_heading = "### Simulated policy"
+
+    if published_conclusion is not None:
+        authority += (
+            f"\n\n**Published check conclusion:** `{published_conclusion}` — "
+            f"{explain(publish_reason or '')}"
+        )
+    policy_note = "" if mode == "shadow" else (
+        "\n\nThese are the risk policy's recommendations to reviewers. They are separate "
+        "from the enforcement rule above, which is the only thing that can change this "
+        "check's conclusion."
+    )
     return (
         f"{COMMENT_MARKER}\n{DATA_MARKER}{payload}{DATA_SUFFIX}\n"
-        "## Engineering Intelligence — PR Guardian shadow observation\n\n"
-        "**Advisory only.** This result cannot approve, block, or otherwise change merge status.\n\n"
+        f"{heading}\n\n"
+        f"{authority}\n\n"
         f"**Risk score:** `{assessment['score']}/100` ({assessment['band']})\n\n"
         "### Evidence\n"
         f"{evidence}\n\n"
-        "### Simulated policy\n"
-        f"{simulated_controls}\n\n"
+        f"{policy_heading}\n"
+        f"{simulated_controls}{policy_note}\n\n"
         "For calibration, an authorized reviewer may apply at most one risk label "
         "(`eip-pr-guardian/confirmed-risk` or `eip-pr-guardian/false-positive`) and at most "
         "one utility label (`eip-pr-guardian/useful` or `eip-pr-guardian/not-useful`). "

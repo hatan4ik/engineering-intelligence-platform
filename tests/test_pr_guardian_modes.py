@@ -105,7 +105,7 @@ def event():
 def test_shadow_mode_publishing_is_unchanged(tmp_path):
     service, github, _ = build_service(tmp_path, default_shadow_config("acme/platform"))
 
-    result = service.evaluate(event())
+    result = service.evaluate(event(), now=NOW)
 
     assert result.mode == "shadow"
     assert github.checks[0]["name"] == "Engineering Intelligence / PR Guardian (shadow)"
@@ -117,7 +117,7 @@ def test_shadow_mode_publishing_is_unchanged(tmp_path):
 def test_advisory_mode_publishes_a_neutral_check_with_an_advisory_title(tmp_path):
     service, github, _ = build_service(tmp_path, repository_config("advisory"))
 
-    result = service.evaluate(event())
+    result = service.evaluate(event(), now=NOW)
 
     assert result.mode == "advisory"
     assert github.checks[0]["conclusion"] == "neutral"
@@ -128,7 +128,7 @@ def test_advisory_mode_publishes_a_neutral_check_with_an_advisory_title(tmp_path
 def test_enforce_mode_fails_the_check_only_when_the_rule_fires(tmp_path):
     service, github, _ = build_service(tmp_path, repository_config("enforce"))
 
-    result = service.evaluate(event())
+    result = service.evaluate(event(), now=NOW)
 
     assert result.enforcement.would_block is True
     assert result.conclusion == "failure"
@@ -138,7 +138,7 @@ def test_enforce_mode_fails_the_check_only_when_the_rule_fires(tmp_path):
 def test_enforce_mode_stays_neutral_when_the_rule_does_not_fire(tmp_path):
     service, github, _ = build_service(tmp_path, repository_config("enforce", threshold=99))
 
-    result = service.evaluate(event())
+    result = service.evaluate(event(), now=NOW)
 
     assert result.enforcement.would_block is False
     assert github.checks[0]["conclusion"] == "neutral"
@@ -149,7 +149,7 @@ def test_kill_switch_downgrades_an_enforcing_repository_to_neutral(tmp_path):
         tmp_path, repository_config("enforce"), environ={KILL_SWITCH_ENV: "true"}
     )
 
-    result = service.evaluate(event())
+    result = service.evaluate(event(), now=NOW)
 
     assert result.enforcement.reason == "kill-switch"
     assert github.checks[0]["conclusion"] == "neutral"
@@ -184,7 +184,12 @@ def test_observation_carries_mode_enforcement_and_architecture(tmp_path):
     })
 
     observation = evaluate_pull_request(
-        event(), service=service, audit=audit, contents=contents, rules=DEFAULT_ARCHITECTURE_RULES
+        event(),
+        service=service,
+        audit=audit,
+        contents=contents,
+        rules=DEFAULT_ARCHITECTURE_RULES,
+        now=NOW,
     )
 
     assert observation["mode"] == "enforce"
@@ -203,7 +208,7 @@ def test_architecture_findings_never_change_the_check_conclusion(tmp_path):
     })
 
     observation = evaluate_pull_request(
-        event(), service=service, audit=audit, contents=contents
+        event(), service=service, audit=audit, contents=contents, now=NOW
     )
 
     assert observation["architecture"]["violations"]
@@ -266,6 +271,7 @@ def enforcing_observation(tmp_path, contents=None):
         service=service,
         audit=audit,
         contents=contents or FakeContents({}),
+        now=NOW,
     )
 
 
@@ -354,3 +360,80 @@ def test_published_check_identity_follows_the_trusted_config_not_the_artifact(tm
 
     assert client.checks[0]["name"] == "Engineering Intelligence / PR Guardian (advisory)"
     assert "Advisory" in client.checks[0]["title"]
+
+
+# --- one rendering path: the comment states this mode's real authority -------
+
+
+def comment_body(tmp_path, config, **kwargs):
+    service, github, _ = build_service(tmp_path, config, **kwargs)
+    service.evaluate(event(), now=NOW)
+    return github.comments[0]["body"]
+
+
+def test_shadow_comment_wording_is_unchanged(tmp_path):
+    body = comment_body(tmp_path, default_shadow_config("acme/platform"))
+
+    assert "## Engineering Intelligence — PR Guardian shadow observation" in body
+    assert (
+        "**Advisory only.** This result cannot approve, block, or otherwise change merge status."
+        in body
+    )
+    assert "### Simulated policy" in body
+
+
+def test_advisory_comment_states_a_non_blocking_certified_scope(tmp_path):
+    body = comment_body(tmp_path, repository_config("advisory"))
+
+    assert "Advisory — non-blocking check for this repository's certified scope" in body
+    assert "does not change merge status" in body
+    assert "cannot approve, block" not in body
+
+
+def test_enforce_comment_names_the_rule_and_says_it_would_block(tmp_path):
+    body = comment_body(tmp_path, repository_config("enforce"))
+
+    assert "## Engineering Intelligence — PR Guardian enforcement check" in body
+    assert "iac-change-without-test-evidence-at-high-risk" in body
+    assert "would block this pull request" in body
+    assert "cannot approve, block, or otherwise change merge status" not in body
+
+
+def test_enforce_comment_says_it_does_not_block_when_the_rule_did_not_fire(tmp_path):
+    body = comment_body(tmp_path, repository_config("enforce", threshold=99))
+
+    assert "does not block this pull request" in body
+    assert "the enforcement rule's condition was not met" in body
+    assert "cannot approve, block, or otherwise change merge status" not in body
+
+
+def test_enforce_comment_names_the_owner_who_waived_the_change(tmp_path):
+    waived = repository_config("enforce", waivers=[{
+        "path_glob": "infra/*",
+        "reason": "Frozen legacy stack; owner accepts the risk until Q4.",
+        "owner": "octocat",
+        "expires_on": "2026-10-01",
+    }])
+
+    body = comment_body(tmp_path, waived)
+
+    assert "Waiver applied by:** `octocat`" in body
+    assert "does not block this pull request" in body
+
+
+def test_publisher_comment_discloses_the_conclusion_it_actually_published(tmp_path):
+    observation = enforcing_observation(tmp_path)
+    client = FakePublisherClient()
+
+    publish_observation(
+        observation,
+        config=repository_config("advisory"),
+        repository="acme/platform",
+        client=client,
+        environ={},
+        now=NOW,
+    )
+
+    body = client.comments[0]["body"]
+    assert "**Published check conclusion:** `neutral`" in body
+    assert "the trusted repository configuration is not enforcing this pull request" in body

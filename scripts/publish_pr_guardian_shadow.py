@@ -19,7 +19,7 @@ from integrations.github.pr_guardian import GitHubRestPRClient
 from product.architecture_review import render_architecture_review, violations_from_records
 from product.pr_guardian.config import load_repository_config
 from product.pr_guardian.contracts import RepositoryConfig
-from product.pr_guardian.enforcement import explain, publishable_conclusion, render_enforcement_section
+from product.pr_guardian.enforcement import explain, publishable_conclusion
 from product.pr_guardian_shadow import COMMENT_MARKER, observation_comment, validate_observation
 
 
@@ -47,9 +47,10 @@ def publish_observation(
     assert isinstance(assessment, Mapping) and isinstance(architecture, Mapping)
     violations = violations_from_records(architecture["violations"])  # type: ignore[arg-type]
 
+    # One rendering path: observation_comment states the mode's real authority
+    # and discloses the conclusion this trusted workflow actually published.
     body = "\n\n".join((
-        observation_comment(observation),
-        render_enforcement_section(
+        observation_comment(
             observation,
             published_conclusion=decision.conclusion,
             publish_reason=decision.reason,
