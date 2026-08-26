@@ -87,9 +87,19 @@ class RemediationRegistration:
 
 
 def remediation_registration(environ: Mapping[str, str] | None = None) -> RemediationRegistration:
+    """Decide whether the worker may register ``eip.remediation.v1``.
+
+    The gate is the factory's own predicate, not a variable-name check: the
+    presence of the four ``EIP_COSMOS_*`` names says nothing about which backend
+    :func:`state.factory.build_state_store` would actually return. In
+    ``reference`` mode it returns SQLite regardless of how much Cosmos
+    configuration is present, and a durable remediation workflow must never run
+    on the reference backends.
+    """
     # Imported lazily: state.factory pulls in the Azure SDK, which must not be a
     # module-level import of a workflow-definition module.
-    from state.factory import missing_cosmos_configuration
+    from control_plane.runtime import TEMPORAL_MODE, control_plane_mode
+    from state.factory import cosmos_backends_available, missing_cosmos_configuration
 
     source = os.environ if environ is None else environ
     enabled = remediation_workflows_enabled(source)
@@ -100,19 +110,30 @@ def remediation_registration(environ: Mapping[str, str] | None = None) -> Remedi
             missing_configuration=(),
             reason=f"{REMEDIATION_WORKFLOWS_FLAG} is not enabled; the worker stays evidence-only",
         )
+    if cosmos_backends_available(source):
+        return RemediationRegistration(
+            registered=True,
+            flag_enabled=True,
+            missing_configuration=(),
+            reason="flag enabled and the state factory builds Cosmos state and audit",
+        )
     missing = missing_cosmos_configuration(source)
-    if missing:
+    mode = control_plane_mode(source)
+    if mode != TEMPORAL_MODE:
         return RemediationRegistration(
             registered=False,
             flag_enabled=True,
             missing_configuration=missing,
-            reason="Cosmos state and audit configuration is incomplete; missing: " + ", ".join(missing),
+            reason=(
+                f"EIP_CONTROL_PLANE_MODE={mode} builds the reference SQLite backends, not Cosmos "
+                f"state and audit; remediation workflows require {TEMPORAL_MODE} mode"
+            ),
         )
     return RemediationRegistration(
-        registered=True,
+        registered=False,
         flag_enabled=True,
-        missing_configuration=(),
-        reason="flag enabled and Cosmos state and audit are configured",
+        missing_configuration=missing,
+        reason="Cosmos state and audit configuration is incomplete; missing: " + ", ".join(missing),
     )
 
 
@@ -324,13 +345,18 @@ def terminal_status_for_action(outcome: ActionOutcome) -> str:
 
 _STEP_RETRY = RetryPolicy(
     maximum_attempts=5,
-    non_retryable_error_types=["RemediationWorkflowsDisabled", "ValueError", "LifecycleContractError"],
+    non_retryable_error_types=[
+        "RemediationWorkflowsDisabled",
+        "RemediationConfigurationError",
+        "ValueError",
+        "LifecycleContractError",
+    ],
 )
 # A mutation is never retried automatically: a second attempt would be a second
 # production action against evidence that is no longer known to hold.
 _ACTION_RETRY = RetryPolicy(
     maximum_attempts=1,
-    non_retryable_error_types=["RemediationWorkflowsDisabled"],
+    non_retryable_error_types=["RemediationWorkflowsDisabled", "RemediationConfigurationError"],
 )
 _STEP_TIMEOUT = timedelta(minutes=5)
 _ACTION_TIMEOUT = timedelta(minutes=15)

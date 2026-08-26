@@ -46,6 +46,9 @@ from state.store import SqliteStateStore
 
 ENABLED = {"EIP_TEMPORAL_REMEDIATION_WORKFLOWS": "enabled"}
 SECRET = "approval-secret"
+# Persisting activities take a replay-safe timestamp from their caller; the
+# workflow supplies workflow.now(), and a direct call supplies a fixed one.
+STAMP = "2026-08-26T12:00:00+00:00"
 
 
 def request() -> RemediationRequest:
@@ -182,11 +185,11 @@ def test_every_activity_refuses_to_run_without_the_flag(tmp_path):
     acts = activities(tmp_path, environ={})
     req = request()
     with pytest.raises(RemediationWorkflowsDisabled):
-        acts.collect_evidence(req)
+        acts.collect_evidence(req, STAMP)
     with pytest.raises(RemediationWorkflowsDisabled):
-        acts.plan_remediation(req, None)
+        acts.plan_remediation(req, None, STAMP)
     with pytest.raises(RemediationWorkflowsDisabled):
-        acts.execute_action(req, None, True)
+        acts.execute_action(req, None, True, STAMP)
 
 
 def test_registration_requires_both_the_flag_and_cosmos_configuration():
@@ -274,8 +277,8 @@ def test_an_unsigned_signal_is_rejected_before_it_reaches_verification():
 def test_a_forged_signature_fails_verification_in_the_activity(tmp_path):
     acts = activities(tmp_path)
     req = request()
-    evidence = acts.collect_evidence(req)
-    plan = acts.plan_remediation(req, evidence)
+    evidence = acts.collect_evidence(req, STAMP)
+    plan = acts.plan_remediation(req, evidence, STAMP)
     forged = RemediationApprovalSignal(
         workflow_id=req.workflow_id,
         approver="sre-oncall",
@@ -326,10 +329,10 @@ def test_the_activity_sequence_persists_state_audit_and_a_bounded_action(tmp_pat
     acts = activities(tmp_path, adapter=adapter, twin=twin)
     req = request()
 
-    evidence = acts.collect_evidence(req)
+    evidence = acts.collect_evidence(req, STAMP)
     assert evidence.evidence_ids == ["k8s-1", "alert-1"]
 
-    plan = acts.plan_remediation(req, evidence)
+    plan = acts.plan_remediation(req, evidence, STAMP)
     assert plan.planned is True
     assert plan.runbook_id == "aks.restart.crashloop"
     assert plan.plan_hash.startswith("sha256:")
@@ -345,11 +348,11 @@ def test_the_activity_sequence_persists_state_audit_and_a_bounded_action(tmp_pat
     assert rehearsal.safe_to_promote is True
     assert twin.calls == 1
 
-    outcome = acts.execute_action(req, plan, True)
+    outcome = acts.execute_action(req, plan, True, STAMP)
     assert outcome.status == "succeeded"
     assert adapter.executed == ["aks.restart.crashloop"]
 
-    final = acts.record_outcome(req, plan, outcome, verification.approver)
+    final = acts.record_outcome(req, plan, outcome, verification.approver, STAMP)
     assert final.status == "succeeded"
     assert final.audit_event_hash
 
@@ -363,7 +366,7 @@ def test_policy_denial_never_calls_the_action_adapter(tmp_path):
     adapter = FakeAdapter()
     acts = activities(tmp_path, adapter=adapter, evaluator=DenyEvaluator())
     req = request()
-    plan = acts.plan_remediation(req, acts.collect_evidence(req))
+    plan = acts.plan_remediation(req, acts.collect_evidence(req, STAMP), STAMP)
     verdict = acts.evaluate_policy(req, plan, True)
     assert verdict.allowed is False
     assert decide_after_policy(verdict).proceed is False
@@ -374,8 +377,8 @@ def test_the_mutation_boundary_refuses_an_unverified_approval(tmp_path):
     adapter = FakeAdapter()
     acts = activities(tmp_path, adapter=adapter)
     req = request()
-    plan = acts.plan_remediation(req, acts.collect_evidence(req))
-    outcome = acts.execute_action(req, plan, False)
+    plan = acts.plan_remediation(req, acts.collect_evidence(req, STAMP), STAMP)
+    outcome = acts.execute_action(req, plan, False, STAMP)
     assert outcome.status == "denied"
     assert "verified human approval" in outcome.reason
     assert adapter.executed == []
@@ -384,8 +387,7 @@ def test_the_mutation_boundary_refuses_an_unverified_approval(tmp_path):
 def test_repeating_an_activity_does_not_advance_state_twice(tmp_path):
     acts = activities(tmp_path)
     req = request()
-    stamp = "2026-08-26T12:00:00+00:00"
-    first = acts.collect_evidence(req, stamp)
-    replay = acts.collect_evidence(req, stamp)
+    first = acts.collect_evidence(req, STAMP)
+    replay = acts.collect_evidence(req, STAMP)
     assert first.workflow_version == replay.workflow_version == 1
     assert first.audit_event_hash == replay.audit_event_hash

@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from collections.abc import Mapping as AbcMapping
 from pathlib import Path
 from typing import Mapping, Protocol
@@ -154,10 +154,21 @@ class RemediationConfigurationError(RuntimeError):
     """Remediation activities were requested without their required configuration."""
 
 
-def _step_time(occurred_at: str) -> str:
-    """Use the workflow-supplied timestamp; fall back only for direct calls."""
+def _require_step_time(occurred_at: str) -> str:
+    """The step timestamp must come from the caller, never from the clock here.
+
+    An activity retry has to rebuild a byte-identical lifecycle event or its
+    fingerprint stops matching the stored idempotency receipt. Reading the clock
+    inside the activity would break that on every retry, so there is deliberately
+    no fallback: the workflow supplies ``workflow.now()``, which is replay-safe.
+    """
     value = str(occurred_at or "").strip()
-    return value or datetime.now(timezone.utc).isoformat()
+    if not value:
+        raise RemediationConfigurationError(
+            "a persisting remediation activity requires a caller-supplied, replay-safe "
+            "occurred_at timestamp"
+        )
+    return value
 
 
 def evidence_to_mapping(event: EvidenceEvent) -> dict:
@@ -374,7 +385,7 @@ class RemediationActivities:
     # -- activities ---------------------------------------------------------
 
     @activity.defn(name=COLLECT_EVIDENCE_ACTIVITY)
-    def collect_evidence(self, request: RemediationRequest, occurred_at: str = "") -> EvidenceBundle:
+    def collect_evidence(self, request: RemediationRequest, occurred_at: str) -> EvidenceBundle:
         require_remediation_workflows("collect_evidence", self.environ)
         request.validate()
         events = tuple(
@@ -391,7 +402,7 @@ class RemediationActivities:
             from_status=None,
             expected_version=None,
             to_status=WorkflowStatus.RECEIVED,
-            occurred_at=_step_time(occurred_at),
+            occurred_at=_require_step_time(occurred_at),
             attributes={
                 "incident_id": request.incident_id,
                 "evidence_ids": [event.id for event in events],
@@ -410,7 +421,7 @@ class RemediationActivities:
         self,
         request: RemediationRequest,
         evidence: EvidenceBundle | None,
-        occurred_at: str = "",
+        occurred_at: str,
     ) -> RemediationPlanResult:
         require_remediation_workflows("plan_remediation", self.environ)
         request.validate()
@@ -444,7 +455,7 @@ class RemediationActivities:
             from_status=WorkflowStatus.RECEIVED,
             expected_version=evidence.workflow_version,
             to_status=WorkflowStatus.PLANNED,
-            occurred_at=_step_time(occurred_at),
+            occurred_at=_require_step_time(occurred_at),
             plan_hash=plan_hash,
             attributes={**workflow_plan.payload(), "reason": plan.reason},
         )
@@ -458,7 +469,7 @@ class RemediationActivities:
             from_status=WorkflowStatus.PLANNED,
             expected_version=planned.workflow_version,
             to_status=WorkflowStatus.WAITING_APPROVAL,
-            occurred_at=_step_time(occurred_at),
+            occurred_at=_require_step_time(occurred_at),
             plan_hash=plan_hash,
             attributes={"plan_hash": plan_hash},
         )
@@ -558,7 +569,7 @@ class RemediationActivities:
         request: RemediationRequest,
         plan: RemediationPlanResult | None,
         approval_verified: bool,
-        occurred_at: str = "",
+        occurred_at: str,
     ) -> ActionOutcome:
         require_remediation_workflows("execute_action", self.environ)
         if plan is None or not plan.runbook_id:
@@ -584,7 +595,7 @@ class RemediationActivities:
             from_status=WorkflowStatus.WAITING_APPROVAL,
             expected_version=plan.workflow_version,
             to_status=WorkflowStatus.EXECUTING,
-            occurred_at=_step_time(occurred_at),
+            occurred_at=_require_step_time(occurred_at),
             plan_hash=plan.plan_hash,
             attributes={"runbook_id": plan.runbook_id, "blast_radius": request.blast_radius},
             consequential=True,
@@ -604,7 +615,7 @@ class RemediationActivities:
             from_status=WorkflowStatus.EXECUTING,
             expected_version=executing.workflow_version,
             to_status=WorkflowStatus.VERIFYING,
-            occurred_at=_step_time(occurred_at),
+            occurred_at=_require_step_time(occurred_at),
             plan_hash=plan.plan_hash,
             attributes={
                 "execution_status": result.status,
@@ -630,8 +641,8 @@ class RemediationActivities:
         request: RemediationRequest,
         plan: RemediationPlanResult | None,
         outcome: ActionOutcome,
-        approver: str = "",
-        occurred_at: str = "",
+        approver: str,
+        occurred_at: str,
     ) -> RemediationOutcome:
         require_remediation_workflows("record_outcome", self.environ)
         status = terminal_status_for_action(outcome)
@@ -642,7 +653,7 @@ class RemediationActivities:
             from_status=WorkflowStatus(outcome.from_status),
             expected_version=outcome.workflow_version,
             to_status=_TERMINAL_WORKFLOW_STATUS[status],
-            occurred_at=_step_time(occurred_at),
+            occurred_at=_require_step_time(occurred_at),
             plan_hash=plan.plan_hash if plan else None,
             attributes={
                 "status": status,
