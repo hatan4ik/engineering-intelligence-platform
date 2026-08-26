@@ -17,22 +17,71 @@ jobs:
           python-version: '3.12'
       - run: pip install -r app/requirements.txt
       - run: pytest -q
-      - run: python eval/evaluate.py
-      - run: python demo/aks/scenario_runner.py
+      - run: python -m eval.evaluate
+      - run: python -m demo.aks.scenario_runner
       - uses: hashicorp/setup-terraform@v3
       - run: terraform -chdir=infra/terraform fmt -check
       - run: terraform -chdir=infra/terraform init -backend=false
       - run: terraform -chdir=infra/terraform validate
       - uses: azure/setup-helm@v4
-      - run: helm lint helm/eip
+      - run: helm lint helm/eip --values helm/eip/values.ci.yaml
+      - name: Ensure Helm defaults fail closed
+        shell: bash
+        run: |
+          if helm template eip helm/eip >/tmp/eip-default-chart.yaml 2>/tmp/eip-default-chart.err; then
+            echo "The chart rendered with incomplete defaults; refusing unsafe deployment defaults."
+            exit 1
+          fi
+          grep --quiet "image.repository must be" /tmp/eip-default-chart.err
       - name: Validate OPA policy bundle
         run: docker run --rm -v "$PWD/infra/policy:/policy" openpolicyagent/opa:1.0.0 test /policy
-      - name: Run adversarial and supply-chain gates
-        run: python supply_chain/verify_ci.py
+      - name: Run adversarial and dependency-pin gates
+        run: python -m supply_chain.verify_ci preflight
+      - name: Build container image
+        run: docker build -t eip:ci .
+      - name: Generate CycloneDX SBOM from the built image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: eip:ci
+          format: cyclonedx-json
+          output-file: build/image.sbom.cdx.json
+          upload-artifact: false
+          syft-version: v1.51.0
+      - name: Verify image SBOM and record local CI evidence
+        run: python -m supply_chain.verify_ci verify-image --image eip:ci --sbom build/image.sbom.cdx.json
       - uses: actions/upload-artifact@v4
         with:
           name: eip-supply-chain-evidence
           path: |
-            build/sbom.cdx.json
-            build/provenance.json
-      - run: docker build -t eip:ci .
+            build/image.sbom.cdx.json
+            build/image-evidence.json
+      - name: Smoke-test container image
+        shell: bash
+        run: |
+          docker run --detach --rm --name eip-ci -p 127.0.0.1:8000:8000 eip:ci
+          cleanup() {
+            exit_code=$?
+            if [ "$exit_code" -ne 0 ]; then
+              docker logs eip-ci || true
+            fi
+            docker stop eip-ci >/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/healthz >/tmp/eip-health.json; then
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              exit 1
+            fi
+            sleep 1
+          done
+
+          python -c 'import json; assert json.load(open("/tmp/eip-health.json")) == {"status": "ok"}'
+          curl --fail --silent --show-error \
+            -H 'content-type: application/json' \
+            -H 'x-eip-groups: engineering' \
+            --data '{"question":"How should production remediation work?"}' \
+            http://127.0.0.1:8000/v1/query >/tmp/eip-query.json
+          python -c 'import json; result = json.load(open("/tmp/eip-query.json")); assert result["model"] == "deterministic-demo"; assert result["evidence"]'

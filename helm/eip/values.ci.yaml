@@ -1,0 +1,14 @@
+# Render-only values for CI. `example.invalid` and the all-zero digest ensure
+# this file cannot identify a real release image or Azure tenant.
+image:
+  repository: example.invalid/eip
+  digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+serviceAccount:
+  azureClientId: "00000000-0000-0000-0000-000000000000"
+env:
+  EIP_ENTRA_TENANT_ID: "00000000-0000-0000-0000-000000000000"
+  EIP_ENTRA_AUDIENCE: "api://eip-ci"
+  AZURE_SEARCH_ENDPOINT: "https://eip-ci.search.windows.net"
+  AZURE_SEARCH_INDEX: "engineering-knowledge"
+  AZURE_OPENAI_ENDPOINT: "https://eip-ci.openai.azure.com"
+  AZURE_OPENAI_CHAT_DEPLOYMENT: "eip-ci-chat"

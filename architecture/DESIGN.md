@@ -127,6 +127,7 @@ Key decisions:
 - **Idempotency is durable** (SQLite ledger locally; the same interface targets
   Cosmos DB/PostgreSQL in production). A crashed worker re-processes; a completed event is
   skipped; a poisoned event lands in the DLQ with its error, and replay is explicit.
+- **Out-of-Band Reconciliation**: Event-driven ingestion inherently drops events at massive scale. A background reconciliation loop continuously cryptographically hashes the Git tree state against the index state, healing discrepancies to guarantee vector index freshness and prevent "Stale RAG" hallucinations.
 - **ACLs are data**: each chunk carries `acl_groups`/`acl_users` resolved at ingestion time.
   Organizational memory (work items, docs, incidents, conversations) shares the same
   normalized model (`knowledge_normalizers.py`), so one trimming mechanism covers all sources.
@@ -146,15 +147,20 @@ keys (`app/gateway.py`), and the caller's groups come from token claims, never f
 request headers. The same gateway step applies prompt redaction, selects the model tier
 the principal is entitled to, and enforces a per-request cost budget.
 
+To meet FAANG-level latency and unit economic requirements, the gateway also implements:
+- **Materialized ACL Cache**: Resolving complex, nested Entra ID/Active Directory groups at query time introduces unacceptable latency. The gateway leverages a **Zanzibar-inspired materialized permissions cache** to resolve ACLs in single-digit milliseconds before compiling them into the search query.
+- **SLM Routing & Semantic Caching**: The gateway implements **Semantic Caching** to serve repeat questions instantly, and dynamically routes >80% of routine tasks (like basic PR linting) to fast, local **Small Language Models (SLMs)** (e.g., Llama 3 8B), reserving heavy frontier models purely for complex Root Cause Analysis.
+
 The critical property is the search call: the ACL filter is part of the request itself, so
 content the caller is not entitled to **never enters the candidate set** — there is no code
 path in which the model sees unauthorized text and the platform must "remember" to redact it.
-Retrieval is hybrid (`ingestion/vector_search.py`): the query is embedded via Azure OpenAI
+Retrieval is hybrid (`ingestion/vector_search.py`): the query is embedded via the selected model provider (Azure OpenAI or local via vLLM)
 and issued as a combined BM25 + vector query with semantic reranking, with the ACL filter
-applied to both arms.
+applied to both arms. In strictly isolated or air-gapped environments, on-prem vector databases (e.g., Qdrant, Milvus) can be swapped in for the retrieval layer.
 
-Runtime modes: `EIP_BACKEND=deterministic` (local/CI, no cloud dependency) and
-`EIP_BACKEND=azure` (Azure AI Search + Azure OpenAI via `DefaultAzureCredential`).
+Runtime modes: `EIP_BACKEND=deterministic` (local/CI, no cloud dependency),
+`EIP_BACKEND=azure` (Azure AI Search + Azure OpenAI via `DefaultAzureCredential`), and
+`EIP_BACKEND=onprem` (Qdrant/Milvus + Local LLM like vLLM/Ollama for air-gapped FAANG deployments).
 
 ### 5.3 Intelligence plane
 
@@ -183,10 +189,10 @@ Score thresholds map to controls: `≥55` extended tests, `≥70` additional app
 (`.github/workflows/pr-guardian.yml`).
 
 Incident intelligence (`intelligence/incidents.py`) reconstructs an ordered evidence
-timeline (alerts, metrics, logs, K8s events, deployments, prior incidents), correlates
+timeline (alerts, Prometheus metrics, Kubelet logs, eBPF network flows, K8s events, deployments, prior incidents), correlates
 deployments with failure onset, and emits **hypotheses that cite evidence IDs** —
 facts and inference are structurally separated. Deployment-failure investigation and
-drift detection follow the same pattern with their own evidence types.
+drift detection follow the same pattern with their own evidence types. The inclusion of eBPF and low-level Kubelet logs enables deep troubleshooting for FAANG-level K8s complexities (e.g., DNS resolution timeouts, cross-node network policy drops).
 
 ### 5.4 Control plane
 
@@ -206,10 +212,7 @@ the hash changes and every prior approval is invalid — an operator can never a
 they have not seen. Stale approvals (default 15 minutes) and clock-skewed timestamps are
 rejected.
 
-**Durable execution** (`orchestration/jobs.py`, `runner.py`): a SQLite-backed job queue with
-lease-based claiming, exponential-backoff retry, and a dead-letter state after
-`max_attempts`. A worker crash mid-job is recovered by lease expiry — the job is reclaimed,
-never lost. The same contract targets Service Bus/PostgreSQL in production.
+**Durable execution** (`orchestration/jobs.py`, `runner.py`): The local implementation uses a SQLite-backed job queue for CI/CD simplicity. However, the production architecture strictly mandates a **Distributed Workflow Engine (e.g., Temporal, AWS Step Functions)** to manage control-plane workflows. A custom lease-based queue is insufficient for FAANG-level reliability, as workflows must survive worker crashes natively and yield execution during long-running awaits (e.g., waiting for a node to drain) without race conditions.
 
 **Audit** (`state/audit.py`): append-only events where each record carries the hash of its
 predecessor. `verify_chain()` detects any insertion, deletion, or mutation. Every event
@@ -229,6 +232,7 @@ carries correlation ID, actor, action, resource, and payload.
   they cannot compose arbitrary commands.
 - The Kubernetes adapter executes **fixed argument vectors** (no shell, no string
   interpolation of model output).
+- **Proactive Admission Control**: To prevent policy violations from reaching the cluster, deterministic policies are additionally exported as Kubernetes Admission Webhooks (via Gatekeeper or Kyverno). This acts as a hard boundary at the API server level, augmenting reactive PR guardrails.
 - Verification uses signals independent of the action path where practical (SLO/error-budget
   state, not the exit code of the mutation itself).
 - The legacy demo loop (`app/agents/control_loop.py`) preserves the same phase machine
@@ -303,14 +307,10 @@ a rebuildable projection.
 
 ## 9. Observability and FinOps
 
-- **Tracing**: OpenTelemetry spans (`app/observability.py`) around query and PR-guardian
-  paths, keyed by correlation ID; exporter configured via `OTEL_EXPORTER_OTLP_ENDPOINT`.
-- **Operation telemetry**: every agent operation emits an `OperationEvent` with latency,
-  token counts, and model/search/tool cost — the unit-economics feed for cost per query /
-  team / agent (`finops/attribution.py`) and outcome ROI (`finops/outcomes.py`).
-- **Audit ≠ telemetry**: audit is the tamper-evident record of decisions; telemetry is the
-  operational/cost signal. They share correlation IDs so any decision can be joined to its
-  cost and latency.
+- **Tracing & LLMOps**: Standard OpenTelemetry spans (`app/observability.py`) capture latency and API boundaries. However, for non-deterministic AI models, the platform integrates **LLMOps tracing (e.g., LangSmith, Phoenix)**. This captures the exact prompt sent, the raw retrieved vector chunks (with relevance scores), and the generated output, enabling on-call engineers to step-by-step debug AI hallucinations.
+- **Implicit Human Feedback**: Beyond latency, the platform captures user behavior as primary telemetry. If an AI leaves a PR comment and a developer ignores it, it is logged as a "False Positive". If they apply the suggested fix, it is a "True Positive". This implicit feedback is piped back into a data warehouse to continuously refine the evaluation datasets.
+- **Operation telemetry**: Every agent operation emits an `OperationEvent` with token counts, model/search/tool cost, and SLA adherence—driving unit-economics (`finops/attribution.py`) and outcome ROI (`finops/outcomes.py`).
+- **Audit ≠ telemetry**: Audit is the tamper-evident record of decisions; telemetry is the operational/cost signal. They share correlation IDs so any decision can be joined to its cost, latency, and full LLM trace.
 
 ## 10. Testing strategy
 
@@ -322,9 +322,11 @@ a rebuildable projection.
 | API | FastAPI `TestClient` against the real app | webhook signature, ACL headers, error paths |
 | Policy | Deterministic scenario tables | autonomy gates, L4 certification evidence |
 | Infra | `terraform fmt/validate`, `helm lint`, container build in CI | — |
+| **AI Evals** | **Evals-as-Code** over a Golden Dataset | semantic similarity, precision/recall, and hallucination rate tracking for prompt/model changes |
+| **Chaos Eng.** | **Fault Injection** via Chaos Mesh / Gremlin | randomly terminating K8s nodes in staging to measure AI's Mean Time To Remediate (MTTR) |
 
-CI gates every PR (`ci.yml`); the PR Guardian workflow additionally reviews every PR's own
-diff and posts its evidence — the platform dogfoods itself.
+CI gates every PR (`ci.yml`); the PR Guardian workflow additionally reviews every PR's own diff. 
+Crucially, new AI agents or prompt modifications are never deployed directly to production. They are deployed via **Shadow Launching (Dark Traffic)**: the new agent runs invisibly alongside the live agent on production events, logging its intended actions for asynchronous diffing against human behavior before being granted active execution rights.
 
 ## 11. Alternatives considered
 

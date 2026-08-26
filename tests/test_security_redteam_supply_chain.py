@@ -1,5 +1,5 @@
 from security.redteam import acl_isolation_resisted, confused_deputy_resisted, run_content_corpus
-from supply_chain.provenance import build_sbom, issue_provenance, verify_admission
+from supply_chain.provenance import Component, verify_image_sbom
 
 
 def test_default_redteam_corpus_passes():
@@ -22,29 +22,38 @@ def test_acl_isolation_denies_nonmember_principal():
     )
 
 
-def test_provenance_admission_fails_closed_on_tampering():
-    sbom = build_sbom(())
-    provenance = issue_provenance(
-        subject=b"image-bytes",
-        sbom=sbom,
-        builder="github-actions/eip",
-        source_revision="abc123",
-    )
-    allowed, _ = verify_admission(
-        subject=b"image-bytes",
-        sbom=sbom,
-        provenance=provenance,
-        trusted_builders=("github-actions/eip",),
-        expected_revision="abc123",
-    )
-    assert allowed
+def test_image_sbom_verification_fails_closed_when_a_direct_pin_is_missing():
+    sbom = {
+        "bomFormat": "CycloneDX",
+        "metadata": {"component": {"type": "container", "name": "eip", "version": "ci"}},
+        "components": [{"name": "fastapi", "version": "0.116.1"}],
+    }
 
-    allowed, reason = verify_admission(
-        subject=b"tampered-image",
+    allowed, failures = verify_image_sbom(
         sbom=sbom,
-        provenance=provenance,
-        trusted_builders=("github-actions/eip",),
-        expected_revision="abc123",
+        required_components=(
+            Component(name="fastapi", version="0.116.1"),
+            Component(name="pydantic", version="2.11.7"),
+        ),
+        image_reference="eip:ci",
     )
+
     assert not allowed
-    assert reason == "subject digest mismatch"
+    assert failures == ("direct dependency missing from image SBOM: pydantic==2.11.7",)
+
+
+def test_image_sbom_verification_rejects_a_different_image_tag():
+    sbom = {
+        "bomFormat": "CycloneDX",
+        "metadata": {"component": {"type": "container", "name": "eip", "version": "other"}},
+        "components": [{"name": "fastapi", "version": "0.116.1"}],
+    }
+
+    allowed, failures = verify_image_sbom(
+        sbom=sbom,
+        required_components=(Component(name="fastapi", version="0.116.1"),),
+        image_reference="eip:ci",
+    )
+
+    assert not allowed
+    assert failures == ("SBOM container tag does not match the built image",)

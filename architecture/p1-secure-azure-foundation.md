@@ -11,6 +11,9 @@ This slice closes the largest implementation gap identified in `ALIGNMENT-REVIEW
 - Private DNS zones and VNet links for Search, OpenAI and Key Vault.
 - Private Endpoints for Search (`searchService`), OpenAI (`account`) and Key Vault (`vault`).
 - AKS OIDC issuer and Workload Identity.
+- Private AKS API, Entra/Azure RBAC, Azure Policy add-on, no local admin account,
+  and no public private-cluster FQDN. The deployment runner must therefore have an
+  approved private network path to the cluster.
 - User-assigned workload identity federated to the `eip/eip-api` Kubernetes service account by default.
 - Explicit least-privilege runtime roles: Search Index Data Reader, Cognitive Services OpenAI User and Key Vault Secrets User.
 - Helm ServiceAccount and pod labels required by Azure Workload Identity.
@@ -45,7 +48,8 @@ The following target-state controls remain follow-on work:
 4. Azure OpenAI model deployments and embedding deployment configuration; deployments are capacity/region dependent and should be explicit variables/modules rather than assumed.
 5. Separate deployment/index-management identity with Search Index Data Contributor/Search Service Contributor as needed. The runtime is read-only by design.
 6. Diagnostic settings for all PaaS resources and end-to-end OTel correlation.
-7. Private AKS API server decision. The architecture requires private dependent data services; private-cluster operation is a separate operational choice with developer/CI connectivity implications.
+7. An approved private deployment-runner operating model for Terraform, Helm,
+   break-glass, and cluster administration.
 
 ## Validation
 
@@ -53,7 +57,7 @@ The following target-state controls remain follow-on work:
 terraform -chdir=infra/terraform fmt -check
 terraform -chdir=infra/terraform init -backend=false
 terraform -chdir=infra/terraform validate
-helm lint helm/eip
+helm lint helm/eip --values helm/eip/values.ci.yaml
 ```
 
 After deployment, validate DNS and public-access denial from both inside and outside the VNet before treating the environment as compliant with the target trust boundary.

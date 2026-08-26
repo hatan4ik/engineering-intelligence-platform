@@ -53,7 +53,7 @@ claim.
 | L4 bounded autonomy | **1.5** | service/environment/runbook-scoped model and promotion rules | L3 evidence, chaos history, error-budget and kill-switch proof |
 | Control-plane observability | **3.0** | correlated traces/metrics and SLO projection primitives | dashboards, paging thresholds, trace-to-audit reconciliation, and production history |
 | AI security / red team | **3.0** | poisoned-evidence, ACL-isolation, confused-deputy and policy-bypass CI corpus | larger indirect injection/egress/identity corpus and live exercises |
-| Software supply chain | **2.0** | dependency pins, SBOM/provenance reference records, admission verifier | image-bound signed attestations and cluster admission enforcement |
+| Software supply chain | **2.0** | exact dependency pins, red-team gate, and CycloneDX SBOM generated from the built image | registry-backed signed attestations and cluster admission enforcement |
 | FinOps / AI economics | **2.5** | attributed model/search/tool cost primitives and budget contracts | live optimization, forecasts, quota enforcement, and service budget policy |
 | Cross-cloud portability | **2.0** | provider abstraction contracts | deliberately defer implementation depth until Azure path is production-proven |
 

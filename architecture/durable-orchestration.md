@@ -14,15 +14,16 @@ Workflow state and execution scheduling are separate concerns. `WorkflowRecord` 
 - Unknown job kinds fail closed; they are never silently completed.
 - Completion is durable and prevents normal reprocessing.
 
-## Production boundary
+## Production boundary: Distributed Workflow Engine
 
-`SqliteJobQueue` is the deterministic local/CI implementation. A production backend may use Azure Service Bus, PostgreSQL, or another durable queue, but must preserve:
+While `SqliteJobQueue` or basic message brokers might suffice for a prototype, a mature FAANG-level self-healing platform is fundamentally a distributed state machine. Custom lease-based queues lead to race conditions, zombie workers, and corrupted state during infrastructure failures.
 
-1. idempotent enqueue;
-2. exclusive/time-bounded claim semantics;
-3. delivery attempt tracking;
-4. bounded retries and DLQ;
-5. workflow/correlation identity propagation;
-6. observable lease age, queue age and failure counts.
+The production architecture mandates a **Durable Execution Engine (e.g., Temporal, Cadence, or AWS Step Functions)** to manage control-plane workflows. This guarantees:
+
+1. **Native Crash Recovery**: If a worker node dies mid-remediation (e.g., while draining a node), the workflow engine flawlessly resumes the execution state on a new worker without race conditions.
+2. **Long-Running Awaits**: Workflows can yield (sleep) for hours waiting for a node to drain or an approval to be granted without consuming compute resources.
+3. **Strict Consistency**: Eliminates the "split-brain" worker problem common in lease-based systems.
+4. **Built-In Retries and DLQ**: Exponential backoffs and dead-letter queues are handled natively by the engine rather than custom application logic.
+5. **Observability**: Full visual timelines of exactly where a self-healing process is blocked or has failed.
 
 Handlers remain typed code. Free-form model output does not become an executable job kind.

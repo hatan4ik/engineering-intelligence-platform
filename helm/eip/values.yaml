@@ -1,15 +1,30 @@
+# Deliberately incomplete. Supplying a reviewed values file is required before
+# this chart renders, so `helm install` cannot accidentally deploy the demo.
 replicaCount: 2
 image:
-  repository: ghcr.io/hatan4ik/engineering-intelligence-platform
-  tag: latest
+  repository: ""
+  digest: ""
   pullPolicy: IfNotPresent
+imagePullSecrets: []
 service:
   port: 80
   targetPort: 8000
 serviceAccount:
   name: eip-api
-  # Set from Terraform output workload_identity_client_id for Azure-backed deployments.
+  # Set from Terraform output workload_identity_client_id.
   azureClientId: ""
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
 resources:
   requests:
     cpu: 100m
@@ -18,15 +33,17 @@ resources:
     cpu: 500m
     memory: 512Mi
 env:
-  EIP_BACKEND: deterministic
-  # Request-header identity (X-EIP-Groups/X-EIP-User) is a deterministic-demo
-  # affordance only. With EIP_BACKEND=azure it is refused unconditionally and a
-  # valid Entra JWT or API key is required — this flag cannot re-enable it there.
-  # For a deterministic deployment that should still require real auth, set it false.
-  EIP_ALLOW_HEADER_IDENTITY: "true"
+  # The Helm deployment surface is only for the Azure-backed, authenticated
+  # workload. The deterministic/header-identity demo remains a local command.
+  EIP_BACKEND: azure
+  EIP_ALLOW_HEADER_IDENTITY: "false"
   EIP_AUTH_MODE: entra
+  EIP_ENTRA_TENANT_ID: ""
+  EIP_ENTRA_AUDIENCE: ""
   AZURE_SEARCH_ENDPOINT: ""
-  AZURE_SEARCH_INDEX: engineering-knowledge
+  AZURE_SEARCH_INDEX: ""
   AZURE_OPENAI_ENDPOINT: ""
   AZURE_OPENAI_CHAT_DEPLOYMENT: ""
+  AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ""
+  AZURE_OPENAI_API_VERSION: "2024-10-21"
 podAnnotations: {}

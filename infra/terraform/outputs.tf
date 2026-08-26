@@ -6,6 +6,11 @@ output "aks_cluster_name" {
   value = azurerm_kubernetes_cluster.this.name
 }
 
+output "aks_private_fqdn" {
+  description = "Private AKS API endpoint. Release automation must run from an approved private network path."
+  value       = azurerm_kubernetes_cluster.this.private_fqdn
+}
+
 output "workload_identity_client_id" {
   description = "Client ID to set as azure.workload.identity/client-id on the EIP service account."
   value       = azurerm_user_assigned_identity.workload.client_id

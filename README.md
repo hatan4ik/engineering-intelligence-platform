@@ -70,10 +70,10 @@ Run the repository reference checks that CI runs:
 
 ```bash
 pytest -q
-python eval/evaluate.py
-python demo/aks/scenario_runner.py
+python -m eval.evaluate
+python -m demo.aks.scenario_runner
 terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate
-helm lint helm/eip
+helm lint helm/eip --values helm/eip/values.ci.yaml
 docker build -t eip:local .
 ```
 
@@ -99,6 +99,13 @@ An Azure-backed request path is a reference integration until its identity, priv
 state/audit, quality, and operational evidence has been retained for a named environment. See
 [`docs/PRODUCTION-EVIDENCE.md`](docs/PRODUCTION-EVIDENCE.md) and
 [`architecture/NFR.md`](architecture/NFR.md).
+
+The Helm chart deliberately refuses its default values. A deployment must provide a reviewed
+values file with a digest-pinned image, Workload Identity client ID, Entra tenant/audience, and
+Azure Search/OpenAI configuration; it cannot deploy the deterministic header-identity demo.
+Terraform likewise requires an explicit location, environment classification, and Entra AKS admin
+group. [`infra/terraform/terraform.tfvars.example`](infra/terraform/terraform.tfvars.example)
+is a placeholder-only starting point, not an apply authorization.
 
 ## Current scope and limits
 
@@ -191,7 +198,9 @@ pytest -q  # contracts, durability, composition, API, and policy tests
 ```
 
 - CI (`.github/workflows/ci.yml`) gates reference checks: tests, evaluation harness, scenario
-  runner, Terraform fmt/validate, Helm lint, supply-chain reference checks, and container build.
+  runner, Terraform fmt/validate, Helm lint, an SBOM generated from the built image, and container
+  smoke tests. The resulting local CI evidence is **not** a signed deployment attestation; registry
+  attestation and admission enforcement are required before a production promotion.
 - **The repository reviews itself**: `.github/workflows/pr-guardian.yml` runs the PR
   Guardian on every pull request — diff → service graph → deterministic risk → durable
   workflow with verified audit chain → evidence comment on the PR.

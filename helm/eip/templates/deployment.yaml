@@ -1,9 +1,30 @@
+{{- $imageRepository := required "image.repository must be an immutable registry repository" .Values.image.repository }}
+{{- $imageDigest := required "image.digest must be a sha256 digest, never a mutable tag" .Values.image.digest }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $imageDigest) }}
+{{- fail "image.digest must be a lowercase sha256 digest" }}
+{{- end }}
+{{- if ne .Values.env.EIP_BACKEND "azure" }}
+{{- fail "the deployment chart only supports EIP_BACKEND=azure; use the local deterministic demo outside Kubernetes" }}
+{{- end }}
+{{- if ne .Values.env.EIP_ALLOW_HEADER_IDENTITY "false" }}
+{{- fail "EIP_ALLOW_HEADER_IDENTITY must be false for a deployed workload" }}
+{{- end }}
+{{- if ne .Values.env.EIP_AUTH_MODE "entra" }}
+{{- fail "EIP_AUTH_MODE must be entra for a deployed workload" }}
+{{- end }}
+{{- $azureClientId := required "serviceAccount.azureClientId is required for Azure Workload Identity" .Values.serviceAccount.azureClientId }}
+{{- $tenantId := required "env.EIP_ENTRA_TENANT_ID is required" .Values.env.EIP_ENTRA_TENANT_ID }}
+{{- $audience := required "env.EIP_ENTRA_AUDIENCE is required" .Values.env.EIP_ENTRA_AUDIENCE }}
+{{- $searchEndpoint := required "env.AZURE_SEARCH_ENDPOINT is required" .Values.env.AZURE_SEARCH_ENDPOINT }}
+{{- $searchIndex := required "env.AZURE_SEARCH_INDEX is required" .Values.env.AZURE_SEARCH_INDEX }}
+{{- $openAIEndpoint := required "env.AZURE_OPENAI_ENDPOINT is required" .Values.env.AZURE_OPENAI_ENDPOINT }}
+{{- $chatDeployment := required "env.AZURE_OPENAI_CHAT_DEPLOYMENT is required" .Values.env.AZURE_OPENAI_CHAT_DEPLOYMENT }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ .Values.serviceAccount.name }}
   annotations:
-    azure.workload.identity/client-id: {{ .Values.serviceAccount.azureClientId | quote }}
+    azure.workload.identity/client-id: {{ $azureClientId | quote }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -23,9 +44,15 @@ spec:
 {{ toYaml .Values.podAnnotations | indent 8 }}
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+{{ toYaml .Values.podSecurityContext | indent 8 }}
+{{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | indent 8 }}
+{{- end }}
       containers:
         - name: api
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ $imageRepository }}@{{ $imageDigest }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
@@ -36,14 +63,22 @@ spec:
               value: {{ .Values.env.EIP_ALLOW_HEADER_IDENTITY | quote }}
             - name: EIP_AUTH_MODE
               value: {{ .Values.env.EIP_AUTH_MODE | quote }}
+            - name: EIP_ENTRA_TENANT_ID
+              value: {{ $tenantId | quote }}
+            - name: EIP_ENTRA_AUDIENCE
+              value: {{ $audience | quote }}
             - name: AZURE_SEARCH_ENDPOINT
-              value: {{ .Values.env.AZURE_SEARCH_ENDPOINT | quote }}
+              value: {{ $searchEndpoint | quote }}
             - name: AZURE_SEARCH_INDEX
-              value: {{ .Values.env.AZURE_SEARCH_INDEX | quote }}
+              value: {{ $searchIndex | quote }}
             - name: AZURE_OPENAI_ENDPOINT
-              value: {{ .Values.env.AZURE_OPENAI_ENDPOINT | quote }}
+              value: {{ $openAIEndpoint | quote }}
             - name: AZURE_OPENAI_CHAT_DEPLOYMENT
-              value: {{ .Values.env.AZURE_OPENAI_CHAT_DEPLOYMENT | quote }}
+              value: {{ $chatDeployment | quote }}
+            - name: AZURE_OPENAI_EMBEDDING_DEPLOYMENT
+              value: {{ .Values.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT | quote }}
+            - name: AZURE_OPENAI_API_VERSION
+              value: {{ .Values.env.AZURE_OPENAI_API_VERSION | quote }}
           readinessProbe:
             httpGet:
               path: /healthz
@@ -58,3 +93,5 @@ spec:
             periodSeconds: 10
           resources:
 {{ toYaml .Values.resources | indent 12 }}
+          securityContext:
+{{ toYaml .Values.containerSecurityContext | indent 12 }}

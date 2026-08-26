@@ -1,4 +1,4 @@
-# Azure DevOps + AKS Self-Healing Reference Architecture
+# Azure DevOps, AKS & On-Prem Kubernetes Self-Healing Reference Architecture
 
 > This file describes the **target state**. The implemented reference is intentionally smaller. See `ALIGNMENT-REVIEW.md` for the exact gap matrix.
 
@@ -111,6 +111,8 @@ Controls:
 - independent post-action verification
 - rollback/compensation and escalation
 - corrective PR/ticket/audit record after action
+- K8s-native admission controllers (Gatekeeper/Kyverno) for proactive guardrails
+- Node-level self-healing (cordon, drain, terminate) for underlying infrastructure recovery
 
 ## 8. Observability and FinOps
 
@@ -163,6 +165,10 @@ Target stack:
 11. L4 autonomy is scoped per service + environment + runbook.
 12. L5 unrestricted autonomy is unsupported.
 
-## Example AKS incident
+## Example AKS & On-Prem Kubernetes Incidents
 
+### Scenario A: HPA Saturation
 An HPA configuration change causes CPU saturation and pod instability. The platform correlates the SLO alert with the recent deployment, traverses the service/resource graph, retrieves the HPA diff and prior similar incidents, computes blast radius and proposes the registered rollback runbook. The policy engine checks service autonomy level, error budget and blast-radius limit. If approval is required, the exact plan hash is presented to an authorized operator. The runbook executes, independent telemetry verifies SLO recovery, and the platform creates a corrective PR/incident record with full audit evidence.
+
+### Scenario B: Advanced Node-Level Troubleshooting
+A node begins experiencing persistent OOMKilled events and kernel-level network drops (detected via eBPF). The Incident Investigator pulls Kubelet logs, Prometheus host metrics, and eBPF network traces, determining the node is degraded but not yet cordoned. The Remediation Agent proposes a node-drain runbook. Upon approval, the node is cordoned and drained, workloads are successfully rescheduled by the K8s scheduler, and the underlying VM is safely restarted or replaced, successfully recovering the service SLO without human SSH access.

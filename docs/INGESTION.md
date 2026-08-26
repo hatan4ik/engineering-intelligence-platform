@@ -22,6 +22,9 @@ Chunk IDs include source identity, commit, ordinal/symbol and content hash. Docu
 
 `NormalizedEvent.event_id` protects against duplicate delivery within a pipeline state store. The reference implementation uses an in-memory set; production should persist event IDs in a durable store with TTL. Upsert calls replace all chunks for one document. Delete calls remove all chunks for that document.
 
+**The "Stale RAG" Problem & Out-of-Band Reconciliation:**
+Event-driven ingestion via webhooks is insufficient at massive scale due to dropped events. If the vector index drifts from the source repository, the AI will hallucinate based on outdated code. A mature ingestion architecture requires an out-of-band **Reconciliation Loop** (a continuous background process) that cryptographically hashes the Git tree state against the index state, automatically detecting and healing discrepancies without waiting for webhooks.
+
 ## Azure AI Search
 
 `ingestion.azure_search.AzureSearchIndex` performs document-scoped replace/delete and ACL-filtered retrieval. `ingestion.schema.azure_search_fields()` defines the required metadata/search fields. A later vector-index migration can add embeddings without changing the ingestion domain contracts.

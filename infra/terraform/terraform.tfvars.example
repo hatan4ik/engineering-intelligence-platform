@@ -1,0 +1,10 @@
+# Copy to a local, ignored terraform.tfvars file. This example deliberately
+# contains placeholders and must be reviewed for the target subscription.
+location    = "westeurope"
+environment = "integration"
+
+# Object IDs of Entra groups—not individual users—with administrative access to
+# the private AKS API. Obtain them from the approved identity inventory.
+aks_admin_group_object_ids = [
+  "00000000-0000-0000-0000-000000000000",
+]

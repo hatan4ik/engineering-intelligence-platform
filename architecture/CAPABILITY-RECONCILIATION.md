@@ -79,7 +79,7 @@ implementation may exist, but no service/environment/runbook production evidence
 | Self-healing loop | Implemented supervised reference | incident evidence -> plan -> durable approval -> OPA -> twin -> execute -> verify -> rollback/escalate -> audit | production runbook breadth, managed durable dependencies, and live operational drills |
 | OpenTelemetry control-plane telemetry | Implemented reference | correlated plan/approval/twin/action/terminal telemetry, OTLP traces/metrics, SLO projection | dashboard packaging, alert thresholds, and production SLO history |
 | AI security/red-team | Implemented CI gate | poisoned evidence, policy bypass, secret exfiltration, ACL isolation, confused-deputy corpus | larger adversarial corpus and network-egress exercises |
-| Supply-chain security | Implemented reference gate | exact dependency pins, CycloneDX-style SBOM, provenance digest, admission verifier, CI artifact | image signing/keyless attestation and cluster admission integration |
+| Supply-chain security | Implemented reference gate | exact dependency pins, red-team gate, and a CycloneDX SBOM generated from the built CI image | registry-backed image signing/keyless attestation and cluster admission integration |
 | FinOps / model economics | Partial/strong | token/search/tool usage events, cost rates, gateway budgets, OTel cost metrics | anomaly alerts and measured routing optimization |
 | Executive control tower | Partial | KPI/ROI models plus live telemetry primitives | dashboard/API packaging and measured benefit lineage |
 | Cross-cloud | Appropriate abstraction | provider contracts maintained | intentionally deferred until Azure depth is complete |

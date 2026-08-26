@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from dataclasses import dataclass
 from typing import Protocol
@@ -47,22 +48,69 @@ class Retriever(Protocol):
 
 
 @dataclass
+class DemoDocument:
+    evidence: Evidence
+    groups: tuple[str, ...]
+    repository: str
+    keywords: tuple[str, ...]
+
+
+@dataclass
 class InMemoryRetriever:
-    corpus: tuple[Evidence, ...] = (
-        Evidence(
-            source="architecture/azure-devops-self-healing-reference.md",
-            text="Production mutation must be policy authorized and reversible.",
-            score=0.94,
+    """Deterministic local retriever used by the demo, API tests, and CI evaluation.
+
+    This is intentionally small, but it still preserves the two properties that
+    matter to the gateway contract: evidence must match the request and callers
+    must be authorized before the evidence is returned.
+    """
+
+    corpus: tuple[DemoDocument, ...] = (
+        DemoDocument(
+            evidence=Evidence(
+                source="architecture/azure-devops-self-healing-reference.md",
+                text="Production remediation must be policy-authorized and reversible.",
+                score=0.94,
+            ),
+            groups=("engineering",),
+            repository="engineering-intelligence-platform",
+            keywords=("production", "remediation", "policy", "reversible", "rollback"),
         ),
-        Evidence(
-            source="roadmap/technical-roadmap-24-months.md",
-            text="Self-healing begins with low-blast-radius allow-listed runbooks.",
-            score=0.91,
+        DemoDocument(
+            evidence=Evidence(
+                source="roadmap/technical-roadmap-24-months.md",
+                text="Self-healing begins with low-blast-radius allow-listed runbooks.",
+                score=0.91,
+            ),
+            groups=("engineering",),
+            repository="engineering-intelligence-platform",
+            keywords=("self", "healing", "begin", "runbook", "autonomy"),
+        ),
+        DemoDocument(
+            evidence=Evidence(
+                source="finops/cfo-roi-model.md",
+                text="FinOps controls include model routing, token budgets, caching, and anomaly alerts.",
+                score=0.92,
+            ),
+            groups=("finance",),
+            repository="finance-planning",
+            keywords=("finops", "finance", "cost", "budget", "roi", "routing"),
         ),
     )
 
     def search(self, question: str, repo: str | None, groups: list[str]) -> list[Evidence]:
-        return list(self.corpus)
+        authorized_groups = {group.strip() for group in groups if group.strip()}
+        terms = {term for term in re.findall(r"[a-z0-9]+", question.lower()) if len(term) >= 3}
+        matches: list[Evidence] = []
+        for document in self.corpus:
+            if not authorized_groups.intersection(document.groups):
+                continue
+            if repo is not None and repo != document.repository:
+                continue
+            matched_keywords = len(terms.intersection(document.keywords))
+            if matched_keywords == 0:
+                continue
+            matches.append(document.evidence.model_copy(update={"score": document.evidence.score + matched_keywords / 100}))
+        return sorted(matches, key=lambda item: (-item.score, item.source))
 
 
 def authorized_groups(raw: str | None) -> list[str]:
@@ -244,11 +292,15 @@ def query(
             )
 
         evidence = InMemoryRetriever().search(question, req.repo, groups)
+        if not evidence:
+            return QueryResponse(
+                answer="I do not have enough authorized evidence to answer.",
+                evidence=[],
+                model="none",
+                correlation_id=correlation_id,
+            )
         citations = "; ".join(e.source for e in evidence)
-        answer = (
-            "Guardrailed automation should use policy-authorized, reversible runbooks. "
-            f"Sources: {citations}"
-        )
+        answer = f"{' '.join(e.text for e in evidence)} Sources: {citations}"
         return QueryResponse(
             answer=answer,
             evidence=evidence,

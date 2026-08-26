@@ -21,8 +21,9 @@ resource "random_string" "suffix" {
 locals {
   name_suffix = random_string.suffix.result
   tags = {
-    workload = "engineering-intelligence-platform"
-    managed  = "terraform"
+    workload    = "engineering-intelligence-platform"
+    environment = var.environment
+    managed     = "terraform"
   }
 }
 
@@ -114,10 +115,10 @@ resource "azurerm_key_vault" "this" {
   resource_group_name           = azurerm_resource_group.this.name
   tenant_id                     = data.azurerm_client_config.current.tenant_id
   sku_name                      = "standard"
-  enable_rbac_authorization     = true
+  rbac_authorization_enabled    = true
   public_network_access_enabled = false
-  soft_delete_retention_days    = 7
-  purge_protection_enabled      = var.key_vault_purge_protection_enabled
+  soft_delete_retention_days    = 90
+  purge_protection_enabled      = true
   tags                          = local.tags
 }
 
@@ -239,8 +240,22 @@ resource "azurerm_kubernetes_cluster" "this" {
     type = "SystemAssigned"
   }
 
-  oidc_issuer_enabled       = true
-  workload_identity_enabled = true
+  oidc_issuer_enabled                 = true
+  workload_identity_enabled           = true
+  private_cluster_enabled             = true
+  private_dns_zone_id                 = "System"
+  private_cluster_public_fqdn_enabled = false
+  role_based_access_control_enabled   = true
+  local_account_disabled              = true
+  azure_policy_enabled                = true
+  run_command_enabled                 = false
+  sku_tier                            = "Standard"
+
+  azure_active_directory_role_based_access_control {
+    azure_rbac_enabled     = true
+    tenant_id              = data.azurerm_client_config.current.tenant_id
+    admin_group_object_ids = var.aks_admin_group_object_ids
+  }
 
   default_node_pool {
     name           = "system"
