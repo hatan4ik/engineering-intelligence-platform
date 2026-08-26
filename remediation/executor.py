@@ -13,7 +13,15 @@ from resilience.certification import (
 )
 
 from .catalog import AutonomyLevel, Runbook, RunbookCatalog
-from .opa_policy import LocalReferenceEvaluator, PolicyControlState, PolicyEvaluator, as_policy_decision
+from .opa_policy import (
+    AutonomyContext,
+    CertificationClaim,
+    certification_denial,
+    LocalReferenceEvaluator,
+    PolicyControlState,
+    PolicyEvaluator,
+    as_policy_decision,
+)
 from .policy import ActionRequest, PolicyDecision, ServiceAutonomy
 
 
@@ -61,6 +69,41 @@ def _preflight(adapter: ActionAdapter, runbook: Runbook, request: ActionRequest)
         allowed, reason = result
         return bool(allowed), str(reason)
     return bool(result), "runbook preconditions satisfied" if result else "runbook preconditions failed"
+
+
+def _autonomy_context(
+    *,
+    level: AutonomyLevel,
+    policy: ServiceAutonomy,
+    request: ActionRequest,
+    runbook: Runbook,
+    certification: L4CertificationRecord | None,
+    now: datetime,
+) -> AutonomyContext:
+    """What the policy boundary is told about this request's autonomy."""
+
+    try:
+        scope_hash = certification_scope_for(
+            policy=policy, request=request, runbook=runbook
+        ).scope_hash()
+    except ValueError:
+        # No bounded budget means no certifiable scope; an empty scope hash
+        # matches nothing, so the policy boundary denies rather than guesses.
+        scope_hash = ""
+    return AutonomyContext(
+        autonomy_level=f"L{int(level)}",
+        scope_hash=scope_hash,
+        now=now.isoformat(),
+        certification=(
+            CertificationClaim(
+                scope_hash=certification.scope_hash,
+                inputs_hash=certification.inputs_hash,
+                expires_on=certification.expires_on,
+            )
+            if certification is not None
+            else None
+        ),
+    )
 
 
 def _certification_refusal(
@@ -136,17 +179,37 @@ def execute_control_loop(
     # approval_verified must be produced by verify_approval() upstream and passed
     # in explicitly. The presence of an approval_token string is NOT proof of a
     # verified approval and must never satisfy the human-approval gate.
+    autonomy = _autonomy_context(
+        level=level, policy=policy, request=request, runbook=runbook,
+        certification=certification, now=moment,
+    )
+    # Presence, expiry and scope are decidable without asking anyone, so they are
+    # decided here: an L4 request that presents no usable certification never
+    # reaches the policy service at all.
+    if level >= AutonomyLevel.BOUNDED_AUTONOMOUS:
+        denial = certification_denial(autonomy)
+        if denial is not None:
+            return ExecutionResult(
+                status="blocked", policy=PolicyDecision(False, denial), error=denial
+            )
+
     evaluated = evaluator.evaluate(
         runbook=runbook,
         policy=policy,
         request=request,
         approval_verified=approval_verified,
         control=control or PolicyControlState(),
+        # OPA is a separate authorization boundary: it is told the level and the
+        # certification claim so it can deny an uncertified L4 mutation itself
+        # rather than trusting that this process already did.
+        autonomy=autonomy,
     )
     decision = as_policy_decision(evaluated)
     if not decision.allowed:
         return ExecutionResult(status="denied", policy=decision)
 
+    # The material-inputs hash binds the policy bundle revision that authorised
+    # this request, so it can only be checked once that revision is known.
     if level >= AutonomyLevel.BOUNDED_AUTONOMOUS:
         refusal = _certification_refusal(
             certification,

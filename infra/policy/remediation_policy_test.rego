@@ -69,3 +69,101 @@ test_deny_when_audit_unavailable if {
   result.allowed == false
   result.reason == "audit control unavailable"
 }
+
+# --- scoped L4 certification -------------------------------------------------
+
+l4_input := object.union(base_input, {
+  "policy": object.union(base_input.policy, {"level": 4}),
+  "autonomy_level": "L4",
+  "now": "2026-08-26T00:00:00Z",
+  "scope": {"scope_hash": "scope-aaa"},
+  "certification": {
+    "scope_hash": "scope-aaa",
+    "inputs_hash": "inputs-bbb",
+    "expires_on": "2026-11-01T00:00:00Z"
+  }
+})
+
+test_allow_l4_with_a_matching_unexpired_certification if {
+  result := decision with input as l4_input
+  result.allowed == true
+}
+
+test_deny_l4_without_a_certification if {
+  candidate := object.remove(l4_input, {"certification"})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_deny_l4_with_a_null_certification if {
+  candidate := object.union(l4_input, {"certification": null})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_deny_l4_with_an_expired_certification if {
+  candidate := object.union(l4_input, {
+    "certification": object.union(l4_input.certification, {"expires_on": "2026-08-25T00:00:00Z"})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: certification has expired"
+}
+
+test_deny_l4_when_the_expiry_is_unreadable if {
+  candidate := object.union(l4_input, {
+    "certification": object.union(l4_input.certification, {"expires_on": "whenever"})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: certification expires_on is not a readable timestamp"
+}
+
+test_deny_l4_when_the_evaluation_time_is_unreadable if {
+  candidate := object.union(l4_input, {"now": ""})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: request carries no readable evaluation time"
+}
+
+test_deny_l4_when_the_certification_is_for_another_scope if {
+  candidate := object.union(l4_input, {
+    "certification": object.union(l4_input.certification, {"scope_hash": "scope-zzz"})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: record scope_hash does not match the requested scope"
+}
+
+test_deny_l4_when_the_request_carries_no_scope_hash if {
+  candidate := object.union(l4_input, {"scope": {"scope_hash": "  "}})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: request carries no scope hash"
+}
+
+test_deny_l4_without_a_material_inputs_hash if {
+  candidate := object.union(l4_input, {
+    "certification": object.union(l4_input.certification, {"inputs_hash": ""})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: certification carries no material-inputs hash"
+}
+
+test_l3_is_never_asked_for_a_certification if {
+  candidate := object.union(base_input, {"autonomy_level": "L3"})
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_the_error_budget_control_outranks_the_certification_check if {
+  candidate := object.union(l4_input, {
+    "request": object.union(l4_input.request, {"error_budget_remaining": 0})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "error budget exhausted; autonomous mutation disabled"
+}
