@@ -43,6 +43,11 @@ evidence-backed authorized query with citations, and the required refusal for th
 principal. It does not print tokens or query content. A failed probe exits nonzero and blocks the
 claim; do not substitute a manual success record.
 
+For the separate non-consequential Temporal worker proof, use
+[`TEMPORAL-WORKER-RUNBOOK.md`](TEMPORAL-WORKER-RUNBOOK.md). That probe creates exactly one Temporal
+evidence workflow record; it is not part of this HTTP retrieval probe and must be retained as a
+separate evidence record.
+
 ## Evidence handling and stop conditions
 
 The generated JSON is a scoped input, not production proof by itself. Copy it to the approved

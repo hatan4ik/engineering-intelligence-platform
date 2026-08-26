@@ -34,8 +34,10 @@ pull_request_target: closed (trusted default-branch code; no PR checkout)
 
 The first workflow does not receive a write-capable token and does not execute the pull-request
 head revision. The publisher validates the artifact schema, repository, event type, and head SHA
-before it has permission to create a check or comment. The closure workflow reads the GitHub event
-as data and checks out the default branch only. It has no deployment or cloud credentials.
+before it has permission to create a check or comment. It accepts marker comments only when they
+were written by its authenticated automation identity, so a contributor cannot forge a prior
+observation. The closure workflow reads the GitHub event as data and checks out the default branch
+only. It has no deployment or cloud credentials.
 
 Fork PRs are expected to have a read-only `GITHUB_TOKEN`; this design deliberately accommodates
 that restriction by publishing only from the subsequent trusted workflow.

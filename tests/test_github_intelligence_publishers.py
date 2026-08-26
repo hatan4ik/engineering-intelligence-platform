@@ -73,7 +73,11 @@ class RecordingRestClient(GitHubRestPRClient):
 
 
 def test_generic_sticky_comment_updates_existing_marker():
-    client = RecordingRestClient([[{"id": 9, "body": "<!-- eip-architecture-guard -->\nold"}], None])
+    client = RecordingRestClient([
+        {"login": "eip-bot"},
+        [{"id": 9, "body": "<!-- eip-architecture-guard -->\nold", "user": {"login": "eip-bot"}}],
+        None,
+    ])
     client.publish_sticky_comment(
         repository="acme/repo", pr_number=3,
         marker=ARCHITECTURE_MARKER, body="new",

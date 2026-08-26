@@ -57,6 +57,7 @@ class GitHubRestPRClient:
     def __init__(self, token: str, api_url: str = "https://api.github.com") -> None:
         self.token = token
         self.api_url = api_url.rstrip("/")
+        self._actor_login: str | None = None
 
     def _request(self, method: str, path: str, payload: dict[str, object] | None = None) -> object:
         body = None if payload is None else json.dumps(payload).encode()
@@ -134,10 +135,13 @@ class GitHubRestPRClient:
         if not marker.startswith("<!-- eip-") or not marker.endswith(" -->"):
             raise ValueError("sticky marker must be an EIP HTML marker")
         marked_body = body if marker in body else f"{marker}\n{body}"
+        actor_login = self._authenticated_login()
         comments = self._request("GET", f"/repos/{repository}/issues/{pr_number}/comments?per_page=100")
         if isinstance(comments, list):
             for comment in reversed(comments):
-                if marker in str(comment.get("body", "")):
+                author = comment.get("user")
+                author_login = str(author.get("login", "")) if isinstance(author, dict) else ""
+                if marker in str(comment.get("body", "")) and author_login == actor_login:
                     comment_id = int(comment["id"])
                     self._request(
                         "PATCH",
@@ -164,14 +168,26 @@ class GitHubRestPRClient:
     ) -> str | None:
         if not marker.startswith("<!-- eip-") or not marker.endswith(" -->"):
             raise ValueError("comment marker must be an EIP HTML marker")
+        actor_login = self._authenticated_login()
         comments = self._request("GET", f"/repos/{repository}/issues/{pr_number}/comments?per_page=100")
         if not isinstance(comments, list):
             raise RuntimeError("GitHub comments response was not a list")
         for comment in reversed(comments):
             body = str(comment.get("body", ""))
-            if marker in body:
+            author = comment.get("user")
+            author_login = str(author.get("login", "")) if isinstance(author, dict) else ""
+            if marker in body and author_login == actor_login:
                 return body
         return None
+
+    def _authenticated_login(self) -> str:
+        if self._actor_login is not None:
+            return self._actor_login
+        actor = self._request("GET", "/user")
+        if not isinstance(actor, dict) or not str(actor.get("login", "")):
+            raise RuntimeError("GitHub authenticated-user response did not include a login")
+        self._actor_login = str(actor["login"])
+        return self._actor_login
 
     def ensure_maintenance_issue(
         self,

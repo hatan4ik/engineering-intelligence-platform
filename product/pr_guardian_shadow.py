@@ -26,7 +26,9 @@ DATA_SUFFIX = " -->"
 OUTCOME_COMMENT_MARKER = "<!-- eip-pr-guardian-shadow-outcome -->"
 
 _REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-_SHA = re.compile(r"^[0-9a-fA-F]{7,64}$")
+# GitHub supplies full head SHAs in production, while callers/tests may use a
+# legitimate abbreviated SHA. The value is a binding identifier, not a secret.
+_SHA = re.compile(r"^[0-9a-fA-F]{4,64}$")
 _BANDS = frozenset({"low", "moderate", "high", "critical"})
 _RISK_LABELS = {
     "eip-pr-guardian/confirmed-risk": "confirmed-risk",
@@ -242,12 +244,14 @@ def closure_outcome(
     risk_signal = _single_signal(labels, _RISK_LABELS, "risk")
     utility_signal = _single_signal(labels, _UTILITY_LABELS, "utility")
     normalized_observation = validate_observation(observation) if observation is not None else None
-    matches_observation = normalized_observation is not None and normalized_observation["subject"] == {
-        "repository": name,
-        "pr_number": number,
-        "head_sha": head_sha.lower(),
-        "action": normalized_observation["subject"]["action"],  # type: ignore[index]
-    }
+    matches_observation = False
+    if normalized_observation is not None:
+        observation_subject = _mapping(normalized_observation["subject"], "observation.subject")
+        matches_observation = (
+            observation_subject["repository"] == name
+            and observation_subject["pr_number"] == number
+            and observation_subject["head_sha"] == head_sha.lower()
+        )
     if normalized_observation is not None and not matches_observation:
         raise ValueError("shadow observation does not match the closed pull request")
     source: dict[str, object] | None = None

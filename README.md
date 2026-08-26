@@ -111,6 +111,9 @@ For the durable control plane, the selected integration path is Temporal on priv
 private PostgreSQL. Its chart has separate fail-closed defaults and requires an existing secret;
 it does not run schema migrations or create database users during a normal server release. See
 [`architecture/ADR-001-temporal-control-plane.md`](architecture/ADR-001-temporal-control-plane.md).
+The image also contains an mTLS-only, non-consequential Temporal evidence worker; see
+[`docs/TEMPORAL-WORKER-RUNBOOK.md`](docs/TEMPORAL-WORKER-RUNBOOK.md). It is not yet the
+authoritative state/audit or remediation execution path.
 
 ## Current scope and limits
 
@@ -143,7 +146,7 @@ The portal is organized into:
 | `app/` | Gateway | FastAPI API, Azure RAG backend, webhook ingress, OTel bootstrap |
 | `intelligence/` | Intelligence | Service graph, change risk, PR Guardian, incident/deployment/drift analysis, SLO context |
 | `product/` `integrations/` `scripts/` | Intelligence | PR Guardian E2E: product service, GitHub REST/webhook adapters, CI runner |
-| `control_plane/` `state/` `orchestration/` | Control | Reference workflow/state/audit contracts; Temporal configuration guard and plan-bound approvals |
+| `control_plane/` `state/` `orchestration/` | Control | Reference workflow/state/audit contracts; Temporal mTLS evidence-worker boundary and plan-bound approvals |
 | `remediation/` | Execution | Runbook catalog, deterministic policy, Kubernetes adapter, simulation, verify/rollback |
 | `security/` `resilience/` | Control | Adversarial/provenance controls, degraded-mode policy, L4 certification |
 | `telemetry/` `finops/` `portal/` | Observability | Operation events, cost attribution/outcomes, control-tower view models |

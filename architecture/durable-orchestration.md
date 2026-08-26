@@ -33,9 +33,12 @@ Handlers remain typed code. Free-form model output does not become an executable
 The current integration path is **Temporal Server on private AKS with private Azure PostgreSQL
 Flexible Server**; see [ADR-001](ADR-001-temporal-control-plane.md). The repository now includes
 a pinned, fail-closed Temporal Helm wrapper, Terraform declarations for the PostgreSQL foundation,
-and runtime guards that prevent local SQLite components from being used when
-`EIP_CONTROL_PLANE_MODE=temporal`.
+an mTLS-only worker deployment boundary, and runtime guards that prevent local SQLite components
+from being used when `EIP_CONTROL_PLANE_MODE=temporal`.
 
-This is not yet a Temporal worker implementation, a deployed service, or production evidence.
-The worker adapter, private secret delivery, schema-migration runbook, backup/restore drill, and
-immutable audit export remain required before a remediation workflow can leave reference mode.
+The registered `eip.control-plane-evidence.v1` worker is non-consequential: it proves only durable
+scheduling and must not mutate state or execute an agent workflow. It is not a deployed service or
+production evidence. The authoritative-state/audit activity bridge, private secret delivery,
+schema-migration runbook, backup/restore drill, and immutable audit export remain required before
+a remediation workflow can leave reference mode. See
+[`../docs/TEMPORAL-WORKER-RUNBOOK.md`](../docs/TEMPORAL-WORKER-RUNBOOK.md).

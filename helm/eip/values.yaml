@@ -47,3 +47,41 @@ env:
   AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ""
   AZURE_OPENAI_API_VERSION: "2024-10-21"
 podAnnotations: {}
+temporalWorker:
+  # Off by default: only enable after the separate Temporal server, mTLS
+  # identity, Cosmos RBAC, and immutable-audit evidence path are reviewed.
+  enabled: false
+  replicaCount: 2
+  serviceAccount:
+    name: eip-temporal-worker
+    azureClientId: ""
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  endpoint: ""
+  namespace: ""
+  taskQueue: ""
+  tls:
+    # Existing Secret only. It must contain a CA, client certificate, and
+    # private key provisioned by the approved certificate path.
+    secretName: ""
+    serverName: ""
+    caCertKey: ca.crt
+    clientCertKey: tls.crt
+    clientKeyKey: tls.key
+  cosmos:
+    endpoint: ""
+    database: ""
+    stateContainer: ""
+  immutableAuditEvidenceUri: ""

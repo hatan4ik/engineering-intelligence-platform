@@ -14,6 +14,7 @@ slides/*.pptx
 helm/**/charts/
 integration-evidence*.json
 pr-guardian-shadow-*.json
+temporal-control-plane-evidence*.json
 docs/diagrams/*.png
 
 # Locally-installed enterprise AI transformation skill pack (uploaded tooling, not vendored)

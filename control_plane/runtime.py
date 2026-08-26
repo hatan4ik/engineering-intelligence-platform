@@ -48,6 +48,10 @@ class TemporalControlPlaneSettings:
     temporal_endpoint: str
     temporal_namespace: str
     temporal_task_queue: str
+    temporal_tls_server_name: str
+    temporal_tls_ca_cert_path: str
+    temporal_tls_client_cert_path: str
+    temporal_tls_client_key_path: str
     cosmos_endpoint: str
     cosmos_database: str
     cosmos_state_container: str
@@ -65,6 +69,10 @@ class TemporalControlPlaneSettings:
             "temporal_endpoint": "EIP_TEMPORAL_ENDPOINT",
             "temporal_namespace": "EIP_TEMPORAL_NAMESPACE",
             "temporal_task_queue": "EIP_TEMPORAL_TASK_QUEUE",
+            "temporal_tls_server_name": "EIP_TEMPORAL_TLS_SERVER_NAME",
+            "temporal_tls_ca_cert_path": "EIP_TEMPORAL_TLS_CA_CERT_PATH",
+            "temporal_tls_client_cert_path": "EIP_TEMPORAL_TLS_CLIENT_CERT_PATH",
+            "temporal_tls_client_key_path": "EIP_TEMPORAL_TLS_CLIENT_KEY_PATH",
             "cosmos_endpoint": "EIP_COSMOS_ENDPOINT",
             "cosmos_database": "EIP_COSMOS_DATABASE",
             "cosmos_state_container": "EIP_COSMOS_STATE_CONTAINER",
@@ -78,4 +86,13 @@ class TemporalControlPlaneSettings:
             )
         if values["immutable_audit_evidence_uri"].lower().startswith("file:"):
             raise ControlPlaneConfigurationError("immutable audit evidence must use an approved remote store, not file:")
+        if "://" in values["temporal_endpoint"] or "/" in values["temporal_endpoint"]:
+            raise ControlPlaneConfigurationError("EIP_TEMPORAL_ENDPOINT must be a host:port, not a URL")
+        for key in (
+            "temporal_tls_ca_cert_path",
+            "temporal_tls_client_cert_path",
+            "temporal_tls_client_key_path",
+        ):
+            if not values[key].startswith("/"):
+                raise ControlPlaneConfigurationError(f"{required[key]} must be an absolute mounted-file path")
         return cls(**values)

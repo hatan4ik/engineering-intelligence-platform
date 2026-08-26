@@ -31,8 +31,10 @@ release actions.
 
 - `EIP_CONTROL_PLANE_MODE=temporal` rejects construction of the local SQLite state, audit, and
   queue implementations. The worker must supply Temporal, Cosmos, and immutable-audit settings.
-- A dedicated Temporal worker adapter and worker deployment are still required before any agent
-  workflow can execute through Temporal.
+- The repository includes an mTLS-only Temporal worker/deployment boundary and a non-consequential
+  `eip.control-plane-evidence.v1` workflow. It is deliberately not a PR, incident, approval, or
+  remediation worker: authoritative Cosmos-state and immutable-audit activities still must be
+  implemented and proven before any agent workflow can execute through Temporal.
 - Secrets must arrive through the approved private secret-delivery path; no password is a Helm
   value or committed Terraform value.
 - Before integration use, validate private DNS/TLS, least-privilege DB user, schema migration,

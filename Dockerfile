@@ -18,6 +18,12 @@ COPY --chown=eip:eip integrations /app/integrations
 COPY --chown=eip:eip portal /app/portal
 COPY --chown=eip:eip security /app/security
 COPY --chown=eip:eip telemetry /app/telemetry
+# The same immutable image is used by the API and the separately deployed
+# Temporal worker.  These modules contain the fail-closed worker boundary, not
+# test fixtures or infrastructure definitions.
+COPY --chown=eip:eip control_plane /app/control_plane
+COPY --chown=eip:eip orchestration /app/orchestration
+COPY --chown=eip:eip state /app/state
 
 EXPOSE 8000
 USER eip

@@ -12,3 +12,18 @@ env:
   AZURE_SEARCH_INDEX: "engineering-knowledge"
   AZURE_OPENAI_ENDPOINT: "https://eip-ci.openai.azure.com"
   AZURE_OPENAI_CHAT_DEPLOYMENT: "eip-ci-chat"
+temporalWorker:
+  enabled: true
+  serviceAccount:
+    azureClientId: "00000000-0000-0000-0000-000000000000"
+  endpoint: "temporal-frontend.eip-system.svc.cluster.local:7233"
+  namespace: "eip-ci"
+  taskQueue: "eip-control-plane-ci"
+  tls:
+    secretName: "temporal-client-tls-ci"
+    serverName: "temporal-frontend.eip-system.svc.cluster.local"
+  cosmos:
+    endpoint: "https://eip-ci.documents.azure.com"
+    database: "eip"
+    stateContainer: "state"
+  immutableAuditEvidenceUri: "https://audit.example.invalid/eip-ci"

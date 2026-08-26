@@ -122,7 +122,10 @@ class PRGuardianService:
                 would_require_extended_tests=policy.require_extended_tests,
                 would_require_additional_approval=policy.require_additional_approval,
                 would_block=policy.block_merge,
-                audit_chain_verified=True,
+                # The service has recorded the workflow, but the standalone
+                # shadow runner is responsible for a full chain verification.
+                # Do not claim that verification happened in this request path.
+                audit_chain_verified=False,
             )
             summary = observation_comment(observation)
             self.github.publish_check(

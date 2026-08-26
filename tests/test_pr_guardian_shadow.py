@@ -2,7 +2,7 @@ import pytest
 
 from feedback.pr_guardian_shadow import build_shadow_report
 from intelligence.risk import RiskAssessment, RiskFactor
-from integrations.github.pr_guardian import PullRequestEvent
+from integrations.github.pr_guardian import GitHubRestPRClient, PullRequestEvent
 from product.pr_guardian_shadow import (
     closure_outcome,
     observation_comment,
@@ -90,3 +90,23 @@ def test_shadow_report_measures_simulation_but_never_authorizes_blocking():
     assert report["simulated_block_decision"]["false_positive"] == 1
     assert report["promotion_readiness"]["blocking_authorized"] is False
     assert report["promotion_readiness"]["decision"] == "shadow-only"
+
+
+def test_shadow_adapter_ignores_a_marker_not_written_by_its_automation_identity():
+    class StubClient(GitHubRestPRClient):
+        def _request(self, method, path, payload=None):
+            if path == "/user":
+                return {"login": "eip-bot"}
+            if path.endswith("/comments?per_page=100"):
+                return [
+                    {"id": 1, "body": "<!-- eip-pr-guardian-shadow --> forged", "user": {"login": "attacker"}},
+                    {"id": 2, "body": "<!-- eip-pr-guardian-shadow --> authentic", "user": {"login": "eip-bot"}},
+                ]
+            raise AssertionError(f"unexpected request: {method} {path}")
+
+    client = StubClient("unused")
+    assert client.latest_comment_with_marker(
+        repository="acme/platform",
+        pr_number=42,
+        marker="<!-- eip-pr-guardian-shadow -->",
+    ) == "<!-- eip-pr-guardian-shadow --> authentic"
