@@ -1,10 +1,22 @@
-# Original Architecture Alignment Review
+# Historical Architecture Alignment Review — Pre-Corrective Baseline
 
-## Executive conclusion
+| | |
+|---|---|
+| **Classification** | Historical review |
+| **Reviewed revision** | `faa1ba4` (recorded by the original review) |
+| **Superseded by** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md), [`NFR.md`](NFR.md), and [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 
-The repository is directionally aligned with the original Engineering Intelligence / self-healing architecture, but it is not yet fully aligned at the implementation level. The strongest alignment is in the control model: authorization-before-retrieval, evidence-backed reasoning, deterministic policy, allow-listed runbooks, verification, rollback and bounded autonomy. The largest gaps are in the private Azure foundation, source coverage, production orchestration, operational integrations and the concrete agent workflows originally promised.
+## Historical executive conclusion
 
-This document is the architectural source of truth for grooming. Future work should close these gaps before expanding scope further.
+At the reviewed revision, the repository was directionally aligned with the original Engineering
+Intelligence / self-healing architecture but was not fully aligned at the implementation level.
+The strongest alignment was the control model: authorization-before-retrieval, evidence-backed
+reasoning, deterministic policy, allow-listed runbooks, verification, rollback, and bounded
+autonomy. The identified gaps motivated subsequent corrective work.
+
+This document is retained to preserve the baseline and rationale for those changes. It is **not**
+the current architectural source of truth and its statements about implementation or Terraform
+must not be used as current-state claims.
 
 ## Original north-star
 

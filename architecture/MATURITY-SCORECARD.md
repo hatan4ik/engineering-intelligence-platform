@@ -1,6 +1,16 @@
 # Engineering Intelligence Platform — Original Architecture Maturity Scorecard
 
-This scorecard prevents implementation drift. It measures the repository against the **original Engineering Intelligence Platform architecture**, not against the amount of code in any one subsystem.
+| | |
+|---|---|
+| **Classification** | Current repository assessment — directional, not production evidence |
+| **Owner** | Platform Engineering |
+| **Production evidence** | [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
+
+This scorecard prevents implementation drift. It measures the repository against the **original
+Engineering Intelligence Platform architecture**, not against the amount of code in any one
+subsystem. Scores are deliberately capped at reference maturity until environment-scoped,
+retained operational evidence exists; a checked-in adapter, test, or diagram is not a level-4
+claim.
 
 ## Maturity scale
 
@@ -15,54 +25,56 @@ This scorecard prevents implementation drift. It measures the repository against
 
 | Original capability | Maturity | Evidence now present | To reach next level |
 |---|---:|---|---|
-| Architecture coherence / governance | **4.5** | north-star, ADR invariants, capability reconciliation, L0–L4 boundary | validate against real operating model over time |
-| Secure Azure foundation | **4.0** | private AI/Search/Key Vault, Private Link/DNS, AKS Workload Identity | production ingress/egress, scale and DR exercises |
-| Code ingestion | **3.5** | GitHub/ADO events, AST chunks, ACL metadata, ledger/DLQ/replay | shared durable queue, backpressure, large-scale reconciliation |
-| Organizational engineering memory | **3.5** | Boards, Jira, Confluence adapters; governed decision-conversation ingestion | live enterprise credentials/sync, broader ACL resolution, source SLAs |
-| Hybrid/vector RAG | **4.0** | vector/hybrid retrieval, ACL trimming, citations/eval | corpus-scale tuning, reranking/calibration, production quality SLOs |
-| AI Gateway | **4.0** | Entra JWT, trusted claims, redaction, model routing and budgets | Graph overage resolver, quotas/cache/operator UX |
-| Service/resource intelligence graph | **4.0** | persistent topology plus service/API/data/queue/owner/SLO projections | automated runtime/IaC discovery at organization scale |
-| PR Guardian | **4.0** | live GitHub event -> diff -> topology/risk -> durable workflow -> Check/comment | measured precision/recall and threshold calibration from real history |
-| Architecture Guard | **3.5** | deterministic ADR/reference rules and reviewable SDLC result | broader rule library + live PR publishing/waiver governance |
-| Deployment Failure Investigator | **3.5** | pipeline failure evidence/last-good correlation and durable workflow | provider breadth, richer logs/timeline UX and calibration |
-| Incident Intelligence | **4.0** | Azure Monitor, App Insights, OTel, K8s evidence, topology/change correlation, operator timeline | real incident-system publishing, richer trace/log queries, outcome calibration |
-| Drift Detector | **3.5** | Git/Terraform desired vs Azure Resource Graph observed | corrective PR automation, more Azure resource types, drift precision metrics |
-| Knowledge Decay | **3.5** | stale/ownerless/conflicting detection -> reviewable maintenance plan | live publisher, resolution tracking and freshness SLOs |
-| Predictive / change-risk intelligence | **3.5** | explainable scoring, historical probability model, feedback-safe calibration | real feature history, service-specific calibration, monitored false-negative rate |
-| Engineering Portal / service intelligence | **3.5** | unified service view: topology, SLO, risk, knowledge, architecture, incidents, feedback | authenticated API/UI, drill-down/navigation, operator workflows |
-| Feedback learning | **3.5** | durable accepted/rejected/reverted/correct/incorrect outcomes + precision/acceptance metrics | automatic outcome capture from PR/deploy/incident systems; cohort analysis |
-| Executive Control Tower | **3.5** | engineering/remediation/cost/feedback view with measured-vs-derived-vs-modeled lineage | live dashboard/API, trend windows, source lineage links and benefit governance |
-| Authoritative state | **4.0** | Cosmos adapter with storage-level CAS + local contract | multi-region ops, backup/restore, retention evidence |
-| Durable orchestration | **3.5** | leases, retries, recovery, DLQ, durable remediation jobs | production queue/backend and concurrency/compensation operations |
-| OPA mutation authorization | **4.5** | authoritative contract, fail-closed client, native policy CI | bundle promotion/version ops and production policy SLO evidence |
-| Human approval | **3.5** | exact-plan bound, expiring approval and Entra boundary | role-mapped portal/Teams/Slack UX and delegated approval governance |
-| Certified runbook library / AKS actions | **3.5** | typed failure classes, pre/postconditions, argv-only actions, live preflight | broader AKS/Azure catalog + repeated production-like exercises |
-| Digital twin | **3.5** | isolated ephemeral K8s sandbox, stripped prod identity, same action/verification, cleanup | dependency/data fixtures, traffic replay and environment fidelity |
-| Supervised self-healing L3 implementation | **4.0** | evidence -> plan -> approval -> OPA -> twin -> action -> verify -> rollback/escalate -> audit | retained real service/environment/runbook exercise evidence |
-| L3 operational certification | **2.5** | certification/evidence framework and required exercise taxonomy | execute/retain required drills on real candidate services |
-| L4 bounded autonomy | **2.0** | service/environment/runbook-scoped model and strict promotion gates | L3 production evidence, chaos history, error-budget and kill-switch proof |
-| Control-plane observability | **4.0** | correlated traces/metrics and SLO projection across approval/action/verification | dashboards, paging thresholds and production SLO history |
-| AI security / red team | **3.5** | poisoned evidence, ACL isolation, confused deputy and policy-bypass CI corpus | larger indirect injection/egress/identity attack corpus and exercises |
-| Software supply chain | **3.0** | SBOM, provenance digest and fail-closed admission verifier | signed/keyless attestations and cluster admission enforcement |
-| FinOps / AI economics | **3.5** | attributed model/search/tool costs, budgets, anomalies, OTel cost metrics | live optimization loop, forecasts and service budget policy |
-| Cross-cloud portability | **2.5** | provider abstraction contracts | deliberately defer implementation depth until Azure path is production-proven |
+| Architecture coherence / governance | **3.5** | north-star, ADR invariants, capability reconciliation, L0–L4 boundary | operate the model with named owners and outcome evidence |
+| Secure Azure foundation | **2.5** | private AI/Search/Key Vault, Private Link/DNS, AKS Workload Identity reference IaC | production ingress/egress, hardened workload, state/queue, scale and DR exercises |
+| Code ingestion | **3.0** | GitHub/ADO events, AST chunks, ACL metadata, ledger/DLQ/replay | shared durable queue, backpressure, source reconciliation, and live source evidence |
+| Organizational engineering memory | **2.5** | governed model and normalizers | live enterprise credentials/sync, broader ACL resolution, source SLAs, and lifecycle controls |
+| Hybrid/vector RAG | **2.5** | vector/hybrid retrieval and ACL-trimming reference path | real retriever evaluation, corpus-scale tuning, calibration, and production quality SLOs |
+| AI Gateway | **2.5** | Entra JWT, trusted claims, redaction, model-routing and budget contracts | rate/concurrency enforcement, Graph resolver, deployment hardening, and real proof |
+| Service/resource intelligence graph | **3.0** | topology/service/API/data/queue/owner/SLO projections | automated runtime/IaC discovery and organization-scale evidence |
+| PR Guardian | **3.0** | GitHub event -> diff -> topology/risk -> workflow -> check/comment reference path | shadow outcomes, precision/recall calibration, and governed enforcement decision |
+| Architecture Guard | **2.5** | deterministic ADR/reference rules and reviewable SDLC result | broader rule library, live publishing, waiver governance, and outcomes |
+| Deployment Failure Investigator | **2.5** | pipeline-failure evidence/last-good correlation and workflow | provider breadth, richer logs/timeline UX, and calibration |
+| Incident Intelligence | **3.0** | Azure Monitor/App Insights/OTel/K8s adapters and correlation primitives | real incident-system publishing, richer queries, and outcome calibration |
+| Drift Detector | **2.5** | desired-vs-observed model and durable finding | wider resource coverage, corrective workflow, and precision measurement |
+| Knowledge Decay | **2.5** | stale/ownerless/conflicting detection and maintenance plan | live publisher, resolution tracking, and freshness SLOs |
+| Predictive / change-risk intelligence | **2.5** | explainable scoring and feedback-safe calibration primitives | real historical features, service calibration, and false-negative monitoring |
+| Engineering Portal / service intelligence | **2.5** | service/portfolio view models and API reference paths | authenticated UI/API deployment, navigation, and operator workflows |
+| Feedback learning | **2.5** | durable outcome model and precision/acceptance metrics | automatic source capture, cohort analysis, and retained live outcomes |
+| Executive Control Tower | **2.5** | modeled engineering/remediation/cost/feedback views | live trend API/dashboard, source lineage, and benefit governance |
+| Authoritative state | **2.5** | Cosmos adapter with storage-level CAS plus local contract | provision/wire state, multi-region ops, backup/restore, retention evidence |
+| Durable orchestration | **2.5** | local leases, retries, recovery, DLQ, durable remediation jobs | production queue/backend and concurrency/compensation operations |
+| OPA mutation authorization | **3.0** | fail-closed contract, native policy CI, and local parity controls | bundle promotion/version operations and production policy SLO evidence |
+| Human approval | **2.5** | exact-plan-bound, expiring approval and identity boundary | role-mapped approval UX, delegated governance, and operational evidence |
+| Certified runbook library / AKS actions | **3.0** | typed failure classes, pre/postconditions, argv-only actions, live preflight | broader catalog and repeated production-like exercises |
+| Digital twin | **3.0** | isolated ephemeral K8s sandbox, stripped identity, same action/verification, cleanup | dependency/data fixtures, traffic replay, and fidelity evidence |
+| Supervised self-healing L3 implementation | **3.0** | evidence -> plan -> approval -> OPA -> twin -> action -> verify -> rollback/escalate -> audit path | managed production dependencies and retained real service/environment/runbook drills |
+| L3 operational certification | **2.0** | certification/evidence framework and exercise taxonomy | execute/retain required drills on real candidate services |
+| L4 bounded autonomy | **1.5** | service/environment/runbook-scoped model and promotion rules | L3 evidence, chaos history, error-budget and kill-switch proof |
+| Control-plane observability | **3.0** | correlated traces/metrics and SLO projection primitives | dashboards, paging thresholds, trace-to-audit reconciliation, and production history |
+| AI security / red team | **3.0** | poisoned-evidence, ACL-isolation, confused-deputy and policy-bypass CI corpus | larger indirect injection/egress/identity corpus and live exercises |
+| Software supply chain | **2.0** | dependency pins, SBOM/provenance reference records, admission verifier | image-bound signed attestations and cluster admission enforcement |
+| FinOps / AI economics | **2.5** | attributed model/search/tool cost primitives and budget contracts | live optimization, forecasts, quota enforcement, and service budget policy |
+| Cross-cloud portability | **2.0** | provider abstraction contracts | deliberately defer implementation depth until Azure path is production-proven |
 
 ## Balance check
 
 Approximate product maturity by architectural layer:
 
 ```text
-Organizational Knowledge / RAG        3.8 / 5
-Developer & SDLC Intelligence         3.8 / 5
-Operational Intelligence              3.8 / 5
-Portal / Feedback / Executive UX      3.5 / 5
-Control Plane / Safety                 4.1 / 5
-Self-Healing Mechanics                 3.8 / 5
-Operational L3 Certification           2.5 / 5
-Bounded L4 Autonomy                    2.0 / 5
+Organizational Knowledge / RAG        2.7 / 5
+Developer & SDLC Intelligence         2.8 / 5
+Operational Intelligence              2.7 / 5
+Portal / Feedback / Executive UX      2.5 / 5
+Control Plane / Safety                 2.8 / 5
+Self-Healing Mechanics                 3.0 / 5
+Operational L3 Certification           2.0 / 5
+Bounded L4 Autonomy                    1.5 / 5
 ```
 
-The control plane is intentionally more mature than L4 certification, but future work must not increase L4 depth while the upper product layers lag materially behind.
+The control-plane mechanics are intentionally ahead of L4 certification, but no layer is
+production-capable until its applicable NFRs and retained evidence are satisfied. Future work
+must not increase L4 depth while the upper product layers lack measured outcomes.
 
 ## Grooming guardrails
 

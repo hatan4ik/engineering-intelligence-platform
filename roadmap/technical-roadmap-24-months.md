@@ -1,5 +1,16 @@
 # 18–24 Month Technical Roadmap
 
+## Active product wedge
+
+The active product is **PR Guardian for one or two Azure engineering repositories**. It begins as
+an evidence-backed, non-blocking check in shadow mode. Product expansion is earned through
+repository-specific measured precision, reviewer outcomes, ACL/citation safety, latency, and
+cost evidence—not through completion of a roadmap phase alone. See
+[`../docs/PRODUCT-STRATEGY.md`](../docs/PRODUCT-STRATEGY.md).
+
+The phases below remain the target-state sequence. They do not authorize an L3/L4 promotion;
+those decisions require the production-proof and evidence contracts.
+
 ## Phase 0 — Foundation (Months 0–2)
 Build secure model access, AI Gateway/RAG orchestration, hybrid search, metadata store, private networking, identity, token/cost telemetry and retrieval evaluation.
 
@@ -13,7 +24,10 @@ Scale ingestion across repositories, Boards/Jira, ADRs, runbooks and CI/CD histo
 ## Phase 2 — PR Intelligence (Months 6–8)
 Deploy PR Guardian for secure-coding patterns, IaC rules, architecture constraints, similar regressions, ownership context and change-impact hints.
 
-**Exit:** useful PR feedback with measured precision and false-positive rate.
+**Exit:** useful PR feedback with measured precision, false-positive and false-negative rate,
+reviewer disposition, citation correctness, and cost/latency distribution for the certified
+repository scope. Any future blocking rule has a service-owner-approved threshold, waiver path,
+and tested disable switch.
 
 ## Phase 3 — Incident Intelligence (Months 9–12)
 Integrate Azure Monitor, Log Analytics, App Insights, Kubernetes events, OpenTelemetry and deployment history. Build failure investigator and incident summarizer.

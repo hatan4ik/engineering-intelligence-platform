@@ -16,16 +16,22 @@ Azure/AKS.
 > by design.
 
 **Status:** working reference implementation plus target-state architecture — not yet a
-production-ready autonomous control plane.
-[`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md)
-grades every capability (Implemented / Partial / Skeleton / Missing) and owns the execution
-queue.
+production-ready autonomous control plane. “Implemented” means an executable, CI-covered
+reference path unless an environment-scoped evidence record says otherwise; it does not mean
+production-certified.
+
+The current product wedge is **PR Guardian**: evidence-backed, initially non-blocking pull
+request intelligence for one or two Azure engineering repositories. See
+[`docs/PRODUCT-STRATEGY.md`](docs/PRODUCT-STRATEGY.md). The capability matrix owns the current
+repository assessment; production claims require retained evidence under
+[`docs/PRODUCTION-EVIDENCE.md`](docs/PRODUCTION-EVIDENCE.md).
 
 ## Contents
 
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Quick start](#quick-start)
 - [Azure-backed mode](#azure-backed-mode)
+- [Current scope and limits](#current-scope-and-limits)
 - [Documentation](#documentation)
 - [Repository map](#repository-map)
 - [Development](#development)
@@ -60,7 +66,7 @@ curl -s http://127.0.0.1:8000/v1/query \
   -d '{"question":"How should production remediation work?"}'
 ```
 
-Run the full local validation that CI runs:
+Run the repository reference checks that CI runs:
 
 ```bash
 pytest -q
@@ -70,6 +76,9 @@ terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/t
 helm lint helm/eip
 docker build -t eip:local .
 ```
+
+These checks establish code and configuration consistency. They do not establish a production
+deployment, real-data isolation, recovery behavior, or autonomous-remediation readiness.
 
 ## Azure-backed mode
 
@@ -81,10 +90,26 @@ Set `EIP_BACKEND=azure` plus:
 | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_CHAT_DEPLOYMENT` | Grounded synthesis |
 | `EIP_GITHUB_WEBHOOK_SECRET` | PR Guardian webhook ingress (HMAC, fail closed) |
 
-Authentication uses `DefaultAzureCredential` (Managed Identity in-cluster). ACL filtering is
-compiled into every search request **before** any content reaches the model. Production
-hardening still required — Entra-backed API identity, controlled egress, production state
-adapters — is tracked as explicit capability gaps, not implied to exist.
+Azure service clients use `DefaultAzureCredential` (Managed Identity in-cluster). Callers of the
+gateway use an Entra access token or configured API-key principal; request headers are a
+deterministic-demo affordance only and are never trusted with the Azure backend. ACL filtering is
+compiled into every search request **before** any content reaches the model.
+
+An Azure-backed request path is a reference integration until its identity, private network,
+state/audit, quality, and operational evidence has been retained for a named environment. See
+[`docs/PRODUCTION-EVIDENCE.md`](docs/PRODUCTION-EVIDENCE.md) and
+[`architecture/NFR.md`](architecture/NFR.md).
+
+## Current scope and limits
+
+| Available reference capability | Not yet a production claim |
+|---|---|
+| Local deterministic query demo; Azure retrieval/gateway adapters; GitHub PR Guardian workflow; policy/runbook and digital-twin reference paths | A released production container/chart, calibrated retrieval or PR-risk quality, real-data production proof, managed durable queue/audit export, or L3/L4 certification |
+| PR Guardian is the first product surface; it starts as evidence-backed advisory feedback | General engineering chat, enterprise-wide source rollout, blocking controls without calibration, and production self-healing |
+
+The exact status, owner, and remaining depth are in
+[`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md). Do not
+infer deployment readiness from a demo, test, or maturity score.
 
 ## Documentation
 
@@ -95,7 +120,11 @@ Suggested reading order within each audience.
 | Document | What it is |
 |---|---|
 | [`architecture/DESIGN.md`](architecture/DESIGN.md) | **System design** — goals/non-goals, per-plane detailed design, security model, data model, failure modes, alternatives considered |
-| [`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md) | **Execution source of truth** — capability status matrix and the product implementation queue |
+| [`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md) | **Current implementation state** — reference capability status and product implementation queue |
+| [`architecture/MATURITY-SCORECARD.md`](architecture/MATURITY-SCORECARD.md) | **Repository maturity assessment** — directional scores, not production proof |
+| [`docs/PRODUCT-STRATEGY.md`](docs/PRODUCT-STRATEGY.md) | **Initial product decision** — PR Guardian wedge, success metrics, and expansion gates |
+| [`docs/PRODUCTION-EVIDENCE.md`](docs/PRODUCTION-EVIDENCE.md) | **Evidence contract** — required retained evidence for real-data pilots and autonomy promotion |
+| [`docs/DOCUMENT-STATUS.md`](docs/DOCUMENT-STATUS.md) | **Documentation status** — current vs target vs historical authority and review rules |
 | [`governance/security-threat-model.md`](governance/security-threat-model.md) | Threats, required controls, and the L0–L5 autonomy tiers |
 
 ### Engineering deep dives
@@ -109,6 +138,7 @@ Suggested reading order within each audience.
 | [`architecture/durable-orchestration.md`](architecture/durable-orchestration.md) | Job queue leases, retry/backoff, DLQ, and crash recovery |
 | [`architecture/azure-devops-self-healing-reference.md`](architecture/azure-devops-self-healing-reference.md) | Target-state Azure/ADO/AKS closed-loop reference |
 | [`architecture/p1-secure-azure-foundation.md`](architecture/p1-secure-azure-foundation.md) | Private endpoints, Workload Identity, private DNS foundation |
+| [`architecture/NFR.md`](architecture/NFR.md) | Availability, data lifecycle, recovery, security, quality, observability, capacity, and cost requirements |
 | [`architecture/runtime-observability.md`](architecture/runtime-observability.md) | Operation telemetry and FinOps contract |
 | [`architecture/l4-certification.md`](architecture/l4-certification.md) | Evidence-based bounded-autonomy certification |
 | [`architecture/vertical-slice.md`](architecture/vertical-slice.md) | The original end-to-end demo slice and its security invariants |
@@ -157,12 +187,11 @@ Suggested reading order within each audience.
 ## Development
 
 ```bash
-pytest -q            # contracts, durability, composition, API, and policy tests
-python -m pyflakes . # lint
+pytest -q  # contracts, durability, composition, API, and policy tests
 ```
 
-- CI (`.github/workflows/ci.yml`) gates every PR: tests, evaluation, scenario runner,
-  Terraform fmt/validate, Helm lint, container build.
+- CI (`.github/workflows/ci.yml`) gates reference checks: tests, evaluation harness, scenario
+  runner, Terraform fmt/validate, Helm lint, supply-chain reference checks, and container build.
 - **The repository reviews itself**: `.github/workflows/pr-guardian.yml` runs the PR
   Guardian on every pull request — diff → service graph → deterministic risk → durable
   workflow with verified audit chain → evidence comment on the PR.

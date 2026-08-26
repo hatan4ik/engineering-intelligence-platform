@@ -1,5 +1,11 @@
 # Production Readiness & Autonomy Certification
 
+| | |
+|---|---|
+| **Status** | Certification requirements; a completed document is not a passed certification |
+| **Evidence records** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |
+| **NFRs** | [`../architecture/NFR.md`](../architecture/NFR.md) |
+
 No agent or remediation is promoted because it appears intelligent. Promotion requires evidence.
 
 ## Certification gates

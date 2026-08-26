@@ -2,9 +2,11 @@
 
 | | |
 |---|---|
-| **Status** | Living document — reviewed against `main` |
+| **Classification** | Current design — target architecture with referenced implementation contracts |
 | **Owners** | Platform Engineering |
-| **Execution source of truth** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md) |
+| **Current implementation state** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md) |
+| **Product decision** | [`../docs/PRODUCT-STRATEGY.md`](../docs/PRODUCT-STRATEGY.md) |
+| **NFRs and production evidence** | [`NFR.md`](NFR.md) · [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 | **Threat model** | [`../governance/security-threat-model.md`](../governance/security-threat-model.md) |
 | **Diagrams** | Generated light/dark SVGs — [`../docs/diagrams/build_diagrams.py`](../docs/diagrams/build_diagrams.py) |
 
@@ -38,10 +40,11 @@ turns repositories, work items, ADRs, runbooks, CI/CD history, and operational t
 **governed intelligence layer embedded in the SDLC** — and, once its recommendations are proven
 trustworthy, into **supervised self-healing** for certified failure classes.
 
-This document describes the system as designed and the contracts implemented on `main`.
-It does not restate delivery status; the
-[capability reconciliation](CAPABILITY-RECONCILIATION.md) grades every capability as
-Implemented / Partial / Skeleton / Missing and owns the execution queue.
+This document describes the system as designed and identifies contracts implemented in the
+repository. It does not make deployment or production-readiness claims. The
+[capability reconciliation](CAPABILITY-RECONCILIATION.md) records repository/reference status;
+the [production-evidence registry](../docs/PRODUCTION-EVIDENCE.md) records what has actually
+been proven for a named environment and scope.
 
 **In scope:** knowledge ingestion, secure retrieval, SDLC and operational intelligence agents,
 the durable control plane, and bounded remediation execution on Azure/AKS.

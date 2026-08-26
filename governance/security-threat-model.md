@@ -11,6 +11,7 @@
 8. Automation loops causing repeated harmful mutations.
 9. Stale or replayed human approvals authorizing a changed plan.
 10. Retrieval/index poisoning altering evidence presented to operators.
+11. Retention, residency, or deletion failures exposing engineering knowledge beyond its approved lifecycle.
 
 ## Required controls
 - Authenticate every caller with Entra ID; authorize before retrieval.
@@ -22,6 +23,7 @@
 - Use managed identities/workload identity and least-privilege scopes.
 - Rate limit, quota and meter by user/team/agent.
 - Add freshness/ownership/provenance metadata and source-quality weighting.
+- Record data classification, approved purpose, retention, residency, legal-hold, and deletion/reconciliation behavior for every source before real-data ingestion.
 - Bound retries and autonomous action counts.
 - Bind approval tokens to the exact workflow/plan and expiration time.
 - Maintain immutable audit records and emergency kill switches.

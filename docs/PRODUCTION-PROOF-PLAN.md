@@ -1,6 +1,15 @@
 # Production Proof Plan
 
-The Engineering Intelligence Platform must not be described as production-ready merely because the reference implementation and CI are green. Production readiness is earned from external integration evidence, sustained operation, failure drills and measured control-plane behavior.
+| | |
+|---|---|
+| **Status** | Target promotion plan; not itself evidence that a gate has passed |
+| **Evidence contract** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |
+| **Operational requirements** | [`../architecture/NFR.md`](../architecture/NFR.md) |
+
+The Engineering Intelligence Platform must not be described as production-ready merely because
+the reference implementation and CI are green. Production readiness is earned from external
+integration evidence, sustained operation, failure drills and measured control-plane behavior.
+Each result must be retained using the evidence contract; a CI artifact alone is insufficient.
 
 ## Required proof sequence
 
