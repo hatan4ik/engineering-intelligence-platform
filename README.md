@@ -47,7 +47,7 @@ repository assessment; production claims require retained evidence under
 </p>
 
 Full design with per-plane diagrams, data model, failure modes, and alternatives considered:
-**[`architecture/design.md`](architecture/design.md)**.
+**[`architecture/DESIGN.md`](architecture/DESIGN.md)**.
 
 ## Quick start
 
@@ -123,7 +123,7 @@ authoritative state/audit or remediation execution path.
 | PR Guardian is the first product surface; it starts as evidence-backed advisory feedback | General engineering chat, enterprise-wide source rollout, blocking controls without calibration, and production self-healing |
 
 The exact status, owner, and remaining depth are in
-[`architecture/capability-reconciliation.md`](architecture/capability-reconciliation.md). Do not
+[`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md). Do not
 infer deployment readiness from a demo, test, or maturity score.
 
 ## Documentation
@@ -174,7 +174,7 @@ pytest -q  # contracts, durability, composition, API, and policy tests
   See [the shadow-pilot runbook](docs/PR-GUARDIAN-SHADOW-PILOT.md); no pilot evidence is collected
   or claimed by this repository alone.
 - Every PR must map to a capability in the
-  [reconciliation](architecture/capability-reconciliation.md) and improve a measurable
+  [reconciliation](architecture/CAPABILITY-RECONCILIATION.md) and improve a measurable
   outcome.
 
 ## Transformation path

@@ -16,6 +16,10 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r app/requirements.txt
+      - name: Validate tracked documentation links and anchors
+        run: |
+          python check_links.py
+          python check_anchors.py
       - run: pytest -q
       - run: python -m eval.evaluate
       - run: python -m demo.aks.scenario_runner

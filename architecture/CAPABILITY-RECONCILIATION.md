@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Current implementation state — repository/reference evidence, not production certification |
 | **Owner** | Platform Engineering |
-| **Current design** | [`design.md`](design.md) |
+| **Current design** | [`DESIGN.md`](DESIGN.md) |
 | **Production evidence contract** | [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 
 This file is the current-state reconciliation for the **original Engineering Intelligence
@@ -46,6 +46,15 @@ Ephemeral digital twin -> certified runbook -> independent verify
 
 **Invariant:** models reason and recommend; authenticated identity and ACLs constrain evidence; OPA authorizes production mutations; allow-listed adapters execute; independent signals verify. L5 unrestricted autonomy remains unsupported.
 
+## Product focus
+
+The architecture above is the target portfolio, not a claim that each vertical is an active
+product. The active product is **PR Guardian** for one or two named repositories, in shadow mode.
+Architecture Guard, deployment investigation, incident intelligence, drift, and remediation are
+reference workflows until they consume the shared product finding, evidence, outcome, and
+evaluation contracts described in the [product maturity roadmap](../roadmap/technical-roadmap-24-months.md).
+They do not share PR Guardian's pilot or promotion authority.
+
 ## Current capability matrix
 
 Legend: **Implemented reference** = executable, CI-covered repository path exists.
@@ -57,21 +66,21 @@ implementation may exist, but no service/environment/runbook production evidence
 | Original capability | Current status | Implemented evidence | Remaining depth |
 |---|---|---|---|
 | Secure private Azure foundation | Implemented reference foundation | private Search/OpenAI/Key Vault, AKS Workload Identity, private endpoints/DNS | production ingress/egress, hardened AKS/workload posture, DR, and environment proof |
-| Continuous code ingestion | Partial/strong | GitHub/ADO events, AST chunks, ACL metadata, ledger/DLQ/replay | shared queue/backpressure and broader source reconciliation |
+| Continuous code ingestion | Strong reference | GitHub/ADO events, AST chunks, ACL metadata, ledger/DLQ/replay, source catalog lifecycle, ACL reconciliation, deletion, and missing-index repair | managed provider scheduling, shared queue/backpressure, broader source adapters, and retained source-SLA evidence |
 | Organizational memory | Partial | governed work-item/docs/runbook/incident/deployment/conversation model | concrete Jira/Confluence/Teams/Slack adapters |
 | Hybrid/vector RAG | Implemented reference | Azure Search hybrid/vector retrieval, ACL filter, safe evidence synthesis, evaluation | production index tuning and quality calibration |
 | AI Gateway | Implemented reference boundary | Entra bearer auth, trusted groups/roles, redaction, model routing, request-budget contract | rate/concurrency enforcement, Graph group-overage resolver, operator UX, and production proof |
 | Service/resource graph | Implemented reference | persistent graph, service/resource/owner/SLO projections, blast radius | broader runtime/IaC extractors and scale tuning |
-| PR Guardian | Implemented E2E | GitHub event -> diff/service mapping -> graph/risk -> durable workflow -> check/comment contract | precision measurement on real org history |
+| PR Guardian | Shadow E2E reference | GitHub event -> diff/service mapping -> graph/risk -> workflow -> neutral check/comment; explicit reviewer-label closure record and offline report | durable product finding/evidence/outcome store, authorized retrieval citations, independent post-merge correlation, and repository-specific calibration |
 | Architecture Guard | Implemented reference | ADR/reference architecture rules with deterministic findings | broader rule catalog and PR publishing integration |
 | Deployment Failure Investigator | Implemented E2E | pipeline failure normalization, evidence/last-good correlation, hypotheses, durable output | additional pipeline providers and ticket UX |
 | Incident Intelligence | Implemented E2E | Azure Monitor evidence adapter, topology/change correlation, evidence-backed RCA | richer App Insights/OTel queries and incident-system publishing |
 | Drift Detector | Implemented E2E | Git/Terraform desired state + Azure Resource Graph observed state -> durable drift finding | corrective PR automation and more resource projections |
 | Knowledge Decay Agent | Implemented reference | stale/ownerless/conflicting knowledge scoring | documentation PR/ticket publisher |
 | Predictive change risk | Implemented reference | historical calibration, explicit confidence/evidence, deployment-risk output | real feature-store history and threshold calibration |
-| Authoritative state | Adapter present | SQLite contract plus Cosmos DB adapter with `_etag` CAS and app versions | provision/wire managed state, multi-region policy, backup/restore, retention, and production proof |
-| Audit | Implemented local contract | hash-chained audit and control-plane action audit | immutable external export/retention policy |
-| Durable orchestration | Reference implementation plus non-consequential Temporal evidence worker | SQLite reference semantics; fail-closed Temporal configuration/server wrapper/private PostgreSQL declarations; mTLS worker chart and `eip.control-plane-evidence.v1` workflow | Authoritative Cosmos-state/audit activity bridge, schema migration, recovery/restore drills, immutable audit export, and production evidence |
+| Authoritative state | Reference boundary | SQLite lifecycle contract and Cosmos DB adapter with `_etag` CAS, app versions, atomic transition receipts, idempotency, cancellation, and restart coverage | provision/wire managed state, multi-region policy, backup/restore, retention, and production proof |
+| Audit | Reference boundary | hash-chained local audit, control-plane action audit, and lifecycle bridge that fails a transition when audit export fails | immutable external export/retention policy and retained operational evidence |
+| Durable orchestration | Reference boundary plus non-consequential Temporal evidence worker | SQLite reference semantics; fail-closed Temporal configuration/server wrapper/private PostgreSQL declarations; mTLS worker chart, `eip.control-plane-evidence.v1`, and unregistered `eip.persist-workflow-lifecycle.v1` activity | register product workflows only after they consume canonical lifecycle contracts; schema migration, recovery/restore drills, immutable audit export, and production evidence |
 | Mutation policy | Implemented | authoritative OPA contract, fail-closed client, OPA-native CI tests | bundle distribution/version promotion operations |
 | Human approval | Implemented L3 primitive | exact plan-hash HMAC approval with expiry + Entra identity boundary | portal/Teams/Slack approval UX and approver-role mapping |
 | Runbook library / AKS execution | Implemented reference | fixed typed runbooks, argv-only Kubernetes adapter, verify/rollback/escalation | more certified failure classes and Azure-resource actions |

@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Historical review |
 | **Reviewed revision** | `faa1ba4` (recorded by the original review) |
-| **Superseded by** | [`capability-reconciliation.md`](capability-reconciliation.md), [`non-functional-requirements.md`](non-functional-requirements.md), and [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
+| **Superseded by** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md), [`non-functional-requirements.md`](non-functional-requirements.md), and [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 
 ## Historical executive conclusion
 

@@ -5,7 +5,8 @@
 | **Status** | Current product decision — reference implementation, not production proof |
 | **Primary owner** | Engineering Intelligence lead + Developer Experience |
 | **Decision date** | 2026-08-26 |
-| **Related delivery status** | [`../architecture/capability-reconciliation.md`](../architecture/capability-reconciliation.md) |
+| **Related delivery status** | [`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md) |
+| **Product contract** | [`PR-GUARDIAN-DOMAIN-CONTRACT.md`](PR-GUARDIAN-DOMAIN-CONTRACT.md) |
 
 ## Decision
 
@@ -88,6 +89,6 @@ worse reviewer experience. No status or maturity score substitutes for this deci
 ## Relationship to the roadmap
 
 [`../roadmap/technical-roadmap-24-months.md`](../roadmap/technical-roadmap-24-months.md)
-describes the target sequencing. Its Phase 2 PR Intelligence exit is the next product decision
-point. L3/L4 work remains governed by the production-proof and certification documents and is not
-an implied follow-on to PR Guardian adoption.
+describes the outcome-gated delivery sequence. Its Stage 2 advisory decision is the next product
+promotion point. L3/L4 work remains governed by the production-proof and certification documents
+and is not an implied follow-on to PR Guardian adoption.

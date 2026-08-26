@@ -33,14 +33,16 @@ production-certified.
 
 | Document | Classification | Authority |
 |---|---|---|
-| [`../architecture/design.md`](../architecture/design.md) | Current design | System invariants and target architecture |
-| [`../architecture/capability-reconciliation.md`](../architecture/capability-reconciliation.md) | Current implementation state | Reference implementation capability status and queue |
+| [`../architecture/DESIGN.md`](../architecture/DESIGN.md) | Current design | System invariants and target architecture |
+| [`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md) | Current implementation state | Reference implementation capability status and queue |
 | [`../architecture/non-functional-requirements.md`](../architecture/non-functional-requirements.md) | Current design | Operational, data, and safety requirements |
 | [`PRODUCT-STRATEGY.md`](PRODUCT-STRATEGY.md) | Current product decision | First product wedge and expansion gates |
+| [`PR-GUARDIAN-DOMAIN-CONTRACT.md`](PR-GUARDIAN-DOMAIN-CONTRACT.md) | Current product boundary | PR Guardian records and safety invariants |
+| [`../roadmap/technical-roadmap-24-months.md`](../roadmap/technical-roadmap-24-months.md) | Target proposal | Outcome-gated delivery sequence and promotion gates |
 | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) | Current evidence contract | What must be retained to support a promotion claim |
 | [`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md) | Target promotion plan | Required sequence and gates |
-| [`../architecture/maturity-scorecard.md`](../architecture/maturity-scorecard.md) | Current repository assessment | Directional maturity, never production proof |
-| [`../architecture/alignment-review.md`](../architecture/alignment-review.md) | Historical review | Pre-corrective baseline only |
+| [`../architecture/MATURITY-SCORECARD.md`](../architecture/MATURITY-SCORECARD.md) | Current repository assessment | Directional maturity, never production proof |
+| [`../architecture/ALIGNMENT-REVIEW.md`](../architecture/ALIGNMENT-REVIEW.md) | Historical review | Pre-corrective baseline only |
 | [`architecture-review-2026-08.md`](architecture-review-2026-08.md) | Historical review | Point-in-time assessment only |
 | [`../architecture/faang-multi-cloud-and-on-prem-extensions.md`](../architecture/faang-multi-cloud-and-on-prem-extensions.md) | Target proposal | Multi-cloud and air-gapped target architecture |
 | [`../architecture/adr/001-temporal-control-plane.md`](../architecture/adr/001-temporal-control-plane.md) | Current design | Decision record mandating Temporal control plane |

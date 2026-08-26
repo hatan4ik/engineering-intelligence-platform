@@ -27,12 +27,12 @@ claim.
 |---|---:|---|---|
 | Architecture coherence / governance | **3.5** | north-star, ADR invariants, capability reconciliation, L0–L4 boundary | operate the model with named owners and outcome evidence |
 | Secure Azure foundation | **2.5** | private AI/Search/Key Vault, Private Link/DNS, AKS Workload Identity reference IaC | production ingress/egress, hardened workload, state/queue, scale and DR exercises |
-| Code ingestion | **3.0** | GitHub/ADO events, AST chunks, ACL metadata, ledger/DLQ/replay | shared durable queue, backpressure, source reconciliation, and live source evidence |
+| Code ingestion | **3.5** | GitHub/ADO events, AST chunks, ACL metadata, ledger/DLQ/replay, source lifecycle/ACL reconciliation/deletion/index repair | managed provider scheduling, shared durable queue/backpressure, broader source adapters, and live source evidence |
 | Organizational engineering memory | **2.5** | governed model and normalizers | live enterprise credentials/sync, broader ACL resolution, source SLAs, and lifecycle controls |
 | Hybrid/vector RAG | **2.5** | vector/hybrid retrieval and ACL-trimming reference path | real retriever evaluation, corpus-scale tuning, calibration, and production quality SLOs |
 | AI Gateway | **2.5** | Entra JWT, trusted claims, redaction, model-routing and budget contracts | rate/concurrency enforcement, Graph resolver, deployment hardening, and real proof |
 | Service/resource intelligence graph | **3.0** | topology/service/API/data/queue/owner/SLO projections | automated runtime/IaC discovery and organization-scale evidence |
-| PR Guardian | **3.0** | GitHub event -> diff -> topology/risk -> workflow -> check/comment reference path | shadow outcomes, precision/recall calibration, and governed enforcement decision |
+| PR Guardian | **3.0** | GitHub event -> diff -> topology/risk -> shadow workflow -> neutral check/comment plus explicit reviewer-label closure record | durable finding/evidence/outcome store, independent post-merge correlation, precision/recall calibration, and governed enforcement decision |
 | Architecture Guard | **2.5** | deterministic ADR/reference rules and reviewable SDLC result | broader rule library, live publishing, waiver governance, and outcomes |
 | Deployment Failure Investigator | **2.5** | pipeline-failure evidence/last-good correlation and workflow | provider breadth, richer logs/timeline UX, and calibration |
 | Incident Intelligence | **3.0** | Azure Monitor/App Insights/OTel/K8s adapters and correlation primitives | real incident-system publishing, richer queries, and outcome calibration |
@@ -40,10 +40,10 @@ claim.
 | Knowledge Decay | **2.5** | stale/ownerless/conflicting detection and maintenance plan | live publisher, resolution tracking, and freshness SLOs |
 | Predictive / change-risk intelligence | **2.5** | explainable scoring and feedback-safe calibration primitives | real historical features, service calibration, and false-negative monitoring |
 | Engineering Portal / service intelligence | **2.5** | service/portfolio view models and API reference paths | authenticated UI/API deployment, navigation, and operator workflows |
-| Feedback learning | **2.5** | durable outcome model and precision/acceptance metrics | automatic source capture, cohort analysis, and retained live outcomes |
+| Feedback learning | **2.5** | explicit reviewer-label shadow outcomes, durable outcome model, and conservative precision/acceptance metrics | retained independent outcome correlation, cohort analysis, and repository-specific calibration |
 | Executive Control Tower | **2.5** | modeled engineering/remediation/cost/feedback views | live trend API/dashboard, source lineage, and benefit governance |
-| Authoritative state | **2.5** | Cosmos adapter with storage-level CAS plus local contract | provision/wire state, multi-region ops, backup/restore, retention evidence |
-| Durable orchestration | **2.5** | local leases, retries, recovery, DLQ, durable remediation jobs | production queue/backend and concurrency/compensation operations |
+| Authoritative state | **3.0** | Cosmos adapter with storage-level CAS plus canonical atomic lifecycle receipts, idempotency, cancellation, and restart coverage | provision/wire state, multi-region ops, backup/restore, retention evidence |
+| Durable orchestration | **3.0** | local leases/retries/recovery/DLQ plus fail-closed lifecycle/audit activity bridge and evidence-only Temporal worker | registered product workflows, production queue/backend, and concurrency/compensation operations |
 | OPA mutation authorization | **3.0** | fail-closed contract, native policy CI, and local parity controls | bundle promotion/version operations and production policy SLO evidence |
 | Human approval | **2.5** | exact-plan-bound, expiring approval and identity boundary | role-mapped approval UX, delegated governance, and operational evidence |
 | Certified runbook library / AKS actions | **3.0** | typed failure classes, pre/postconditions, argv-only actions, live preflight | broader catalog and repeated production-like exercises |

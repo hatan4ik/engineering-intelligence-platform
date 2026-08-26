@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Current design — mixing implemented architecture and explicitly-labeled proposed target architecture |
 | **Owners** | Platform Engineering |
-| **Current implementation state** | [`capability-reconciliation.md`](capability-reconciliation.md) |
+| **Current implementation state** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md) |
 | **Product decision** | [`../docs/PRODUCT-STRATEGY.md`](../docs/PRODUCT-STRATEGY.md) |
 | **NFRs and production evidence** | [`non-functional-requirements.md`](non-functional-requirements.md) · [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 | **Threat model** | [`../governance/security-threat-model.md`](../governance/security-threat-model.md) |
@@ -42,7 +42,7 @@ trustworthy, into **supervised self-healing** for certified failure classes.
 
 This document describes the system as designed and identifies contracts implemented in the
 repository. It does not make deployment or production-readiness claims. The
-[capability reconciliation](capability-reconciliation.md) records repository/reference status;
+[capability reconciliation](CAPABILITY-RECONCILIATION.md) records repository/reference status;
 the [production-evidence registry](../docs/PRODUCTION-EVIDENCE.md) records what has actually
 been proven for a named environment and scope.
 
@@ -345,7 +345,7 @@ Crucially, new AI agents or prompt modifications are never deployed directly to 
 ## 12. Risks and open questions
 
 Tracked honestly; grades and queue live in the
-[capability reconciliation](capability-reconciliation.md).
+[capability reconciliation](CAPABILITY-RECONCILIATION.md).
 
 1. **Identity is implemented but not yet universally enforced** — Entra JWT validation and
    hashed-API-key principals exist (`app/entra_identity.py`, `app/gateway.py`); the residual
