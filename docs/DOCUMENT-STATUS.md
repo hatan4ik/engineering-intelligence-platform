@@ -62,6 +62,14 @@ production-certified.
 | [`executive-memo.md`](executive-memo.md) | Target proposal | Narrative; modeled benefits |
 | [`board-deck-narrative.md`](board-deck-narrative.md) | Target proposal | Narrative; modeled benefits |
 | [`reviews/skill-driven-doc-review.md`](reviews/skill-driven-doc-review.md) | Historical review | Point-in-time documentation audit |
+| [`PR-GUARDIAN-SHADOW-REPORT.md`](PR-GUARDIAN-SHADOW-REPORT.md) | Current implementation state | What the shadow report computes and does not authorize |
+| [`PR-GUARDIAN-REPOSITORY-CONFIG.md`](PR-GUARDIAN-REPOSITORY-CONFIG.md) | Current implementation state | Repository-owned modes, waivers, kill switch, threat model |
+| [`KNOWLEDGE-INGEST-RUNBOOK.md`](KNOWLEDGE-INGEST-RUNBOOK.md) | Current implementation state | Ingestion runner and workflow; Azure path requirements |
+| [`evidence/README.md`](evidence/README.md) | Current evidence contract | The evidence registry; an empty directory means not proven |
+| [`OPERATIONS-INTELLIGENCE-RUNBOOK.md`](OPERATIONS-INTELLIGENCE-RUNBOOK.md) | Current implementation state | L1/L2 routes, secret, evidence modes, what an L2 proposal is not |
+| [`L3-REHEARSAL-RUNBOOK.md`](L3-REHEARSAL-RUNBOOK.md) | Current implementation state | Exercise, soak, and readiness runners; rehearsal is not certification |
+| [`COMPANY-BRAIN-CORE.md`](COMPANY-BRAIN-CORE.md) | Target proposal | Company Brain feedback loop (merged from a parallel line; not reconciled with ADR-001) |
+| [`COMPANY-BRAIN-STORE.md`](COMPANY-BRAIN-STORE.md) | Target proposal | Company Brain reference store (merged from a parallel line) |
 
 ## Review cadence
 
