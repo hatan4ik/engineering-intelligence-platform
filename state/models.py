@@ -17,6 +17,7 @@ class WorkflowStatus(StrEnum):
     ROLLED_BACK = "rolled_back"
     ESCALATED = "escalated"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class WorkflowRecord:
     plan_hash: str | None = None
     version: int = 1
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    tenant_id: str = "default"
 
 
 @dataclass(frozen=True)

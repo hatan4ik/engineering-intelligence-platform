@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterator, Protocol
 
 from control_plane.runtime import require_reference_storage
+from .lifecycle import LifecycleContractError, WorkflowLifecycleEvent, WorkflowTransitionResult
 from .models import ServiceRecord, WorkflowRecord, WorkflowStatus
 
 
@@ -20,6 +21,7 @@ class StateStore(Protocol):
     def put_service(self, record: ServiceRecord, *, expected_version: int | None = None) -> ServiceRecord: ...
     def get_workflow(self, workflow_id: str) -> WorkflowRecord | None: ...
     def put_workflow(self, record: WorkflowRecord, *, expected_version: int | None = None) -> WorkflowRecord: ...
+    def apply_workflow_event(self, event: WorkflowLifecycleEvent) -> WorkflowTransitionResult: ...
 
 
 class SqliteStateStore:
@@ -67,6 +69,15 @@ class SqliteStateStore:
                     workflow_id TEXT PRIMARY KEY,
                     payload TEXT NOT NULL,
                     version INTEGER NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS workflow_transition_receipts (
+                    workflow_id TEXT NOT NULL,
+                    idempotency_key TEXT NOT NULL,
+                    event_id TEXT NOT NULL,
+                    event_fingerprint TEXT NOT NULL,
+                    workflow_payload TEXT NOT NULL,
+                    PRIMARY KEY (workflow_id, idempotency_key),
+                    UNIQUE (workflow_id, event_id)
                 );
                 """
             )
@@ -119,12 +130,90 @@ class SqliteStateStore:
             self._assert_expected(current, expected_version)
             next_version = 1 if current is None else current + 1
             stored = replace(record, version=next_version)
-            db.execute(
-                """INSERT INTO workflows(workflow_id, payload, version) VALUES (?, ?, ?)
-                   ON CONFLICT(workflow_id) DO UPDATE SET payload=excluded.payload, version=excluded.version""",
-                (stored.workflow_id, json.dumps(asdict(stored), sort_keys=True), stored.version),
-            )
+            self._write_workflow(db, stored)
         return stored
+
+    def apply_workflow_event(self, event: WorkflowLifecycleEvent) -> WorkflowTransitionResult:
+        """Atomically persist a transition and its durable idempotency receipt.
+
+        A retry first resolves the receipt. This makes a state-success/audit-
+        failure retry return the original record instead of incrementing its
+        version again.
+        """
+        event.validate()
+        with self._connect() as db, self._immediate(db):
+            receipt = db.execute(
+                """SELECT event_id, event_fingerprint, workflow_payload
+                   FROM workflow_transition_receipts
+                   WHERE workflow_id=? AND idempotency_key=?""",
+                (event.workflow_id, event.idempotency_key),
+            ).fetchone()
+            if receipt is not None:
+                return self._replayed_transition(event, receipt)
+
+            same_event = db.execute(
+                """SELECT idempotency_key FROM workflow_transition_receipts
+                   WHERE workflow_id=? AND event_id=?""",
+                (event.workflow_id, event.event_id),
+            ).fetchone()
+            if same_event is not None:
+                raise VersionConflict("workflow event id has already been used with a different idempotency key")
+
+            row = db.execute(
+                "SELECT payload, version FROM workflows WHERE workflow_id=?", (event.workflow_id,)
+            ).fetchone()
+            current = self._row_to_workflow(row) if row else None
+            self._assert_expected(current.version if current else None, event.expected_version)
+            try:
+                candidate = event.apply_to(current)
+            except LifecycleContractError as exc:
+                raise VersionConflict(str(exc)) from exc
+            stored = replace(candidate, version=1 if current is None else current.version + 1)
+            self._write_workflow(db, stored)
+            db.execute(
+                """INSERT INTO workflow_transition_receipts(
+                       workflow_id, idempotency_key, event_id, event_fingerprint, workflow_payload
+                   ) VALUES (?, ?, ?, ?, ?)""",
+                (
+                    event.workflow_id,
+                    event.idempotency_key,
+                    event.event_id,
+                    event.fingerprint,
+                    json.dumps(asdict(stored), sort_keys=True),
+                ),
+            )
+        return WorkflowTransitionResult(
+            record=stored,
+            event_id=event.event_id,
+            idempotency_key=event.idempotency_key,
+        )
+
+    @staticmethod
+    def _write_workflow(db: sqlite3.Connection, record: WorkflowRecord) -> None:
+        db.execute(
+            """INSERT INTO workflows(workflow_id, payload, version) VALUES (?, ?, ?)
+               ON CONFLICT(workflow_id) DO UPDATE SET payload=excluded.payload, version=excluded.version""",
+            (record.workflow_id, json.dumps(asdict(record), sort_keys=True), record.version),
+        )
+
+    @classmethod
+    def _replayed_transition(
+        cls, event: WorkflowLifecycleEvent, receipt: sqlite3.Row
+    ) -> WorkflowTransitionResult:
+        if receipt["event_id"] != event.event_id or receipt["event_fingerprint"] != event.fingerprint:
+            raise VersionConflict("idempotency key has already been used for a different workflow event")
+        return WorkflowTransitionResult(
+            record=cls._payload_to_workflow(str(receipt["workflow_payload"])),
+            event_id=event.event_id,
+            idempotency_key=event.idempotency_key,
+            replayed=True,
+        )
+
+    @staticmethod
+    def _payload_to_workflow(payload: str) -> WorkflowRecord:
+        raw = json.loads(payload)
+        raw["status"] = WorkflowStatus(raw["status"])
+        return WorkflowRecord(**raw)
 
     @staticmethod
     def _assert_expected(current: int | None, expected: int | None) -> None:

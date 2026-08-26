@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict, replace
+import hashlib
 from typing import Any, Protocol
 
 from azure.core import MatchConditions
 from azure.cosmos import CosmosClient, exceptions
 from azure.identity import DefaultAzureCredential
 
+from state.lifecycle import LifecycleContractError, WorkflowLifecycleEvent, WorkflowTransitionResult
 from state.models import ServiceRecord, WorkflowRecord, WorkflowStatus
 from state.store import StateStore, VersionConflict
 
@@ -16,6 +18,7 @@ class ContainerLike(Protocol):
     def read_item(self, item: str, partition_key: str) -> dict[str, Any]: ...
     def create_item(self, body: dict[str, Any]) -> dict[str, Any]: ...
     def replace_item(self, item: str, body: dict[str, Any], *, etag: str, match_condition: Any) -> dict[str, Any]: ...
+    def execute_item_batch(self, batch_operations: list[tuple[Any, ...]], partition_key: str) -> Any: ...
 
 
 class CosmosStateStore(StateStore):
@@ -81,6 +84,72 @@ class CosmosStateStore(StateStore):
         self._write("workflow", record.workflow_id, asdict(stored), stored.version, current)
         return stored
 
+    def apply_workflow_event(self, event: WorkflowLifecycleEvent) -> WorkflowTransitionResult:
+        """Atomically store a workflow update and durable idempotency receipt.
+
+        Both documents use the workflow item ID as their partition key, so a
+        Cosmos transactional batch protects the compare-and-swap update and
+        receipt creation from partial commits. A retry reads the receipt before
+        considering the current workflow version.
+        """
+        event.validate()
+        workflow_item_id = self._id("workflow", event.workflow_id)
+        receipt_id = self._receipt_id(event.idempotency_key)
+        receipt = self._read_item(receipt_id, workflow_item_id)
+        if receipt is not None:
+            return self._replayed_transition(event, receipt)
+
+        current = self._read_item(workflow_item_id, workflow_item_id)
+        current_record = self._workflow_from_raw(current) if current else None
+        self._assert_expected(current_record.version if current_record else None, event.expected_version)
+        try:
+            candidate = event.apply_to(current_record)
+        except LifecycleContractError as exc:
+            raise VersionConflict(str(exc)) from exc
+        stored = replace(candidate, version=1 if current_record is None else current_record.version + 1)
+        workflow_body = {
+            "id": workflow_item_id,
+            "partition_key": workflow_item_id,
+            "kind": "workflow",
+            "version": stored.version,
+            "payload": asdict(stored),
+        }
+        receipt_body = {
+            "id": receipt_id,
+            "partition_key": workflow_item_id,
+            "kind": "workflow-transition-receipt",
+            "event_id": event.event_id,
+            "idempotency_key": event.idempotency_key,
+            "event_fingerprint": event.fingerprint,
+            "workflow_payload": asdict(stored),
+        }
+        try:
+            if current is None:
+                operations: list[tuple[Any, ...]] = [
+                    ("create", (workflow_body,)),
+                    ("create", (receipt_body,)),
+                ]
+            else:
+                operations = [
+                    ("replace", (workflow_item_id, workflow_body), {"if_match_etag": str(current["_etag"])}),
+                    ("create", (receipt_body,)),
+                ]
+            self.container.execute_item_batch(operations, partition_key=workflow_item_id)
+        except (
+            exceptions.CosmosBatchOperationError,
+            exceptions.CosmosAccessConditionFailedError,
+            exceptions.CosmosResourceExistsError,
+        ) as exc:
+            recovered = self._read_item(receipt_id, workflow_item_id)
+            if recovered is not None:
+                return self._replayed_transition(event, recovered)
+            raise VersionConflict("Cosmos lifecycle transition conditional write conflict") from exc
+        return WorkflowTransitionResult(
+            record=stored,
+            event_id=event.event_id,
+            idempotency_key=event.idempotency_key,
+        )
+
     def _write(self, kind: str, key: str, payload: dict[str, Any], version: int, current: dict[str, Any] | None) -> None:
         item_id = self._id(kind, key)
         body = {"id": item_id, "partition_key": item_id, "kind": kind, "version": version, "payload": payload}
@@ -96,6 +165,37 @@ class CosmosStateStore(StateStore):
                 )
         except (exceptions.CosmosAccessConditionFailedError, exceptions.CosmosResourceExistsError) as exc:
             raise VersionConflict("Cosmos conditional write conflict") from exc
+
+    def _read_item(self, item_id: str, partition_key: str) -> dict[str, Any] | None:
+        try:
+            return self.container.read_item(item=item_id, partition_key=partition_key)
+        except exceptions.CosmosResourceNotFoundError:
+            return None
+
+    @staticmethod
+    def _receipt_id(idempotency_key: str) -> str:
+        return "workflow-transition:" + hashlib.sha256(idempotency_key.encode()).hexdigest()
+
+    @staticmethod
+    def _workflow_from_raw(raw: dict[str, Any]) -> WorkflowRecord:
+        payload = dict(raw["payload"])
+        payload["status"] = WorkflowStatus(payload["status"])
+        return WorkflowRecord(**payload)
+
+    @classmethod
+    def _replayed_transition(
+        cls, event: WorkflowLifecycleEvent, receipt: dict[str, Any]
+    ) -> WorkflowTransitionResult:
+        if receipt.get("event_id") != event.event_id or receipt.get("event_fingerprint") != event.fingerprint:
+            raise VersionConflict("idempotency key has already been used for a different workflow event")
+        payload = dict(receipt["workflow_payload"])
+        payload["status"] = WorkflowStatus(payload["status"])
+        return WorkflowTransitionResult(
+            record=WorkflowRecord(**payload),
+            event_id=event.event_id,
+            idempotency_key=event.idempotency_key,
+            replayed=True,
+        )
 
     @staticmethod
     def _assert_expected(current: int | None, expected: int | None) -> None:

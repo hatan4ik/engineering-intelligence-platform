@@ -17,6 +17,7 @@ In multi-cloud or disconnected environments, the AI Gateway and Retrieval plane 
 
 - **Multi-Cloud LLM Routing**: The `AI Gateway` supports dynamic routing to **AWS Bedrock** (Anthropic Claude 3.5, Llama) and **GCP Vertex AI** (Gemini 1.5 Pro) based on cost, latency, or data sovereignty requirements.
 - **Local LLM Hosting**: In fully air-gapped scenarios, inference is routed to a local cluster running models like Llama 3 or Mixtral via **vLLM** or **Ollama**. This requires dedicated GPU-enabled nodes managed within the on-premise cluster.
+- **Local LLM Hosting**: In fully air-gapped scenarios, inference is routed to a local cluster running models like Llama 3 or Mixtral via **vLLM** or **Ollama**. This requires dedicated GPU-enabled nodes managed within the on-premise cluster. To mitigate catastrophic FinOps burn from idle GPUs, the cluster must implement **KEDA (Kubernetes Event-driven Autoscaling)** for scale-to-zero, coupled with **Ray** for dynamic GPU multiplexing. PR events queue while weights load, absorbing the "cold start" latency without losing data.
 - **Cloud-Agnostic Vector Database**: `Azure AI Search` is replaced by open-source or managed vector datastores such as **Amazon OpenSearch Serverless**, **GCP AlloyDB (pgvector)**, **Qdrant**, or **Milvus**.
 - **Model Fallbacks**: The gateway natively handles degraded LLM latency or localized GPU saturation, queuing non-critical requests while prioritizing high-urgency remediation tasks.
 

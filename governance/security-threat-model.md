@@ -2,6 +2,7 @@
 
 ## Primary threats
 1. Prompt injection through retrieved code, tickets or documentation.
+1. Prompt injection through retrieved code, tickets or documentation (The Confused Deputy).
 2. Cross-repository or cross-team data exfiltration.
 3. Secret/PII leakage through ingestion, prompts or logs.
 4. Hallucinated remediation presented as fact.
@@ -17,6 +18,7 @@
 - Authenticate every caller with Entra ID; authorize before retrieval.
 - Preserve repository/document ACLs as retrieval filters.
 - Scan/redact secrets and sensitive data before embedding and logging.
+- **Inject a deterministic Guardrail SLM before the primary model to block prompt injection and prevent Confused Deputy approvals.**
 - Treat retrieved content as data, never as trusted instructions.
 - Require citations/evidence for operational recommendations.
 - Separate reasoning from mutation: a deterministic policy decision boundary authorizes actions.

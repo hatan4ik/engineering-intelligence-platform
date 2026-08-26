@@ -5,7 +5,7 @@
 | **Classification** | Current implementation state |
 | **Status** | Evidence-worker boundary implemented; undeployed, unoperated, and not production-proven |
 | **Scope** | L0 durable-scheduling capability only; no business state, audit export, product action, or remediation mutation |
-| **Pipeline position** | Enablement slice complete; authoritative state and immutable-audit activity bridge is the current next stage |
+| **Pipeline position** | Evidence-worker slice complete; state/audit activity bridge implemented but deliberately unregistered |
 | **Decision** | [`../architecture/adr/001-temporal-control-plane.md`](../architecture/adr/001-temporal-control-plane.md) |
 | **Product roadmap** | [`../roadmap/technical-roadmap-24-months.md`](../roadmap/technical-roadmap-24-months.md) |
 
@@ -37,8 +37,8 @@ fallback.
 | Image | Digest-pinned image; no mutable tag |
 
 `EIP_COSMOS_ENDPOINT`, state-container settings, and immutable-audit destination settings are
-not evidence-worker configuration. They will be introduced only with the activity bridge that
-uses them.
+not evidence-worker configuration. They will be introduced only with a separate registered
+activity worker that consumes them.
 
 ## Deployment boundary
 
@@ -74,20 +74,24 @@ plan; this document deliberately provides no execution procedure for it.
 [`INTEGRATION-PROOF-RUNBOOK.md`](INTEGRATION-PROOF-RUNBOOK.md) describe a future validation track.
 They do not authorize current work.
 
-## Next implementation stage: state and immutable audit activity bridge
+## Implemented but unregistered: state and audit activity bridge
 
-Before a PR, incident, approval, or remediation workflow can execute through Temporal, implement
-the following as one coherent slice:
+[`../architecture/authoritative-state.md`](../architecture/authoritative-state.md) now defines a
+schema-versioned lifecycle event and an unregistered
+`eip.persist-workflow-lifecycle.v1` activity boundary. It persists an optimistic-concurrency
+state transition with an idempotency receipt, then exports a deterministic audit event. On audit
+failure it returns an error; a retry reuses the receipt and must not reapply state.
 
-1. a canonical workflow-lifecycle/event contract with correlation, causation, plan hash, actor,
-   tenant/service scope, and schema version;
-2. an authoritative-state activity with compare-and-swap/version semantics and an idempotency key;
-3. an immutable-audit export activity that fails closed for consequential transitions;
-4. explicit replay, cancellation, timeout, restore, and worker-failover behavior; and
-5. deterministic tests for duplicate delivery, stale writes, partial failure, audit outage, and
-   recovery.
+The reference implementation covers canonical IDs/scope/plan binding, legal lifecycle transitions,
+duplicate delivery, stale writes, audit outage/retry, worker-restart recovery, and terminal
+cancellation. It uses a local hash-chained audit log in CI and a same-workflow-partition Cosmos
+transactional receipt contract. It does not constitute immutable external retention.
 
-That slice will define its own remote-store configuration, retention/immutability requirements,
-and least-privilege workload identity. Only after its implementation is complete may a later,
-separately governed operational-validation plan be proposed. This evidence worker must not be
-repurposed as a generic task executor in the meantime.
+## Remaining before any activity registration
+
+The next design/implementation decision is a remote immutable/WORM audit exporter, including its
+retention policy and independently scoped workload identity. Only then can a separate worker take
+state/audit configuration; it must not reuse the evidence worker identity. Managed schema
+migration, backup/restore, Temporal worker failover, and independent operational validation remain
+separately governed future work. This evidence worker must not be repurposed as a generic task
+executor in the meantime.

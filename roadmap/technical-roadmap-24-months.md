@@ -19,7 +19,7 @@ No Azure, AKS, or private-environment proof is scheduled in this track.
 | Slice | Status | Product-boundary outcome |
 |---|---|---|
 | Non-consequential Temporal evidence worker | Complete | An mTLS-only worker contract that cannot execute product actions or use state/audit dependencies |
-| Authoritative state and immutable-audit activity bridge | Current | Durable lifecycle, idempotency, cancellation, restore, failover, and audit-failure semantics for later workflows |
+| Authoritative state and immutable-audit activity bridge | Reference boundary complete | Durable lifecycle, idempotency, cancellation, audit-failure/retry, and worker-restart semantics; remote WORM export, backup/restore, and worker registration remain separate work |
 | Governed knowledge ingestion | Next | Source lifecycle, ACL reconciliation, deletion, and retrieval-quality evaluation needed by PR Intelligence |
 | Product workflow integration | Later | PR Guardian, architecture, deployment, and incident workflows consume the canonical state/event contracts |
 

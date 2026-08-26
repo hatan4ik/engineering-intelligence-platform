@@ -21,8 +21,20 @@ def compute_event_hash(event: AuditEvent) -> str:
     return hashlib.sha256(_canonical(event).encode()).hexdigest()
 
 
+def _event_identity(event: AuditEvent) -> str:
+    """Stable content used to make at-least-once audit export idempotent."""
+    payload = asdict(event)
+    payload["previous_hash"] = None
+    payload["event_hash"] = None
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+
+
+class AuditConflict(RuntimeError):
+    """An audit event ID was reused for different content."""
+
+
 class AuditLog(Protocol):
-    """Append-only audit contract shared by reference and managed sinks."""
+    """Append-only, idempotent audit contract shared by reference and managed sinks."""
 
     def append(self, event: AuditEvent) -> AuditEvent: ...
 
@@ -76,10 +88,26 @@ class SqliteAuditLog:
                     ),
                 )
                 db.execute("COMMIT")
+            except sqlite3.IntegrityError as exc:
+                db.execute("ROLLBACK")
+                existing = db.execute(
+                    "SELECT payload FROM audit_events WHERE event_id=?", (event.event_id,)
+                ).fetchone()
+                if existing is None:
+                    raise
+                restored = AuditEvent(**json.loads(existing["payload"]))
+                if _event_identity(restored) != _event_identity(event):
+                    raise AuditConflict("audit event id has already been used for different content") from exc
+                return restored
             except BaseException:
                 db.execute("ROLLBACK")
                 raise
         return finalized
+
+    def event_count(self) -> int:
+        with self._connect() as db:
+            row = db.execute("SELECT COUNT(*) AS total FROM audit_events").fetchone()
+        return int(row["total"])
 
     def last_hash(self) -> str | None:
         with self._connect() as db:

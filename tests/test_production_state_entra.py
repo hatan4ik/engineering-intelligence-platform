@@ -4,7 +4,8 @@ from azure.cosmos import exceptions
 from app.entra_identity import EntraPrincipalStore, EntraSettings
 from app.gateway import GatewayAuthError
 from state.cosmos_store import CosmosStateStore
-from state.models import ServiceRecord
+from state.lifecycle import WorkflowLifecycleEvent
+from state.models import ServiceRecord, WorkflowStatus
 from state.store import VersionConflict
 
 
@@ -86,6 +87,32 @@ class FakeContainer:
         self.items[item] = stored
         return stored
 
+    def execute_item_batch(self, batch_operations, partition_key):
+        staged = dict(self.items)
+        next_etag = self.etag
+        for operation in batch_operations:
+            name, args, *options = operation
+            options = options[0] if options else {}
+            if name == "create":
+                body = args[0]
+                assert body["partition_key"] == partition_key
+                if body["id"] in staged:
+                    raise exceptions.CosmosResourceExistsError(status_code=409, message="exists")
+                next_etag += 1
+                staged[body["id"]] = {**body, "_etag": str(next_etag)}
+            elif name == "replace":
+                item, body = args
+                assert body["partition_key"] == partition_key
+                if staged[item]["_etag"] != options["if_match_etag"]:
+                    raise exceptions.CosmosAccessConditionFailedError(status_code=412, message="stale")
+                next_etag += 1
+                staged[item] = {**body, "_etag": str(next_etag)}
+            else:
+                raise AssertionError(f"unexpected batch operation: {name}")
+        self.items = staged
+        self.etag = next_etag
+        return []
+
 
 def test_cosmos_state_store_preserves_optimistic_version_contract():
     store = CosmosStateStore(FakeContainer())
@@ -96,3 +123,30 @@ def test_cosmos_state_store_preserves_optimistic_version_contract():
     assert store.get_service("payments").version == 2
     with pytest.raises(VersionConflict):
         store.put_service(updated, expected_version=1)
+
+
+def test_cosmos_state_store_atomically_persists_transition_receipt():
+    store = CosmosStateStore(FakeContainer())
+    event = WorkflowLifecycleEvent(
+        event_id="evt-received",
+        idempotency_key="idem-received",
+        workflow_id="incident:42",
+        tenant_id="contoso",
+        service_id="payments",
+        environment="prod",
+        kind="incident-investigation",
+        correlation_id="corr-42",
+        actor="agent:incident-investigator",
+        action="record-lifecycle",
+        from_status=None,
+        to_status=WorkflowStatus.RECEIVED,
+        expected_version=None,
+        occurred_at="2026-08-26T12:00:00+00:00",
+    )
+
+    first = store.apply_workflow_event(event)
+    replay = store.apply_workflow_event(event)
+
+    assert first.record.version == replay.record.version == 1
+    assert not first.replayed
+    assert replay.replayed
