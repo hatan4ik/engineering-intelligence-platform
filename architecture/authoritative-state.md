@@ -5,7 +5,7 @@
 | **Classification** | Current design and reference implementation state |
 | **Status** | Lifecycle state/audit bridge implemented and unregistered; no managed environment, remote immutable sink, or production proof |
 | **Scope** | Canonical workflow transitions, durable idempotency receipts, compare-and-swap, and fail-closed audit export semantics |
-| **Implementation evidence** | `state/lifecycle.py`, `state/store.py`, `state/cosmos_store.py`, `orchestration/control_plane_activities.py`, and `tests/test_control_plane_activity_bridge.py` |
+| **Implementation evidence** | `state/lifecycle.py`, `state/store.py`, `state/temporal_store.py`, `orchestration/control_plane_activities.py`, and `tests/test_control_plane_activity_bridge.py` |
 | **Roadmap** | [`../roadmap/technical-roadmap-24-months.md`](../roadmap/technical-roadmap-24-months.md) |
 
 The Engineering Intelligence Platform separates **authoritative operational state** from
@@ -26,9 +26,9 @@ lifecycle event to `failed` or `escalated`, never by silently continuing executi
 ## Atomic state and retry semantics
 
 `SqliteStateStore.apply_workflow_event()` stores the workflow update and a transition receipt in
-one transaction. `CosmosStateStore.apply_workflow_event()` uses a same-partition transactional
+one transaction. `TemporalStateStore` uses Temporal's native workflow event history
 batch for the equivalent state document and receipt. Both enforce application-level expected
-versions; the Cosmos path also uses the storage conditional write.
+versions; the Temporal path guarantees this via workflow determinism.
 
 The receipt binds the workflow ID, event ID, idempotency key, canonical event fingerprint, and
 resulting workflow snapshot. A duplicate delivery returns the original snapshot with
@@ -67,7 +67,7 @@ choice, retention policy, and independent operational validation. See
 - an audit outage retains state but returns failure; a restarted worker retries the audit without
   replaying state;
 - cancellation is explicit and terminal; and
-- the Cosmos adapter uses the same workflow-partition transactional receipt shape.
+- the Temporal adapter natively records this in the event history.
 
 No item above is production evidence. Private connectivity, identity/RBAC, WORM retention,
 backup/restore, Temporal worker failover, and audit-export availability are intentionally outside

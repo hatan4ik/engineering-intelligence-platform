@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Classification** | Current design — target architecture with referenced implementation contracts |
+| **Classification** | Current design — mixing implemented architecture and explicitly-labeled proposed target architecture |
 | **Owners** | Platform Engineering |
 | **Current implementation state** | [`capability-reconciliation.md`](capability-reconciliation.md) |
 | **Product decision** | [`../docs/PRODUCT-STRATEGY.md`](../docs/PRODUCT-STRATEGY.md) |
@@ -147,20 +147,23 @@ keys (`app/gateway.py`), and the caller's groups come from token claims, never f
 request headers. The same gateway step applies prompt redaction, selects the model tier
 the principal is entitled to, and enforces a per-request cost budget.
 
-To meet FAANG-level latency and unit economic requirements, the gateway also implements:
-- **Materialized ACL Cache**: Resolving complex, nested Entra ID/Active Directory groups at query time introduces unacceptable latency. The gateway leverages a **Zanzibar-inspired materialized permissions cache** to resolve ACLs in single-digit milliseconds before compiling them into the search query.
-- **SLM Routing & Semantic Caching**: The gateway implements **Semantic Caching** to serve repeat questions instantly, and dynamically routes >80% of routine tasks (like basic PR linting) to fast, local **Small Language Models (SLMs)** (e.g., Llama 3 8B), reserving heavy frontier models purely for complex Root Cause Analysis.
+> [!NOTE]
+> **[PROPOSED TARGET STATE]** To meet FAANG-level latency and unit economic requirements in the future, the target architecture proposes adding:
+> - **Materialized ACL Cache**: A Zanzibar-inspired materialized permissions cache to resolve ACLs in single-digit milliseconds before compiling them into the search query.
+> - **SLM Routing & Semantic Caching**: Ephemeral **Semantic Caching** to serve repeat questions instantly, and dynamic routing to fast, local **Small Language Models (SLMs)** (e.g., Llama 3 8B) for routine tasks.
 
 The critical property is the search call: the ACL filter is part of the request itself, so
 content the caller is not entitled to **never enters the candidate set** — there is no code
 path in which the model sees unauthorized text and the platform must "remember" to redact it.
 Retrieval is hybrid (`ingestion/vector_search.py`): the query is embedded via the selected model provider (Azure OpenAI or local via vLLM)
 and issued as a combined BM25 + vector query with semantic reranking, with the ACL filter
-applied to both arms. In strictly isolated or air-gapped environments, on-prem vector databases (e.g., Qdrant, Milvus) can be swapped in for the retrieval layer.
+applied to both arms. 
 
-Runtime modes: `EIP_BACKEND=deterministic` (local/CI, no cloud dependency),
-`EIP_BACKEND=azure` (Azure AI Search + Azure OpenAI via `DefaultAzureCredential`), and
-`EIP_BACKEND=onprem` (Qdrant/Milvus + Local LLM like vLLM/Ollama for air-gapped FAANG deployments).
+> [!NOTE]
+> **[PROPOSED TARGET STATE]** In strictly isolated or air-gapped environments, the target architecture proposes allowing on-prem vector databases (e.g., Qdrant, Milvus) to be swapped in for the retrieval layer.
+
+Runtime modes: `EIP_BACKEND=deterministic` (local/CI, no cloud dependency), and 
+`EIP_BACKEND=azure` (Azure AI Search + Azure OpenAI via `DefaultAzureCredential`). (Note: `EIP_BACKEND=onprem` is a proposed future state, not currently implemented).
 
 ### 5.3 Intelligence plane
 
@@ -336,7 +339,7 @@ Crucially, new AI agents or prompt modifications are never deployed directly to 
 | Retrieval store | Azure AI Search (hybrid BM25 + vector + semantic rerank) | pgvector | Managed security trimming, semantic ranking, and Entra integration outweigh portability; the `Index` protocol keeps pgvector possible |
 | Risk authority | Deterministic, explainable scoring | LLM-judged risk | A merge gate must be reproducible, auditable, and immune to prompt injection; the LLM contributes evidence, not the verdict |
 | Mutation policy | Typed in-code policy converging on OPA as the single decision service | Prose runbooks + human judgment only | Policy-as-code is testable and versioned; OPA convergence is tracked work — the current Python/OPA duplication is a known defect, not a design choice |
-| Local durability | SQLite implementations of production contracts | Mocks, or cloud services required for tests | Real concurrency/durability semantics in CI; production adapters (PostgreSQL/Cosmos, Service Bus) implement the same interfaces |
+| Local durability | SQLite implementations of production contracts | Mocks, or cloud services required for tests | Real concurrency/durability semantics in CI; production adapters (Temporal/PostgreSQL) implement the same interfaces |
 | Autonomy | Bounded L4 ceiling, per-runbook certification | L5 general autonomy | Blast radius of a wrong mutation is unbounded; evidence-gated autonomy is the product's core trust claim |
 
 ## 12. Risks and open questions
@@ -358,6 +361,6 @@ Tracked honestly; grades and queue live in the
 4. **Verification independence** — some verification signals still derive from the action
    path; SLO-based independent verification is required before L4 certification is credible.
 5. **Local contracts vs production adapters** — SQLite semantics are proven and the Cosmos
-   state adapter now exists (`state/cosmos_store.py`); the durable job queue's Service Bus
+   Temporal adapter is the authoritative execution engine; the legacy Azure Service Bus
    adapter is still unwritten, and semantic drift between local and production adapters
    (isolation, lease clocks, compare-and-swap behavior) remains the risk to test for.

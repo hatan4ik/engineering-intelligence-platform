@@ -42,6 +42,9 @@ production-certified.
 | [`../architecture/maturity-scorecard.md`](../architecture/maturity-scorecard.md) | Current repository assessment | Directional maturity, never production proof |
 | [`../architecture/alignment-review.md`](../architecture/alignment-review.md) | Historical review | Pre-corrective baseline only |
 | [`architecture-review-2026-08.md`](architecture-review-2026-08.md) | Historical review | Point-in-time assessment only |
+| [`../architecture/faang-multi-cloud-and-on-prem-extensions.md`](../architecture/faang-multi-cloud-and-on-prem-extensions.md) | Target proposal | Multi-cloud and air-gapped target architecture |
+| [`../architecture/adr/001-temporal-control-plane.md`](../architecture/adr/001-temporal-control-plane.md) | Current design | Decision record mandating Temporal control plane |
+| [`../architecture/adr/002-prompt-injection-and-caching.md`](../architecture/adr/002-prompt-injection-and-caching.md) | Target proposal | Proposed decision for guardrails and caching |
 
 ## Review cadence
 

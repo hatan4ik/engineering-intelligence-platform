@@ -40,7 +40,7 @@ target environment is deferred while product implementation continues.
 The registered `eip.control-plane-evidence.v1` worker is non-consequential: it proves only durable
 scheduling and must not mutate state or execute an agent workflow. It is not a deployed service or
 production evidence. It uses only Temporal/mTLS configuration; it has no Azure Workload Identity
-or Cosmos/audit configuration. The authoritative-state/audit activity bridge will introduce its
+or Temporal/PostgreSQL configuration. The authoritative-state/audit activity bridge will introduce its
 own least-privilege identity, state and audit dependencies, and the required idempotency, recovery,
 and audit-failure semantics before a remediation workflow can leave reference mode. See
 [`../docs/TEMPORAL-WORKER-RUNBOOK.md`](../docs/TEMPORAL-WORKER-RUNBOOK.md).
