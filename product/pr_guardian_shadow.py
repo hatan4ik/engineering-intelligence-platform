@@ -84,6 +84,9 @@ def observation_from_assessment(
         },
         "architecture": dict(architecture) if architecture is not None else {
             "violations": [],
+            "in_scope": 0,
+            "reviewed": 0,
+            "skipped": [],
             "summary": "Architecture Guard did not run for this evaluation.",
         },
         "observed_at": observed_at or utc_now(),
@@ -131,6 +134,9 @@ def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
         },
         "architecture": {
             "violations": [],
+            "in_scope": 0,
+            "reviewed": 0,
+            "skipped": [],
             "summary": "Architecture Guard did not run for this evaluation.",
         },
         **dict(value),
@@ -164,8 +170,19 @@ def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
     if enforcement["would_block"] and mode != "enforce":
         raise ValueError("enforcement.would_block is allowed only in enforce mode")
 
-    raw_architecture = _mapping(value.get("architecture"), "architecture")
-    _exact_keys(raw_architecture, {"violations", "summary"}, "architecture")
+    # Older records carried only violations+summary; fill the coverage counts
+    # with a "nothing was reviewed" default so they cannot read as a clean run.
+    raw_architecture = {
+        "in_scope": 0,
+        "reviewed": 0,
+        "skipped": [],
+        **dict(_mapping(value.get("architecture"), "architecture")),
+    }
+    _exact_keys(
+        raw_architecture,
+        {"violations", "in_scope", "reviewed", "skipped", "summary"},
+        "architecture",
+    )
     raw_violations = raw_architecture.get("violations")
     if not isinstance(raw_violations, list) or len(raw_violations) > 64:
         raise ValueError("architecture.violations is invalid")
@@ -186,8 +203,33 @@ def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
                 item.get("severity"), f"architecture.violations[{index}].severity", minimum=1, maximum=5
             ),
         })
+    raw_skipped = raw_architecture.get("skipped")
+    if not isinstance(raw_skipped, list) or len(raw_skipped) > 64:
+        raise ValueError("architecture.skipped is invalid")
+    skipped: list[dict[str, object]] = []
+    for index, raw in enumerate(raw_skipped):
+        item = _mapping(raw, f"architecture.skipped[{index}]")
+        _exact_keys(item, {"path", "reason"}, f"architecture.skipped[{index}]")
+        skipped.append({
+            "path": _string(item.get("path"), f"architecture.skipped[{index}].path", 400),
+            "reason": _string(item.get("reason"), f"architecture.skipped[{index}].reason", 200),
+        })
+    reviewed = _integer(
+        raw_architecture.get("reviewed"), "architecture.reviewed", minimum=0, maximum=10_000
+    )
+    in_scope = _integer(
+        raw_architecture.get("in_scope"), "architecture.in_scope", minimum=0, maximum=10_000
+    )
+    if reviewed > in_scope:
+        raise ValueError("architecture.reviewed cannot exceed architecture.in_scope")
+    # A record must not report findings it claims never to have read.
+    if violations and reviewed == 0:
+        raise ValueError("architecture.violations requires at least one reviewed file")
     architecture = {
         "violations": violations,
+        "in_scope": in_scope,
+        "reviewed": reviewed,
+        "skipped": skipped,
         "summary": _string(raw_architecture.get("summary"), "architecture.summary", 500),
     }
 

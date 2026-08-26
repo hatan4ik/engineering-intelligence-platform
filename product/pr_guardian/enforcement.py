@@ -41,6 +41,7 @@ REASON_CONDITION_MET = "rule-condition-met"
 REASON_OBSERVATION_NOT_ENFORCING = "observation-mode-not-enforcing"
 REASON_CONFIG_NOT_ENFORCING = "repository-config-not-enforcing"
 REASON_RULE_MISMATCH = "rule-does-not-match-repository-config"
+REASON_THRESHOLD_NOT_MET = "score-below-configured-threshold"
 REASON_ENFORCED = "enforced-by-repository-config"
 
 # The risk factor that must be present for each rule, and the predicate that
@@ -180,9 +181,18 @@ def publishable_conclusion(
     """Re-derive the publishable conclusion from the *trusted* configuration.
 
     The observation arrives from a workflow that ran with a read-only token on
-    an untrusted pull request.  It can only ever lower the conclusion: a
-    ``failure`` requires the trusted default-branch configuration to name the
-    same enforcing rule, and any disagreement degrades to ``neutral``.
+    an untrusted pull request.  This constrains the *escalation* direction only:
+    a ``failure`` requires the trusted default-branch configuration to name the
+    same enforcing rule and a score that clears its threshold, and any
+    disagreement degrades to ``neutral``.
+
+    It does **not** stop a pull request from suppressing a block on itself.  The
+    evaluation workflow is ``pull_request``-triggered, so its definition comes
+    from the pull-request head; an author who edits
+    ``.github/workflows/pr-guardian.yml`` can upload an artifact reporting
+    ``would_block: false``, which publishes ``neutral``.  Enforcing repositories
+    must require Code Owner review on ``.github/workflows/`` and ``.eip/``; see
+    docs/PR-GUARDIAN-REPOSITORY-CONFIG.md.
     """
     today = _today(now)
     enforcement = observation.get("enforcement")
@@ -199,6 +209,13 @@ def publishable_conclusion(
         return PublishDecision("neutral", REASON_CONFIG_NOT_ENFORCING)
     if enforcement.get("rule") != str(config.enforcement.rule):
         return PublishDecision("neutral", REASON_RULE_MISMATCH)
+    # Re-derive the one part of the rule condition the record still carries.
+    # A forged `would_block: true` cannot fail a check unless the score the
+    # observation reports actually clears the configured threshold.
+    assessment = observation.get("assessment")
+    score = assessment.get("score") if isinstance(assessment, Mapping) else None
+    if type(score) is not int or score < config.enforcement.threshold:
+        return PublishDecision("neutral", REASON_THRESHOLD_NOT_MET)
     if not config.enforcement.is_active_on(today):
         return PublishDecision("neutral", REASON_APPROVAL_EXPIRED)
     return PublishDecision("failure", REASON_ENFORCED)
@@ -217,6 +234,10 @@ _REASON_SENTENCES = {
     ),
     REASON_RULE_MISMATCH: (
         "the evaluated rule does not match the rule in the trusted repository configuration"
+    ),
+    REASON_THRESHOLD_NOT_MET: (
+        "the reported risk score does not reach the threshold in the trusted "
+        "repository configuration"
     ),
     REASON_ENFORCED: "the repository configuration enforces this rule",
 }

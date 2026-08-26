@@ -24,16 +24,54 @@ class ArchitecturePublisher(Protocol):
     def publish(self, review: ArchitectureReview) -> None: ...
 
 
+@dataclass(frozen=True)
+class FileContent:
+    """Either the text of a changed file, or why it could not be reviewed.
+
+    A skipped file is not a clean file.  Carrying the reason keeps the review
+    from reporting "no violations" about content it never looked at.
+    """
+
+    text: str | None
+    skip_reason: str | None = None
+
+    @classmethod
+    def available(cls, text: str) -> "FileContent":
+        return cls(text, None)
+
+    @classmethod
+    def unavailable(cls, reason: str) -> "FileContent":
+        return cls(None, reason)
+
+
+@dataclass(frozen=True)
+class SkippedPath:
+    path: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class ChangedPathsReview:
+    """An architecture review plus an honest account of its own coverage."""
+
+    violations: tuple[ArchitectureViolation, ...]
+    in_scope: int
+    reviewed: int
+    skipped: tuple[SkippedPath, ...]
+    summary: str
+
+
 class ChangedContentProvider(Protocol):
-    """Supplies the pull-request revision of one changed file, or None.
+    """Supplies the pull-request revision of one changed file.
 
     The pull-request evaluation job checks out the *base* commit and never the
     head, so the content of a changed file has to be fetched rather than read
-    from the working tree.  Returning None means "content unavailable" and the
-    file is simply not reviewed; it never becomes a finding.
+    from the working tree.  A provider that cannot supply content returns
+    ``FileContent.unavailable(reason)``; the file is then reported as skipped,
+    never as reviewed-and-clean.
     """
 
-    def read_changed_file(self, path: str) -> str | None: ...
+    def read_changed_file(self, path: str) -> FileContent: ...
 
 
 # Deterministic, repository-agnostic architecture rules applied on the pull
@@ -87,18 +125,54 @@ def review_architecture(
     return ArchitectureReview(ordered, conclusion, summary)
 
 
-def render_architecture_review(violations: tuple[ArchitectureViolation, ...]) -> str:
+def render_architecture_review(
+    violations: tuple[ArchitectureViolation, ...],
+    *,
+    coverage: ChangedPathsReview | None = None,
+) -> str:
+    """Render findings, and — when coverage is known — what was actually read.
+
+    Without ``coverage`` this keeps its original wording, which is correct for
+    callers that reviewed content they already had in hand.
+    """
     marker = "<!-- eip-architecture-guard -->"
+    if coverage is not None and coverage.reviewed == 0:
+        detail = _coverage_sentence(coverage)
+        return f"{marker}\n## Architecture Guard\n\n{detail}"
     if not violations:
-        return f"{marker}\n## Architecture Guard\n\nNo architecture policy violations detected."
+        clean = "No architecture policy violations detected."
+        if coverage is not None:
+            clean = f"{clean} {_coverage_sentence(coverage)}"
+        return f"{marker}\n## Architecture Guard\n\n{clean}"
     lines = [marker, "## Architecture Guard", "", f"Detected **{len(violations)}** architecture finding(s):", ""]
     for finding in violations:
         lines.append(
             f"- **S{finding.severity} {finding.rule_id}** `{finding.path}`: "
             f"found `{finding.marker}` — {finding.rationale}"
         )
+    if coverage is not None:
+        lines.extend(["", _coverage_sentence(coverage)])
+        if coverage.skipped:
+            lines.append("")
+            lines.extend(
+                f"- Not reviewed: `{item.path}` — {item.reason}" for item in coverage.skipped
+            )
     lines.extend(["", "Findings are deterministic policy results. They do not grant or override deployment authorization."])
     return "\n".join(lines)
+
+
+def _coverage_sentence(coverage: ChangedPathsReview) -> str:
+    if coverage.in_scope == 0:
+        return "No changed file was in scope for an architecture rule."
+    if coverage.reviewed == 0:
+        return (
+            f"Architecture Guard did not run: content was unavailable for all "
+            f"{coverage.in_scope} in-scope file(s), so nothing was reviewed."
+        )
+    text = f"Reviewed {coverage.reviewed} of {coverage.in_scope} in-scope file(s)."
+    if coverage.skipped:
+        text += f" {len(coverage.skipped)} file(s) could not be reviewed."
+    return text
 
 
 def review_changed_paths(
@@ -107,20 +181,42 @@ def review_changed_paths(
     provider: ChangedContentProvider,
     rules: tuple[ArchitectureRule, ...] = DEFAULT_ARCHITECTURE_RULES,
     block_severity: int = 4,
-) -> ArchitectureReview:
-    """Review only the changed files some rule could possibly match.
+    max_skipped_reported: int = 32,
+) -> ChangedPathsReview:
+    """Review the changed files some rule could match, and report the coverage.
 
     Content is fetched lazily so an unrelated pull request costs no requests.
+    Files whose content could not be fetched are counted as skipped with their
+    reason — never silently treated as clean.
     """
     artifacts: list[ChangedArtifact] = []
+    skipped: list[SkippedPath] = []
+    in_scope = 0
     for path in paths:
         if not any(fnmatch(path, rule.pattern) for rule in rules):
             continue
-        content = provider.read_changed_file(path)
-        if content is None:
+        in_scope += 1
+        result = provider.read_changed_file(path)
+        if result.text is None:
+            if len(skipped) < max_skipped_reported:
+                skipped.append(SkippedPath(path, result.skip_reason or "content unavailable"))
             continue
-        artifacts.append(ChangedArtifact(path, content))
-    return review_architecture(artifacts, rules=rules, block_severity=block_severity)
+        artifacts.append(ChangedArtifact(path, result.text))
+    review = review_architecture(artifacts, rules=rules, block_severity=block_severity)
+    coverage = ChangedPathsReview(
+        violations=review.violations,
+        in_scope=in_scope,
+        reviewed=len(artifacts),
+        skipped=tuple(skipped),
+        summary="",
+    )
+    return ChangedPathsReview(
+        violations=review.violations,
+        in_scope=in_scope,
+        reviewed=len(artifacts),
+        skipped=tuple(skipped),
+        summary=architecture_summary_line(coverage),
+    )
 
 
 def violation_records(violations: tuple[ArchitectureViolation, ...]) -> list[dict[str, object]]:
@@ -151,9 +247,44 @@ def violations_from_records(records: Sequence[Mapping[str, Any]]) -> tuple[Archi
     )
 
 
-def architecture_summary_line(violations: tuple[ArchitectureViolation, ...]) -> str:
-    """A short summary; the full rendering lives in the sticky comment."""
-    if not violations:
-        return "No architecture policy violations detected."
-    paths = len({item.path for item in violations})
-    return f"{len(violations)} architecture finding(s) across {paths} file(s)."
+def architecture_summary_line(coverage: ChangedPathsReview) -> str:
+    """A short, coverage-honest summary; the full rendering goes in the comment.
+
+    When nothing was reviewed this says the review did not run.  It must never
+    report an absence of findings about files it never read.
+    """
+    sentence = _coverage_sentence(coverage)
+    if coverage.reviewed == 0:
+        return sentence
+    if not coverage.violations:
+        return f"No architecture policy violations detected. {sentence}"
+    paths = len({item.path for item in coverage.violations})
+    return (
+        f"{len(coverage.violations)} architecture finding(s) across {paths} file(s). "
+        f"{sentence}"
+    )
+
+
+def skipped_records(skipped: tuple[SkippedPath, ...]) -> list[dict[str, object]]:
+    """Serialize skipped paths for the workflow-transfer observation record."""
+    return [{"path": item.path, "reason": item.reason} for item in skipped]
+
+
+def coverage_from_records(
+    violations: tuple[ArchitectureViolation, ...],
+    *,
+    reviewed: int,
+    in_scope: int,
+    skipped: Sequence[Mapping[str, Any]],
+    summary: str,
+) -> ChangedPathsReview:
+    """Rebuild coverage a trusted publisher validated, for rendering only."""
+    return ChangedPathsReview(
+        violations=violations,
+        in_scope=in_scope,
+        reviewed=reviewed,
+        skipped=tuple(
+            SkippedPath(str(item["path"]), str(item["reason"])) for item in skipped
+        ),
+        summary=summary,
+    )

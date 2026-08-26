@@ -18,6 +18,7 @@ from product.pr_guardian.enforcement import (
     REASON_CONDITION_NOT_MET,
     REASON_KILL_SWITCH,
     REASON_MODE_NOT_ENFORCING,
+    REASON_THRESHOLD_NOT_MET,
     REASON_WAIVED,
     enforcement_decision,
     publishable_conclusion,
@@ -54,7 +55,12 @@ def config(mode="enforce", *, waivers=(), expires_on="2026-12-31", threshold=70)
             "expires_on": expires_on,
             "waivers": list(waivers),
         }
-    return parse_repository_config(payload, repository="acme/platform", now=date(2026, 1, 1))
+    # require_unexpired=False mirrors how the runtime loads a config: an
+    # approval that lapsed yesterday still loads, and the decision functions
+    # are what refuse to act on it.
+    return parse_repository_config(
+        payload, repository="acme/platform", now=NOW, require_unexpired=False
+    )
 
 
 def waiver(*, path_glob="infra/legacy/*.tf", expires_on="2026-10-01"):
@@ -165,17 +171,40 @@ def test_enforcement_decision_serializes_to_the_observation_shape():
     assert set(payload) == {"would_block", "reason", "rule", "waived_by"}
 
 
-def test_configuring_enforce_requires_an_owner_approval_that_has_not_expired():
+def test_authoring_enforce_requires_an_owner_approval_that_has_not_expired():
+    payload = {
+        "mode": "enforce",
+        "service_ids": ["payments"],
+        "service_owners": ["octocat"],
+        "policy_version": "pr-policy-2026-08",
+        "enforcement": {
+            "rule": "iac-change-without-test-evidence-at-high-risk",
+            "threshold": 70,
+            "approved_by": "octocat",
+            "approved_on": "2024-01-01",
+            "expires_on": "2025-01-01",
+        },
+    }
     with pytest.raises(ProductContractError, match=r"enforcement\.expires_on"):
-        config(expires_on="2025-01-01")
+        parse_repository_config(payload, repository="acme/platform", now=NOW)
+
+
+def test_an_expired_approval_still_loads_so_the_lapse_is_a_runtime_decision():
+    lapsed = config(expires_on="2026-08-25")
+
+    decision = enforcement_decision(lapsed, assessment(), IAC_FILES, NOW, environ={})
+
+    assert decision.would_block is False
+    assert decision.reason == REASON_APPROVAL_EXPIRED
 
 
 # --- publisher-side re-check -------------------------------------------------
 
 
-def observation(*, mode="enforce", would_block=True, rule="iac-change-without-test-evidence-at-high-risk"):
+def observation(*, mode="enforce", would_block=True, rule="iac-change-without-test-evidence-at-high-risk", score=80):
     return {
         "mode": mode,
+        "assessment": {"score": score, "band": "critical"},
         "enforcement": {
             "would_block": would_block,
             "reason": REASON_CONDITION_MET if would_block else REASON_CONDITION_NOT_MET,
@@ -218,12 +247,35 @@ def test_publisher_honours_the_kill_switch_in_the_trusted_workflow():
 
 
 def test_publisher_refuses_failure_after_the_owner_approval_expired():
-    decision = publishable_conclusion(
-        observation(), config(expires_on="2026-08-27"), environ={}, now=date(2026, 8, 28)
-    )
+    # This is the production path: the runtime loader accepts a lapsed approval
+    # so the publisher can lapse to neutral instead of crashing on the day it
+    # expires.
+    lapsed = config(expires_on="2026-08-25")
+
+    decision = publishable_conclusion(observation(), lapsed, environ={}, now=NOW)
 
     assert decision.conclusion == "neutral"
     assert decision.reason == REASON_APPROVAL_EXPIRED
+
+
+def test_publisher_refuses_a_forged_block_whose_score_is_below_the_threshold():
+    forged = observation()
+    forged["assessment"] = {"score": 10, "band": "low"}
+
+    decision = publishable_conclusion(forged, config(threshold=70), environ={}, now=NOW)
+
+    assert decision.conclusion == "neutral"
+    assert decision.reason == REASON_THRESHOLD_NOT_MET
+
+
+def test_publisher_refuses_a_block_whose_score_is_missing_or_malformed():
+    forged = observation()
+    forged["assessment"] = {"score": "80", "band": "critical"}
+
+    decision = publishable_conclusion(forged, config(threshold=70), environ={}, now=NOW)
+
+    assert decision.conclusion == "neutral"
+    assert decision.reason == REASON_THRESHOLD_NOT_MET
 
 
 def test_shadow_mode_is_the_default_authority_state():

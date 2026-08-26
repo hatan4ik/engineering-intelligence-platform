@@ -61,18 +61,53 @@ def config_path(root: str | Path = ".") -> Path:
     return Path(root) / CONFIG_RELATIVE_PATH
 
 
+def load_effective_config(
+    root: str | Path = ".",
+    *,
+    repository: str,
+    now: date | None = None,
+) -> tuple[RepositoryConfig, str | None]:
+    """Load the configuration the way a *runtime* must: never raising.
+
+    Two failure modes are handled differently, on purpose:
+
+    * An approval whose ``expires_on`` has passed is still a well-formed
+      statement of intent, so it loads as written. The enforcement decision
+      then lapses it (``enforcement-approval-expired``). If loading refused it
+      instead, every publisher run in an enforcing repository would die on the
+      day the approval expired — and an enforcing repository is exactly the one
+      likely to have marked the check required, so the platform would block
+      merges through its own failure.
+    * Anything else invalid degrades to shadow and returns the reason, so the
+      caller can say out loud why the repository lost its configured mode.
+
+    ``load_repository_config`` keeps the strict behaviour for authoring and
+    validating a file, where refusing an expired approval is the point.
+    """
+    try:
+        return load_repository_config(
+            root, repository=repository, now=now, require_unexpired=False
+        ), None
+    except ProductContractError as exc:
+        return default_shadow_config(repository), str(exc)
+
+
 def load_repository_config(
     root: str | Path = ".",
     *,
     repository: str,
     now: date | None = None,
+    require_unexpired: bool = True,
 ) -> RepositoryConfig:
     """Load ``<root>/.eip/pr-guardian.json``; a missing file means shadow.
 
     ``root`` is a checkout of a *trusted* revision — the pull request's base
     commit in the evaluation job, and the default branch in the publisher.  A
     pull request cannot raise its own repository's mode by editing this file,
-    because neither job reads the file from the pull-request head.
+    because neither job reads the file from the pull-request head.  It can still
+    suppress a block on itself by editing the evaluation workflow definition,
+    which is read from the head; see docs/PR-GUARDIAN-REPOSITORY-CONFIG.md
+    ("Threat model") for the CODEOWNERS mitigation.
     """
     path = config_path(root)
     if not path.is_file():
@@ -85,7 +120,9 @@ def load_repository_config(
         raise ProductContractError(
             f"{CONFIG_RELATIVE_PATH} is not valid JSON: {exc}"
         ) from exc
-    return parse_repository_config(raw, repository=repository, now=now)
+    return parse_repository_config(
+        raw, repository=repository, now=now, require_unexpired=require_unexpired
+    )
 
 
 def parse_repository_config(
@@ -93,8 +130,13 @@ def parse_repository_config(
     *,
     repository: str,
     now: date | None = None,
+    require_unexpired: bool = True,
 ) -> RepositoryConfig:
-    """Validate one configuration mapping, naming the first offending field."""
+    """Validate one configuration mapping, naming the first offending field.
+
+    ``require_unexpired=False`` accepts an approval whose ``expires_on`` has
+    passed; see ``load_effective_config`` for why a runtime needs that.
+    """
     today = now or datetime.now(timezone.utc).date()
     if not isinstance(payload, Mapping):
         raise ProductContractError("pr-guardian configuration must be a JSON object")
@@ -129,7 +171,12 @@ def parse_repository_config(
     enforcement = (
         None
         if raw_enforcement is None
-        else _enforcement(raw_enforcement, today=today, owner_ids=owner_ids)
+        else _enforcement(
+            raw_enforcement,
+            today=today,
+            owner_ids=owner_ids,
+            require_unexpired=require_unexpired,
+        )
     )
 
     return RepositoryConfig(
@@ -168,7 +215,11 @@ def _identifiers(value: object, label: str) -> tuple[str, ...]:
 
 
 def _enforcement(
-    value: object, *, today: date, owner_ids: tuple[str, ...]
+    value: object,
+    *,
+    today: date,
+    owner_ids: tuple[str, ...],
+    require_unexpired: bool,
 ) -> EnforcementPolicy:
     if not isinstance(value, Mapping):
         raise ProductContractError("enforcement must be an object")
@@ -203,7 +254,7 @@ def _enforcement(
     expires_on = _date_field(value.get("expires_on"), "enforcement.expires_on")
     if expires_on < approved_on:
         raise ProductContractError("enforcement.expires_on precedes enforcement.approved_on")
-    if expires_on < today:
+    if require_unexpired and expires_on < today:
         raise ProductContractError(
             f"enforcement.expires_on ({expires_on.isoformat()}) has passed; "
             "a service owner must re-approve enforcement"

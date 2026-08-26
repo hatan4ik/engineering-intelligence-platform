@@ -10,7 +10,11 @@ on:
 #
 # The repository's mode (shadow / advisory / enforce) is read from
 # `.eip/pr-guardian.json` in the BASE checkout below.  A pull request therefore
-# cannot raise its own repository's enforcement level.
+# cannot raise its own repository's enforcement level.  It CAN suppress a block
+# on itself by editing this file, because `pull_request` runs the workflow
+# definition from the head: enforcing repositories must require Code Owner
+# review on `.github/workflows/` and `.eip/`.  See
+# docs/PR-GUARDIAN-REPOSITORY-CONFIG.md ("Threat model").
 permissions:
   contents: read
   pull-requests: read

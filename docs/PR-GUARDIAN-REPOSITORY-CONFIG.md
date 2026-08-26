@@ -162,12 +162,68 @@ of these hold:
 2. the observation's `enforcement.would_block` is `true`;
 3. the default-branch configuration is also in `enforce` mode;
 4. the observation's `enforcement.rule` equals the configured rule;
-5. the configured `expires_on` has not passed;
-6. the kill switch is off.
+5. the observation's `assessment.score` is at least the configured `threshold`;
+6. the configured `expires_on` has not passed;
+7. the kill switch is off.
 
 Any disagreement degrades the published conclusion to `neutral` and the reason
-is printed in the sticky comment. The observation can only ever lower what is
-published; it can never raise it.
+is printed in the sticky comment.
+
+### Threat model: what the re-read does and does not prevent
+
+**It constrains escalation only.** The re-read stops an observation from
+producing a `failure` the default-branch configuration does not authorize: a
+forged `would_block: true`, a rule the repository did not select, a score below
+the configured threshold, or a mode the repository never enabled all degrade to
+`neutral`.
+
+**It does not stop a pull request from evading its own enforcement.** The
+evaluation workflow is `pull_request`-triggered, so GitHub runs the workflow
+*definition from the pull request's head*. A pull request that edits
+`.github/workflows/pr-guardian.yml` can therefore upload any artifact it likes
+— including one reporting `would_block: false` — and because the publisher only
+constrains the escalation direction, that artifact publishes `neutral`. A pull
+request cannot make the check *fail* for someone else, and it cannot raise its
+own repository's mode (the configuration is read from the base commit and
+re-read from the default branch), but it **can** suppress a block on itself.
+
+Selective enforcement is therefore only as strong as the review on the two
+paths that define it. A repository that enables `enforce` should require human
+review on both:
+
+```
+# .github/CODEOWNERS
+/.github/workflows/   @your-org/service-owners
+/.eip/                @your-org/service-owners
+```
+
+with a branch protection rule that requires review from Code Owners and
+dismisses stale approvals. Without that, treat `enforce` as a strong default
+that an author can opt out of in the open — visible in the diff — rather than
+as a control.
+
+### When the publisher cannot trust its inputs
+
+Neither failure mode may take the publisher down, because a repository in
+`enforce` mode is the one most likely to have marked this check required — a
+crashing publisher would block merges through the platform's own failure.
+
+- **A missing, unparseable, or invalid evaluation artifact** (including one
+  whose repository or head SHA does not match the triggering run) publishes a
+  `neutral` check titled "PR Guardian could not verify this evaluation", with a
+  comment naming the reason. The publisher workflow then exits non-zero so an
+  operator sees it, while the pull request stays unblocked.
+- **An unreadable `.eip/pr-guardian.json`** degrades to shadow, publishes
+  `neutral`, and states the parse error in the comment.
+- **A lapsed `enforcement.expires_on`** still loads — an expired approval is a
+  well-formed statement of intent, not a corrupt file — and the publisher
+  reports `enforcement-approval-expired` and publishes `neutral`. Refusing to
+  load it would mean every publish run in that repository died on the day the
+  approval expired.
+
+Authoring is stricter than loading: writing a configuration whose `expires_on`
+has already passed is an error, so the mistake is caught when the file is
+validated rather than silently accepted.
 
 ---
 
@@ -196,15 +252,27 @@ enforcement lapses by itself unless a human re-approves it.
 After risk assessment, the evaluation job runs the deterministic architecture
 rules in `product/architecture_review.DEFAULT_ARCHITECTURE_RULES` over the
 changed files and records the findings in the observation as
-`architecture: {violations, summary}`. The publisher renders them into the
-sticky comment.
+`architecture: {violations, in_scope, reviewed, skipped, summary}`. The
+publisher renders them into the sticky comment.
 
 Architecture findings are **advisory in every mode**. They never change a check
 conclusion and they are not part of any enforcement rule.
 
 Content is fetched read-only through the GitHub contents API at the pull
 request's head SHA — the head revision is never checked out and never executed.
-Files whose content cannot be read are not reviewed and never become findings.
+
+**Coverage is reported, not assumed.** A file that matched a rule but whose
+content could not be fetched (deleted, a submodule, too large, not UTF-8 text,
+or an API error) is counted in `skipped` with its reason, never treated as
+clean. `in_scope` counts the changed files some rule could match and `reviewed`
+counts those actually read, so:
+
+- `in_scope == 0` → "No changed file was in scope for an architecture rule."
+- `reviewed == 0` with files in scope → "Architecture Guard did not run:
+  content was unavailable for all N in-scope file(s)". It never reports an
+  absence of findings about files it did not read.
+- otherwise the summary states how many of the in-scope files were reviewed and
+  how many were skipped, and the comment lists each skipped path and reason.
 
 ---
 
@@ -233,7 +301,10 @@ non-blocking, empty defaults.
         "severity": 4
       }
     ],
-    "summary": "1 architecture finding(s) across 1 file(s)."
+    "in_scope": 3,
+    "reviewed": 2,
+    "skipped": [{"path": "infra/big.tfvars", "reason": "larger than 512000 bytes"}],
+    "summary": "1 architecture finding(s) across 1 file(s). Reviewed 2 of 3 in-scope file(s). 1 file(s) could not be reviewed."
   }
 }
 ```
@@ -250,6 +321,9 @@ mode and only while naming the rule that produced it.
 - It does not let the platform enable, escalate, or extend enforcement. Every
   path to `failure` runs through a file in the repository, changed by that
   repository's own review process.
+- It does not stop a pull request that edits `.github/workflows/` from
+  suppressing a block on itself. See "Threat model" above; require Code Owner
+  review on `.github/workflows/` and `.eip/` if that matters to you.
 - It does not tune `threshold` from observed outcomes. Calibration output is a
   recommendation for a human; nothing writes back into this file.
 - It does not block on Architecture Guard findings.

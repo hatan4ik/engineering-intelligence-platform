@@ -5,7 +5,10 @@ publishes nothing and it is never the gate: it always exits 0, so a platform
 defect cannot stop a merge.  The trusted publisher workflow is the only writer.
 
 The repository's mode comes from `.eip/pr-guardian.json` in that base checkout,
-so a pull request cannot raise its own repository's enforcement level.
+so a pull request cannot raise its own repository's enforcement level.  It can
+still suppress a block on itself by editing this workflow's definition, which
+`pull_request` runs from the head — require Code Owner review on
+`.github/workflows/` and `.eip/`; see docs/PR-GUARDIAN-REPOSITORY-CONFIG.md.
 """
 
 from __future__ import annotations
@@ -26,13 +29,13 @@ from integrations.github.pr_guardian import GitHubRestPRClient, normalize_pull_r
 from intelligence.architecture_guard import ArchitectureRule
 from product.architecture_review import (
     DEFAULT_ARCHITECTURE_RULES,
-    architecture_summary_line,
+    FileContent,
     review_changed_paths,
+    skipped_records,
     violation_records,
 )
 from product.graph_from_checkout import build_service_graph_from_checkout
-from product.pr_guardian.config import CONFIG_RELATIVE_PATH, default_shadow_config, load_repository_config
-from product.pr_guardian.contracts import ProductContractError
+from product.pr_guardian.config import CONFIG_RELATIVE_PATH, load_effective_config
 from product.pr_guardian_service import PRGuardianService
 from product.pr_guardian_shadow import observation_from_assessment
 from state.audit import SqliteAuditLog
@@ -55,7 +58,7 @@ class GitHubFileContents:
     ref: str
     api_url: str = "https://api.github.com"
 
-    def read_changed_file(self, path: str) -> str | None:
+    def read_changed_file(self, path: str) -> FileContent:
         request = urllib.request.Request(
             f"{self.api_url.rstrip('/')}/repos/{self.repository}/contents/"
             f"{urllib.parse.quote(path)}?ref={urllib.parse.quote(self.ref)}",
@@ -69,18 +72,23 @@ class GitHubFileContents:
         try:
             with urllib.request.urlopen(request, timeout=20) as response:
                 payload = json.loads(response.read())
-        except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError):
+        except urllib.error.HTTPError as exc:
             # A deleted file, a submodule, or a transient API error must not
-            # fail an advisory review.
-            return None
+            # fail an advisory review — but it is reported, not treated as
+            # a clean file.
+            return FileContent.unavailable(f"contents API returned {exc.code}")
+        except (urllib.error.URLError, json.JSONDecodeError):
+            return FileContent.unavailable("contents API was unreachable or unreadable")
         if not isinstance(payload, dict) or payload.get("encoding") != "base64":
-            return None
+            return FileContent.unavailable("not an inline base64 file (submodule or too large)")
         if int(payload.get("size", 0)) > MAX_CONTENT_BYTES:
-            return None
+            return FileContent.unavailable(f"larger than {MAX_CONTENT_BYTES} bytes")
         try:
-            return base64.b64decode(str(payload.get("content", ""))).decode("utf-8")
+            return FileContent.available(
+                base64.b64decode(str(payload.get("content", ""))).decode("utf-8")
+            )
         except (ValueError, UnicodeDecodeError):
-            return None
+            return FileContent.unavailable("not decodable as UTF-8 text")
 
 
 def evaluate_pull_request(
@@ -110,9 +118,14 @@ def evaluate_pull_request(
         enforcement=result.enforcement.as_dict(),
         architecture={
             "violations": violation_records(review.violations),
+            # Coverage travels with the findings: a file whose content could
+            # not be fetched is reported as skipped, never as clean.
+            "in_scope": review.in_scope,
+            "reviewed": review.reviewed,
+            "skipped": skipped_records(review.skipped),
             # Architecture Guard is advisory in this stage: its findings are
             # recorded and rendered, and never change a check conclusion.
-            "summary": architecture_summary_line(review.violations),
+            "summary": review.summary,
         },
     )
 
@@ -130,15 +143,15 @@ def main() -> int:
         return 0
 
     checkout = Path(os.environ.get("EIP_PR_GUARDIAN_CONFIG_ROOT", "."))
-    try:
-        config = load_repository_config(checkout, repository=event.repository)
-    except ProductContractError as exc:
-        # The evaluation job is never the gate, so a malformed configuration
-        # degrades to shadow here and is reported loudly.  The trusted
-        # publisher reads the same file and fails there, where failing is safe.
-        print(f"PR Guardian: {CONFIG_RELATIVE_PATH} is invalid ({exc}); evaluating in shadow mode",
-              file=sys.stderr)
-        config = default_shadow_config(event.repository)
+    # The evaluation job is never the gate, so an unreadable configuration
+    # degrades to shadow here and is reported loudly rather than raising.
+    config, config_error = load_effective_config(checkout, repository=event.repository)
+    if config_error is not None:
+        print(
+            f"PR Guardian: {CONFIG_RELATIVE_PATH} is invalid ({config_error}); "
+            "evaluating in shadow mode",
+            file=sys.stderr,
+        )
 
     graph = build_service_graph_from_checkout(checkout)
     state_dir = Path(os.environ.get("EIP_STATE_DIR", ".eip"))
@@ -167,6 +180,7 @@ def main() -> int:
         f"risk={observation['assessment']['score']} mode={observation['mode']} "
         f"would_block={enforcement['would_block']} ({enforcement['reason']}) "
         f"architecture={len(architecture['violations'])} finding(s) "
+        f"({architecture['reviewed']}/{architecture['in_scope']} file(s) reviewed) "
         f"workflow={observation['workflow']['id']} result={result_path}"
     )
     # A simulated policy result must never change the workflow exit status.
