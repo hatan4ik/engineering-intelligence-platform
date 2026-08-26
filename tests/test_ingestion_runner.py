@@ -23,11 +23,12 @@ def _checkout(root):
     return root
 
 
-def _run(root, index, ledger, *, ref="a" * 40, groups=("engineering",)):
+def _run(root, index, ledger, *, branch="main", commit_sha="a" * 40, groups=("engineering",)):
     return ingest_checkout(
         root,
         repository="acme/platform",
-        ref=ref,
+        branch=branch,
+        commit_sha=commit_sha,
         index=index,
         ledger_path=ledger,
         groups=groups,
@@ -45,8 +46,8 @@ def test_first_run_indexes_every_eligible_file(tmp_path):
     assert counts["failed"] == 0
     assert counts["skipped"] == 1  # artifact.bin is not an ingestible source file
     assert set(index.documents) == {
-        "git:acme/platform:" + "a" * 40 + ":README.md",
-        "git:acme/platform:" + "a" * 40 + ":src/service.py",
+        "git:acme/platform:main:README.md",
+        "git:acme/platform:main:src/service.py",
     }
 
 
@@ -84,7 +85,7 @@ def test_a_changed_file_is_reingested(tmp_path):
 
     assert second["documents"] == 1
     assert second["duplicates"] == 1
-    chunks = index.documents["git:acme/platform:" + "a" * 40 + ":README.md"]
+    chunks = index.documents["git:acme/platform:main:README.md"]
     assert "Rewritten prose." in chunks[0].content
 
 
@@ -137,7 +138,8 @@ def test_oversize_files_are_skipped(tmp_path):
     counts = ingest_checkout(
         root,
         repository="acme/platform",
-        ref="b" * 40,
+        branch="main",
+        commit_sha="b" * 40,
         index=index,
         ledger_path=tmp_path / "ledger.db",
         groups=("engineering",),
@@ -153,3 +155,72 @@ def test_counts_are_json_serialisable(tmp_path):
     counts = _run(root, InMemoryIndex(), tmp_path / "ledger.db")
 
     assert json.loads(json.dumps(counts))["documents"] == 2
+
+
+def test_a_later_commit_replaces_the_changed_document_instead_of_duplicating_it(tmp_path):
+    """Document identity is the branch; the commit sha is provenance only."""
+
+    root = _checkout(tmp_path / "checkout")
+    index = InMemoryIndex()
+    ledger = tmp_path / "ledger.db"
+
+    _run(root, index, ledger, commit_sha="a" * 40)
+    (root / "README.md").write_text("# Title\n\nSecond commit prose.\n", encoding="utf-8")
+    second = _run(root, index, ledger, commit_sha="f" * 40)
+
+    assert second["documents"] == 1
+    assert second["duplicates"] == 1
+    # Still two documents, not four: the same document_id was replaced.
+    assert set(index.documents) == {
+        "git:acme/platform:main:README.md",
+        "git:acme/platform:main:src/service.py",
+    }
+    readme = index.documents["git:acme/platform:main:README.md"]
+    assert len(readme) == 1
+    assert "Second commit prose." in readme[0].content
+    assert readme[0].source.commit_sha == "f" * 40
+    assert readme[0].source.citation == "git:acme/platform@" + "f" * 40 + ":README.md"
+    # The unchanged file keeps the commit its content actually came from.
+    service = index.documents["git:acme/platform:main:src/service.py"]
+    assert service[0].source.commit_sha == "a" * 40
+
+
+def test_a_different_branch_is_a_different_document(tmp_path):
+    root = _checkout(tmp_path / "checkout")
+    index = InMemoryIndex()
+    ledger = tmp_path / "ledger.db"
+
+    _run(root, index, ledger, branch="main")
+    _run(root, index, ledger, branch="release-1")
+
+    assert "git:acme/platform:main:README.md" in index.documents
+    assert "git:acme/platform:release-1:README.md" in index.documents
+
+
+@pytest.mark.parametrize("field", ["branch", "commit_sha"])
+def test_blank_identity_fields_are_refused(tmp_path, field):
+    root = _checkout(tmp_path / "checkout")
+
+    with pytest.raises(ValueError) as error:
+        _run(root, InMemoryIndex(), tmp_path / "ledger.db", **{field: "  "})
+
+    assert field in str(error.value)
+
+
+def test_an_acl_change_propagates_on_re_ingest(tmp_path):
+    """PRODUCTION-EVIDENCE.md requires an ACL change to propagate, so the ACL is
+    part of the idempotency key — otherwise the ledger would dedupe it away."""
+
+    root = _checkout(tmp_path / "checkout")
+    index = InMemoryIndex()
+    ledger = tmp_path / "ledger.db"
+
+    _run(root, index, ledger, groups=("engineering",))
+    second = _run(root, index, ledger, groups=("platform-security",))
+
+    assert second["documents"] == 2
+    assert second["duplicates"] == 0
+    chunk = index.documents["git:acme/platform:main:README.md"][0]
+    assert chunk.acl.groups == ("repo:acme/platform:read", "platform-security")
+    assert index.search("paragraph", groups=["engineering"]) == []
+    assert index.search("paragraph", groups=["platform-security"])

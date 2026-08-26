@@ -20,11 +20,16 @@ on:
 
 permissions:
   contents: read
+  # Only the Azure job needs this, to federate to a workload identity; the
+  # smoke job narrows itself back to contents: read below.
+  id-token: write
 
 jobs:
   in-memory:
     name: Pipeline smoke (in-memory index)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -39,7 +44,8 @@ jobs:
           python scripts/ingest_repository.py \
             --root . \
             --repository "${{ github.repository }}" \
-            --ref "${{ github.sha }}" \
+            --branch main \
+            --commit-sha "${{ github.sha }}" \
             --groups engineering \
             --index in-memory \
             --ledger "${RUNNER_TEMP}/ingestion-ledger.db" | tee ingestion-counts.json
@@ -69,6 +75,9 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.index == 'azure' }}
     needs: in-memory
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - name: Detect Azure index configuration
@@ -79,13 +88,28 @@ jobs:
           AZURE_SEARCH_INDEX: ${{ secrets.AZURE_SEARCH_INDEX }}
           AZURE_SEARCH_API_KEY: ${{ secrets.AZURE_SEARCH_API_KEY }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
-          if [ -n "$AZURE_SEARCH_ENDPOINT" ] && [ -n "$AZURE_SEARCH_INDEX" ] \
-             && { [ -n "$AZURE_SEARCH_API_KEY" ] || [ -n "$AZURE_CLIENT_ID" ]; }; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
+          # A client id alone is not a usable credential on a hosted runner: the
+          # federated path also needs the tenant and subscription for azure/login.
+          # The gate must therefore accept an API key, or the whole identity set.
+          federated=false
+          if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_SUBSCRIPTION_ID" ]; then
+            federated=true
           fi
+          configured=false
+          if [ -n "$AZURE_SEARCH_ENDPOINT" ] && [ -n "$AZURE_SEARCH_INDEX" ] \
+             && { [ -n "$AZURE_SEARCH_API_KEY" ] || [ "$federated" = "true" ]; }; then
+            configured=true
+          fi
+          # The API key wins when both are present, matching resolve_index in
+          # scripts/ingest_repository.py, so azure/login only runs when it is used.
+          if [ -n "$AZURE_SEARCH_API_KEY" ]; then
+            federated=false
+          fi
+          echo "configured=$configured" >> "$GITHUB_OUTPUT"
+          echo "federated=$federated" >> "$GITHUB_OUTPUT"
       - name: Report that the Azure index is not configured
         if: steps.azure_config.outputs.configured != 'true'
         shell: bash
@@ -97,6 +121,13 @@ jobs:
             echo ""
             echo "See \`docs/KNOWLEDGE-INGEST-RUNBOOK.md\` for the required configuration."
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Sign in with the federated workload identity
+        if: steps.azure_config.outputs.configured == 'true' && steps.azure_config.outputs.federated == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - uses: actions/setup-python@v5
         if: steps.azure_config.outputs.configured == 'true'
         with:
@@ -112,11 +143,14 @@ jobs:
           AZURE_SEARCH_INDEX: ${{ secrets.AZURE_SEARCH_INDEX }}
           AZURE_SEARCH_API_KEY: ${{ secrets.AZURE_SEARCH_API_KEY }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           python scripts/ingest_repository.py \
             --root . \
             --repository "${{ github.repository }}" \
-            --ref "${{ github.sha }}" \
+            --branch main \
+            --commit-sha "${{ github.sha }}" \
             --groups "${{ vars.EIP_INGEST_ACL_GROUPS || 'engineering' }}" \
             --index azure \
             --ledger "${RUNNER_TEMP}/ingestion-ledger.db"

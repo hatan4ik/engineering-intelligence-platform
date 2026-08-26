@@ -86,7 +86,8 @@ def test_main_exits_2_when_azure_configuration_is_incomplete(tmp_path, monkeypat
         [
             "--root", str(root),
             "--repository", "acme/platform",
-            "--ref", "c" * 40,
+            "--branch", "main",
+            "--commit-sha", "c" * 40,
             "--groups", "engineering",
             "--index", "azure",
             "--ledger", str(tmp_path / "ledger.db"),
@@ -104,7 +105,8 @@ def test_main_runs_the_pipeline_in_memory_and_prints_counts(tmp_path, capsys):
     argv = [
         "--root", str(root),
         "--repository", "acme/platform",
-        "--ref", "d" * 40,
+        "--branch", "main",
+        "--commit-sha", "d" * 40,
         "--groups", "engineering,platform",
         "--ledger", str(tmp_path / "ledger.db"),
     ]
@@ -113,6 +115,8 @@ def test_main_runs_the_pipeline_in_memory_and_prints_counts(tmp_path, capsys):
     first = json.loads(capsys.readouterr().out)
     assert first["documents"] == 2
     assert first["repository"] == "acme/platform"
+    assert first["branch"] == "main"
+    assert first["commit_sha"] == "d" * 40
     assert first["index"] == "in-memory"
     assert first["groups"] == ["engineering", "platform"]
 
@@ -129,7 +133,8 @@ def test_main_rejects_an_empty_group_list(tmp_path, capsys):
         [
             "--root", str(root),
             "--repository", "acme/platform",
-            "--ref", "e" * 40,
+            "--branch", "main",
+            "--commit-sha", "e" * 40,
             "--groups", "",
             "--ledger", str(tmp_path / "ledger.db"),
         ]

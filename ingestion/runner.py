@@ -4,11 +4,19 @@ This is the batch entry point for the knowledge plane. ``ingestion.events``
 normalizes *webhook* payloads; this module normalizes a *checkout*, so a
 repository can be indexed from CI without a webhook delivery.
 
+Document identity is the *branch*: ``SourceIdentity.document_id`` is
+``git:<repository>:<branch>:<path>``, so re-ingesting a branch replaces its
+documents instead of accumulating one per commit. The commit sha is provenance
+— it is carried in ``SourceIdentity.commit_sha`` and therefore in the chunk
+citation ``git:<repository>@<commit>:<path>``.
+
 Idempotency comes from the durable event ledger, not from this module: every
 eligible file becomes one :class:`~ingestion.events.NormalizedEvent` whose
-``event_id`` is derived from ``(repository, ref, path, content)``. Re-running
+``event_id`` is derived from ``(repository, branch, path, content, acl)``. Re-running
 over an unchanged checkout therefore replays event ids the ledger has already
-completed and writes nothing.
+completed and writes nothing, and a later commit re-ingests only the files whose
+content actually changed. A file's citation consequently names the commit at
+which its content was last ingested, which is the commit that content came from.
 
 The caller supplies the :class:`~ingestion.index.Index` instance. This module
 never constructs an Azure client and never reads Azure configuration.
@@ -113,11 +121,18 @@ def _walk(root: Path) -> Iterator[Path]:
             yield Path(directory) / filename
 
 
-def _event_id(repository: str, ref: str, relative_path: str, content: str) -> str:
+def _event_id(repository: str, branch: str, relative_path: str, content: str, acl: ACL) -> str:
+    # Deliberately excludes the commit sha: the unit of work is "this content at
+    # this path on this branch, readable by these principals". Including the sha
+    # would re-ingest every file on every commit and defeat the ledger; excluding
+    # the ACL would let the ledger swallow an access change, which
+    # docs/PRODUCTION-EVIDENCE.md requires to propagate.
     digest = hashlib.sha256(
-        "|".join([repository, ref, relative_path, content]).encode("utf-8")
+        "|".join(
+            [repository, branch, relative_path, content, *sorted(acl.groups), *sorted(acl.users)]
+        ).encode("utf-8")
     ).hexdigest()
-    return f"checkout:{repository}:{ref}:{relative_path}:{digest}"
+    return f"checkout:{repository}:{branch}:{relative_path}:{digest}"
 
 
 def resolve_acl(repository: str, groups: Sequence[str]) -> ACL:
@@ -141,7 +156,8 @@ def ingest_checkout(
     root: str | os.PathLike[str],
     *,
     repository: str,
-    ref: str,
+    branch: str,
+    commit_sha: str,
     index: Index,
     ledger_path: str | os.PathLike[str],
     groups: Iterable[str],
@@ -164,8 +180,16 @@ def ingest_checkout(
     ``duplicates``
         Files whose event id the ledger had already completed — the idempotency
         signal. A re-run over an unchanged checkout reports ``documents == 0``.
+
+    ``branch`` is document identity; ``commit_sha`` is provenance. Ingesting the
+    same branch at a later commit replaces the documents whose content changed
+    and leaves the rest untouched.
     """
 
+    if not str(branch).strip():
+        raise ValueError("ingest_checkout requires a branch; it is the document identity")
+    if not str(commit_sha).strip():
+        raise ValueError("ingest_checkout requires a commit_sha; it is the citation provenance")
     acl = resolve_acl(repository, list(groups))
     checkout = Path(root).resolve()
     if not checkout.is_dir():
@@ -194,14 +218,14 @@ def ingest_checkout(
         relative_path = path.relative_to(checkout).as_posix()
         suffix = path.suffix.lstrip(".").lower()
         change = FileChange(
-            source=SourceIdentity("git", repository, ref, ref, relative_path),
+            source=SourceIdentity("git", repository, branch, commit_sha, relative_path),
             change_type=ChangeType.UPSERT,
             content=content,
             language=suffix or None,
             acl=acl,
         )
         event = NormalizedEvent(
-            event_id=_event_id(repository, ref, relative_path, content),
+            event_id=_event_id(repository, branch, relative_path, content, acl),
             changes=(change,),
         )
         try:

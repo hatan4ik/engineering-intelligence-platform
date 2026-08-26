@@ -70,7 +70,10 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=".", help="path to the checked-out repository")
     parser.add_argument("--repository", required=True, help="owner/name of the repository")
-    parser.add_argument("--ref", required=True, help="commit SHA or ref being ingested")
+    # Document identity vs provenance. The branch keys document_id, so ingesting a
+    # branch replaces its documents; the commit sha only appears in the citation.
+    parser.add_argument("--branch", required=True, help="branch being ingested; keys document identity")
+    parser.add_argument("--commit-sha", required=True, help="commit SHA for the chunk citation")
     parser.add_argument(
         "--groups",
         required=True,
@@ -89,7 +92,8 @@ def main(argv: list[str] | None = None) -> int:
         counts = ingest_checkout(
             args.root,
             repository=args.repository,
-            ref=args.ref,
+            branch=args.branch,
+            commit_sha=args.commit_sha,
             index=index,
             ledger_path=args.ledger,
             groups=groups,
@@ -100,7 +104,8 @@ def main(argv: list[str] | None = None) -> int:
 
     payload = {
         "repository": args.repository,
-        "ref": args.ref,
+        "branch": args.branch,
+        "commit_sha": args.commit_sha,
         "index": args.index,
         "groups": groups,
         **counts,

@@ -39,16 +39,20 @@ REQUIRED_ENVIRONMENT: tuple[str, ...] = (
     "EIP_COSMOS_HOST",
     "AZURE_POSTGRESQL_HOST",
     "EIP_TEMPORAL_HOST",
+    # Unscoped evidence is not evidence (docs/PRODUCTION-EVIDENCE.md: every
+    # promotion decision names service, environment, data source and versions),
+    # and the runbook requires the evidence path to be outside the source
+    # checkout. Neither may fall back to a default on a passing run.
+    "EIP_INTEGRATION_SCOPE",
+    "EIP_INTEGRATION_EVIDENCE",
 )
 
 # Documented in the same table but not required: the repository scopes apply only
-# when the governed test question is repository-scoped, and the two below have
-# defaults in :func:`main`. They are still passed by the workflow.
+# when the governed test question is repository-scoped. They are still passed by
+# the workflow.
 OPTIONAL_ENVIRONMENT: tuple[str, ...] = (
     "EIP_INTEGRATION_ALLOWED_REPOSITORY",
     "EIP_INTEGRATION_DENIED_REPOSITORY",
-    "EIP_INTEGRATION_SCOPE",
-    "EIP_INTEGRATION_EVIDENCE",
 )
 
 
@@ -238,6 +242,11 @@ def collect() -> tuple[ProbeResult, ...]:
 
 
 def _emit(results: list[dict[str, object]], *, passed: bool) -> None:
+    # The two defaults below are reachable only on the configuration-refusal path,
+    # which runs before ``collect()``: a run that reaches the probes has already
+    # been proven to set EIP_INTEGRATION_SCOPE and EIP_INTEGRATION_EVIDENCE, so a
+    # payload with ``passed: true`` can never be unscoped or land on the default
+    # in-checkout path. A refusal record still has to be written somewhere.
     payload: dict[str, object] = {
         "schema_version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(),

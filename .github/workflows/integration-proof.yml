@@ -55,21 +55,24 @@ jobs:
           EIP_COSMOS_HOST: ${{ vars.EIP_COSMOS_HOST }}
           AZURE_POSTGRESQL_HOST: ${{ vars.AZURE_POSTGRESQL_HOST }}
           EIP_TEMPORAL_HOST: ${{ vars.EIP_TEMPORAL_HOST }}
+          EIP_INTEGRATION_SCOPE: ${{ vars.EIP_INTEGRATION_SCOPE }}
+          # The runbook requires the evidence path to be outside the source
+          # checkout, so the record cannot be confused with a tracked file.
+          EIP_INTEGRATION_EVIDENCE: ${{ runner.temp }}/integration-evidence.json
           # Optional contract — validation/integration_probe.OPTIONAL_ENVIRONMENT.
           EIP_INTEGRATION_ALLOWED_REPOSITORY: ${{ secrets.EIP_INTEGRATION_ALLOWED_REPOSITORY }}
           EIP_INTEGRATION_DENIED_REPOSITORY: ${{ secrets.EIP_INTEGRATION_DENIED_REPOSITORY }}
-          EIP_INTEGRATION_SCOPE: ${{ vars.EIP_INTEGRATION_SCOPE }}
-          EIP_INTEGRATION_EVIDENCE: integration-evidence.json
         run: python validation/integration_probe.py
 
       - name: Report incomplete configuration
         if: failure()
         shell: bash
         run: |
-          if [ ! -f integration-evidence.json ]; then
+          evidence="${RUNNER_TEMP}/integration-evidence.json"
+          if [ ! -f "$evidence" ]; then
             exit 0
           fi
-          missing=$(jq -r '.results[]? | select(.probe == "configuration") | .missing[]?' integration-evidence.json)
+          missing=$(jq -r '.results[]? | select(.probe == "configuration") | .missing[]?' "$evidence")
           if [ -z "$missing" ]; then
             exit 0
           fi
@@ -89,6 +92,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: integration-evidence-${{ github.run_id }}
-          path: integration-evidence.json
+          path: ${{ runner.temp }}/integration-evidence.json
           if-no-files-found: error
           retention-days: 90

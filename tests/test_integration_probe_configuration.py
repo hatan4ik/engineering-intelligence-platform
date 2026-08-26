@@ -28,12 +28,26 @@ COMPLETE_ENVIRONMENT = {
     "EIP_COSMOS_HOST": "cosmos.privatelink",
     "AZURE_POSTGRESQL_HOST": "pg.privatelink",
     "EIP_TEMPORAL_HOST": "temporal.privatelink",
+    "EIP_INTEGRATION_SCOPE": "acme/platform integration westeurope sha=abc image=sha256:def",
+    "EIP_INTEGRATION_EVIDENCE": "/var/evidence/integration-evidence.json",
 }
 
 
-def test_the_required_list_has_the_twelve_documented_variables():
-    assert len(REQUIRED_ENVIRONMENT) == 12
-    assert len(set(REQUIRED_ENVIRONMENT)) == 12
+def test_the_required_list_has_the_fourteen_documented_variables():
+    assert len(REQUIRED_ENVIRONMENT) == 14
+    assert len(set(REQUIRED_ENVIRONMENT)) == 14
+    assert set(COMPLETE_ENVIRONMENT) == set(REQUIRED_ENVIRONMENT)
+
+
+def test_scope_and_evidence_path_are_required_so_a_pass_is_never_unscoped():
+    """docs/PRODUCTION-EVIDENCE.md: evidence names its scope. The runbook requires
+    the evidence path to be outside the source checkout, so neither may default."""
+
+    assert "EIP_INTEGRATION_SCOPE" in REQUIRED_ENVIRONMENT
+    assert "EIP_INTEGRATION_EVIDENCE" in REQUIRED_ENVIRONMENT
+    assert missing_configuration(
+        {name: value for name, value in COMPLETE_ENVIRONMENT.items() if name != "EIP_INTEGRATION_SCOPE"}
+    ) == ("EIP_INTEGRATION_SCOPE",)
 
 
 def test_every_required_variable_is_documented_in_the_runbook():
@@ -56,8 +70,9 @@ def test_main_emits_one_configuration_result_and_exits_2(tmp_path, monkeypatch, 
     evidence = tmp_path / "integration-evidence.json"
     for name in REQUIRED_ENVIRONMENT:
         monkeypatch.delenv(name, raising=False)
+    # Only the output path is set, so the refusal record is readable; everything
+    # else — including the scope — is missing and must be named.
     monkeypatch.setenv("EIP_INTEGRATION_EVIDENCE", str(evidence))
-    monkeypatch.setenv("EIP_INTEGRATION_SCOPE", "integration/pilot")
     monkeypatch.setattr(
         "validation.integration_probe.collect",
         lambda: (_ for _ in ()).throw(AssertionError("probes must not run on incomplete config")),
@@ -67,11 +82,13 @@ def test_main_emits_one_configuration_result_and_exits_2(tmp_path, monkeypatch, 
 
     assert code == 2
     payload = json.loads(evidence.read_text(encoding="utf-8"))
+    expected_missing = [name for name in REQUIRED_ENVIRONMENT if name != "EIP_INTEGRATION_EVIDENCE"]
     assert payload["passed"] is False
-    assert payload["scope"] == "integration/pilot"
+    assert payload["scope"] == "unscoped"
     assert payload["results"] == [
-        {"probe": "configuration", "passed": False, "missing": list(REQUIRED_ENVIRONMENT)}
+        {"probe": "configuration", "passed": False, "missing": expected_missing}
     ]
+    assert "EIP_INTEGRATION_SCOPE" in expected_missing
     assert "sha256" in payload
     assert "configuration" in capsys.readouterr().out
 
@@ -87,3 +104,12 @@ def test_the_workflow_is_scheduled_and_environment_gated():
     assert "schedule:" in workflow
     assert "cron:" in workflow
     assert "environment: integration" in workflow
+
+
+def test_the_workflow_writes_evidence_outside_the_source_checkout():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "EIP_INTEGRATION_EVIDENCE: ${{ runner.temp }}/integration-evidence.json" in workflow
+    assert "EIP_INTEGRATION_SCOPE: ${{ vars.EIP_INTEGRATION_SCOPE }}" in workflow
+    # Nothing may read or upload the old in-checkout default path.
+    assert "path: integration-evidence.json" not in workflow
