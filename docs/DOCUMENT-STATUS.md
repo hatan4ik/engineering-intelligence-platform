@@ -68,6 +68,7 @@ production-certified.
 | [`evidence/README.md`](evidence/README.md) | Current evidence contract | The evidence registry; an empty directory means not proven |
 | [`OPERATIONS-INTELLIGENCE-RUNBOOK.md`](OPERATIONS-INTELLIGENCE-RUNBOOK.md) | Current implementation state | L1/L2 routes, secret, evidence modes, what an L2 proposal is not |
 | [`L3-REHEARSAL-RUNBOOK.md`](L3-REHEARSAL-RUNBOOK.md) | Current implementation state | Exercise, soak, and readiness runners; rehearsal is not certification |
+| [`L4-PROMOTION-RUNBOOK.md`](L4-PROMOTION-RUNBOOK.md) | Current implementation state | Scoped certification record, what invalidates it, the platform cannot self-certify |
 | [`COMPANY-BRAIN-CORE.md`](COMPANY-BRAIN-CORE.md) | Target proposal | Company Brain feedback loop (merged from a parallel line; not reconciled with ADR-001) |
 | [`COMPANY-BRAIN-STORE.md`](COMPANY-BRAIN-STORE.md) | Target proposal | Company Brain reference store (merged from a parallel line) |
 

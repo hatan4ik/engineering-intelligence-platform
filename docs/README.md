@@ -14,7 +14,7 @@ Welcome to the documentation for the Engineering Intelligence Platform. To preve
 - [PR Guardian Shadow Report](PR-GUARDIAN-SHADOW-REPORT.md) · [PR Guardian Repository Config](PR-GUARDIAN-REPOSITORY-CONFIG.md)
 - [Knowledge Ingest](KNOWLEDGE-INGEST-RUNBOOK.md) · [Evidence Registry](evidence/README.md) · [Integration Proof](INTEGRATION-PROOF-RUNBOOK.md)
 - [Operations Intelligence (L1/L2)](OPERATIONS-INTELLIGENCE-RUNBOOK.md)
-- [L3 Rehearsal](L3-REHEARSAL-RUNBOOK.md) · [Temporal Worker](TEMPORAL-WORKER-RUNBOOK.md)
+- [L3 Rehearsal](L3-REHEARSAL-RUNBOOK.md) · [L4 Promotion](L4-PROMOTION-RUNBOOK.md) · [Temporal Worker](TEMPORAL-WORKER-RUNBOOK.md)
 - [24-Month Technical Roadmap](../roadmap/technical-roadmap-24-months.md)
 - [CFO ROI Model](../finops/cfo-roi-model.md) - Value equation and investment gates.
 
