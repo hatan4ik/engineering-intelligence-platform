@@ -15,6 +15,19 @@ from .model import (
     RelationshipKind,
 )
 from .projector import CompanyBrainProjector, ProjectionResult, repository_id, service_id
+from .store import (
+    BrainAuditEvent,
+    BrainProvenance,
+    CompanyBrainRetentionError,
+    CompanyBrainStore,
+    CompanyBrainStoreError,
+    CompanyBrainVersionConflict,
+    RetentionPolicy,
+    SqliteCompanyBrainStore,
+    StoredEntity,
+    StoredEvidence,
+    StoredRelationship,
+)
 
 __all__ = [
     "BrainEntity",
@@ -29,4 +42,15 @@ __all__ = [
     "ProjectionResult",
     "repository_id",
     "service_id",
+    "BrainAuditEvent",
+    "BrainProvenance",
+    "CompanyBrainRetentionError",
+    "CompanyBrainStore",
+    "CompanyBrainStoreError",
+    "CompanyBrainVersionConflict",
+    "RetentionPolicy",
+    "SqliteCompanyBrainStore",
+    "StoredEntity",
+    "StoredEvidence",
+    "StoredRelationship",
 ]
