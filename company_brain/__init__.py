@@ -37,6 +37,19 @@ from .memory import (
     ProjectionState,
     SqliteBrainProjectionJournal,
 )
+from .world_model import (
+    CompanyBrainWorldModel,
+    EntityQualification,
+    EvidenceQualification,
+    FactFreshness,
+    QualifiedWorldModelContext,
+    RelationshipQualification,
+    SourceTrustRule,
+    WorldModelConflict,
+    WorldModelConflictKind,
+    WorldModelError,
+    WorldModelPolicy,
+)
 
 __all__ = [
     "BrainEntity",
@@ -69,4 +82,15 @@ __all__ = [
     "ProjectionReceipt",
     "ProjectionState",
     "SqliteBrainProjectionJournal",
+    "CompanyBrainWorldModel",
+    "EntityQualification",
+    "EvidenceQualification",
+    "FactFreshness",
+    "QualifiedWorldModelContext",
+    "RelationshipQualification",
+    "SourceTrustRule",
+    "WorldModelConflict",
+    "WorldModelConflictKind",
+    "WorldModelError",
+    "WorldModelPolicy",
 ]
