@@ -5,15 +5,19 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
 
 # This workflow evaluates a pull request with no write capability.  Do not make
-# this check required: its findings are advisory and a policy simulation must
-# never stop a merge.
+# this check required: it always exits 0, and the conclusion that reaches the
+# pull request is decided by the trusted publisher workflow, not here.
+#
+# The repository's mode (shadow / advisory / enforce) is read from
+# `.eip/pr-guardian.json` in the BASE checkout below.  A pull request therefore
+# cannot raise its own repository's enforcement level.
 permissions:
   contents: read
   pull-requests: read
 
 jobs:
   evaluate:
-    name: Evaluate shadow observation
+    name: Evaluate pull request
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -26,15 +30,22 @@ jobs:
           python-version: '3.12'
       - name: Install runtime dependencies
         run: pip install -r app/requirements.txt
-      - name: Evaluate PR Guardian in shadow mode
+      - name: Evaluate PR Guardian in the repository's configured mode
         env:
           PYTHONPATH: .
           GITHUB_TOKEN: ${{ github.token }}
           EIP_STATE_DIR: .eip
-          EIP_PR_GUARDIAN_MODE: shadow
+          # The trusted base checkout supplies the repository configuration.
+          EIP_PR_GUARDIAN_CONFIG_ROOT: .
+          # Set the repository variable EIP_PR_GUARDIAN_KILL_SWITCH to "true"
+          # to force every evaluation non-blocking without editing the config.
+          EIP_PR_GUARDIAN_KILL_SWITCH: ${{ vars.EIP_PR_GUARDIAN_KILL_SWITCH }}
           EIP_PR_GUARDIAN_RESULT_PATH: pr-guardian-shadow-result.json
         run: python scripts/run_pr_guardian.py
-      - name: Retain transferable shadow observation
+      - name: Retain transferable observation
+        # The observation carries the mode, the enforcement decision
+        # (would_block / reason / rule / waived_by), and the Architecture Guard
+        # findings, all of which the publisher re-validates before use.
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: pr-guardian-shadow-result

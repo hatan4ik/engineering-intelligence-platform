@@ -55,12 +55,31 @@ def observation_from_assessment(
     would_block: bool,
     audit_chain_verified: bool,
     observed_at: str | None = None,
+    mode: str = "shadow",
+    enforcement: Mapping[str, object] | None = None,
+    architecture: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
-    """Return a strictly shaped non-enforcing shadow observation."""
+    """Return a strictly shaped observation for the repository's current mode.
+
+    ``mode`` comes from the evaluated repository's own configuration.  The
+    optional ``enforcement`` and ``architecture`` sections default to an
+    explicitly non-blocking, empty state so a caller that knows nothing about
+    them still produces a record the trusted publisher accepts.
+    """
     record: dict[str, object] = {
         "schema_version": SCHEMA_VERSION,
         "kind": OBSERVATION_KIND,
-        "mode": "shadow",
+        "mode": mode,
+        "enforcement": dict(enforcement) if enforcement is not None else {
+            "would_block": False,
+            "reason": "mode-not-enforcing",
+            "rule": None,
+            "waived_by": None,
+        },
+        "architecture": dict(architecture) if architecture is not None else {
+            "violations": [],
+            "summary": "Architecture Guard did not run for this evaluation.",
+        },
         "observed_at": observed_at or utc_now(),
         "subject": {
             "repository": event.repository,
@@ -89,18 +108,83 @@ def observation_from_assessment(
 
 def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
     """Validate a workflow-transfer record before a trusted workflow uses it."""
+
+    def _optional_string(raw: object, name: str, maximum: int) -> str | None:
+        return None if raw is None else _string(raw, name, maximum)
+
+    # Records written before advisory/enforce modes existed carry neither an
+    # enforcement nor an architecture section.  Fill both with their explicitly
+    # non-blocking, empty defaults so old artifacts keep validating and every
+    # normalized record has the same shape.
+    value = {
+        "enforcement": {
+            "would_block": False,
+            "reason": "mode-not-enforcing",
+            "rule": None,
+            "waived_by": None,
+        },
+        "architecture": {
+            "violations": [],
+            "summary": "Architecture Guard did not run for this evaluation.",
+        },
+        **dict(value),
+    }
     _exact_keys(
         value,
         {
-            "schema_version", "kind", "mode", "observed_at", "subject", "assessment",
-            "changed_services", "simulated_policy", "workflow",
+            "schema_version", "kind", "mode", "enforcement", "architecture", "observed_at",
+            "subject", "assessment", "changed_services", "simulated_policy", "workflow",
         },
         "shadow observation",
     )
     if value.get("schema_version") != SCHEMA_VERSION or value.get("kind") != OBSERVATION_KIND:
         raise ValueError("unsupported shadow observation schema")
-    if value.get("mode") != "shadow":
-        raise ValueError("only shadow PR Guardian observations may be published")
+    mode = _string(value.get("mode"), "mode", 20)
+    if mode not in {"shadow", "advisory", "enforce"}:
+        raise ValueError("mode is invalid")
+
+    raw_enforcement = _mapping(value.get("enforcement"), "enforcement")
+    _exact_keys(raw_enforcement, {"would_block", "reason", "rule", "waived_by"}, "enforcement")
+    enforcement: dict[str, object] = {
+        "would_block": _boolean(raw_enforcement.get("would_block"), "enforcement.would_block"),
+        "reason": _string(raw_enforcement.get("reason"), "enforcement.reason", 120),
+        "rule": _optional_string(raw_enforcement.get("rule"), "enforcement.rule", 120),
+        "waived_by": _optional_string(raw_enforcement.get("waived_by"), "enforcement.waived_by", 200),
+    }
+    # A record can describe a block only when it also names the rule that
+    # produced it; an unattributed block is not publishable.
+    if enforcement["would_block"] and not enforcement["rule"]:
+        raise ValueError("enforcement.rule is required when enforcement.would_block is true")
+    if enforcement["would_block"] and mode != "enforce":
+        raise ValueError("enforcement.would_block is allowed only in enforce mode")
+
+    raw_architecture = _mapping(value.get("architecture"), "architecture")
+    _exact_keys(raw_architecture, {"violations", "summary"}, "architecture")
+    raw_violations = raw_architecture.get("violations")
+    if not isinstance(raw_violations, list) or len(raw_violations) > 64:
+        raise ValueError("architecture.violations is invalid")
+    violations: list[dict[str, object]] = []
+    for index, raw in enumerate(raw_violations):
+        item = _mapping(raw, f"architecture.violations[{index}]")
+        _exact_keys(
+            item,
+            {"rule_id", "path", "marker", "rationale", "severity"},
+            f"architecture.violations[{index}]",
+        )
+        violations.append({
+            "rule_id": _string(item.get("rule_id"), f"architecture.violations[{index}].rule_id", 120),
+            "path": _string(item.get("path"), f"architecture.violations[{index}].path", 400),
+            "marker": _string(item.get("marker"), f"architecture.violations[{index}].marker", 400),
+            "rationale": _string(item.get("rationale"), f"architecture.violations[{index}].rationale", 500),
+            "severity": _integer(
+                item.get("severity"), f"architecture.violations[{index}].severity", minimum=1, maximum=5
+            ),
+        })
+    architecture = {
+        "violations": violations,
+        "summary": _string(raw_architecture.get("summary"), "architecture.summary", 500),
+    }
+
     observed_at = _string(value.get("observed_at"), "observed_at", 80)
     subject = _mapping(value.get("subject"), "subject")
     _exact_keys(subject, {"repository", "pr_number", "head_sha", "action"}, "subject")
@@ -156,7 +240,9 @@ def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
     return {
         "schema_version": SCHEMA_VERSION,
         "kind": OBSERVATION_KIND,
-        "mode": "shadow",
+        "mode": mode,
+        "enforcement": enforcement,
+        "architecture": architecture,
         "observed_at": observed_at,
         "subject": {
             "repository": repository,
