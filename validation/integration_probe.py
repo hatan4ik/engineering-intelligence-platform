@@ -13,12 +13,54 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
+
+
+# Every variable the probe needs before any subprocess, DNS lookup, or HTTP call
+# runs. Keep in sync with the "Required environment contract" table in
+# ``docs/INTEGRATION-PROOF-RUNBOOK.md``; ``tests/test_integration_probe_configuration.py``
+# asserts that each name below is documented there and set by the workflow.
+REQUIRED_ENVIRONMENT: tuple[str, ...] = (
+    "EIP_BASE_URL",
+    "EIP_INTEGRATION_ALLOWED_BEARER_FILE",
+    "EIP_INTEGRATION_DENIED_BEARER_FILE",
+    "EIP_INTEGRATION_ALLOWED_QUERY",
+    "EIP_INTEGRATION_DENIED_QUERY",
+    "EIP_INTEGRATION_ALLOWED_SOURCE",
+    "AZURE_SEARCH_HOST",
+    "AZURE_OPENAI_HOST",
+    "AZURE_KEYVAULT_HOST",
+    "EIP_COSMOS_HOST",
+    "AZURE_POSTGRESQL_HOST",
+    "EIP_TEMPORAL_HOST",
+    # Unscoped evidence is not evidence (docs/PRODUCTION-EVIDENCE.md: every
+    # promotion decision names service, environment, data source and versions),
+    # and the runbook requires the evidence path to be outside the source
+    # checkout. Neither may fall back to a default on a passing run.
+    "EIP_INTEGRATION_SCOPE",
+    "EIP_INTEGRATION_EVIDENCE",
+)
+
+# Documented in the same table but not required: the repository scopes apply only
+# when the governed test question is repository-scoped. They are still passed by
+# the workflow.
+OPTIONAL_ENVIRONMENT: tuple[str, ...] = (
+    "EIP_INTEGRATION_ALLOWED_REPOSITORY",
+    "EIP_INTEGRATION_DENIED_REPOSITORY",
+)
+
+
+def missing_configuration(environ: Mapping[str, str] | None = None) -> tuple[str, ...]:
+    """Return every required variable that is unset or blank, in documented order."""
+
+    source = os.environ if environ is None else environ
+    return tuple(name for name in REQUIRED_ENVIRONMENT if not str(source.get(name, "")).strip())
 
 
 @dataclass(frozen=True)
@@ -199,21 +241,47 @@ def collect() -> tuple[ProbeResult, ...]:
     return tuple(results)
 
 
-def main() -> int:
-    results = collect()
+def _emit(results: list[dict[str, object]], *, passed: bool) -> None:
+    # The two defaults below are reachable only on the configuration-refusal path,
+    # which runs before ``collect()``: a run that reaches the probes has already
+    # been proven to set EIP_INTEGRATION_SCOPE and EIP_INTEGRATION_EVIDENCE, so a
+    # payload with ``passed: true`` can never be unscoped or land on the default
+    # in-checkout path. A refusal record still has to be written somewhere.
     payload: dict[str, object] = {
         "schema_version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "scope": os.getenv("EIP_INTEGRATION_SCOPE", "unscoped"),
-        "results": [asdict(item) for item in results],
-        "passed": all(item.passed for item in results),
+        "results": results,
+        "passed": passed,
     }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     payload["sha256"] = hashlib.sha256(canonical).hexdigest()
     path = Path(os.getenv("EIP_INTEGRATION_EVIDENCE", "integration-evidence.json"))
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     print(json.dumps(payload, indent=2, sort_keys=True))
-    return 0 if payload["passed"] else 1
+
+
+def main() -> int:
+    # Fail closed before any probe runs. A partially configured run produces a
+    # long list of individually plausible failures that reads like an outage; the
+    # single configuration result says what it actually is.
+    missing = missing_configuration()
+    if missing:
+        _emit(
+            [{"probe": "configuration", "passed": False, "missing": list(missing)}],
+            passed=False,
+        )
+        print(
+            "integration probe refused to run; missing required environment: "
+            + ", ".join(missing),
+            file=sys.stderr,
+        )
+        return 2
+
+    results = collect()
+    passed = all(item.passed for item in results)
+    _emit([asdict(item) for item in results], passed=passed)
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":
