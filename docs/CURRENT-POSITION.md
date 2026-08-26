@@ -28,7 +28,7 @@ request and the first observation record is retained.
 |---|---|
 | Product contracts under test | Done — `product/pr_guardian/contracts.py`, `tests/test_pr_guardian_contracts.py` |
 | Documentation links/anchors gated in CI | Done — `check_links.py`, `check_anchors.py` in `ci.yml` |
-| Reference CI green on `main` | Fixed in this revision (the SBOM step wrote into a directory nothing created); protection of `main` is a repository setting still to enable |
+| Reference CI green on `main` | **Open** — 13 tests currently fail after the partial async Temporal migration changed synchronous workflow/service APIs without updating callers and tests; `main` protection remains a repository setting to enable |
 | Every route in the release image works or is declared | Done — `/healthz` reports capabilities; startup fails closed when a capability is enabled but incomplete |
 | Release image import closure verified | Done — `app/import_closure.py` runs inside the built image in CI |
 | Legacy/unreferenced code retired | Done — `src/`, `providers/` deleted |

@@ -7,6 +7,7 @@ from company_brain.model import (
     BrainPrincipal,
     CompanyBrain,
     CompanyBrainError,
+    EntityKind,
     RelationshipKind,
 )
 from company_brain.projector import CompanyBrainProjector, repository_id, service_id
@@ -172,3 +173,27 @@ def test_relationships_reject_unknown_evidence_and_empty_principals_fail_closed(
         citation="test://unscoped",
         revision="1",
     ).visible_to(BrainPrincipal(groups=("engineering",)))
+
+
+def test_in_memory_projector_removes_prior_file_revisions_when_a_source_is_deleted():
+    brain = CompanyBrain()
+    projector = CompanyBrainProjector(brain)
+    projector.project_file_change(change(service="payments", owner="team-payments", path="services/payments/app.yaml"))
+    deleting_change = FileChange(
+        source=SourceIdentity(
+            provider="github",
+            repository="acme/payments",
+            branch="main",
+            commit_sha="new-delete-commit",
+            path="services/payments/app.yaml",
+        ),
+        change_type=ChangeType.DELETE,
+        acl=ACL(groups=("engineering",)),
+    )
+
+    result = projector.project_file_change(deleting_change)
+
+    assert result.deleted_entity_ids
+    assert not brain.evidence
+    assert not [item for item in brain.entities.values() if item.kind is EntityKind.CHANGE]
+    assert service_id("payments") in brain.entities

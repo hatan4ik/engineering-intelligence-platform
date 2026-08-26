@@ -28,6 +28,15 @@ from .store import (
     StoredEvidence,
     StoredRelationship,
 )
+from .memory import (
+    BrainProjectionJournal,
+    BrainSourceProjection,
+    CompanyBrainMemoryError,
+    CompanyBrainMemoryProjector,
+    ProjectionReceipt,
+    ProjectionState,
+    SqliteBrainProjectionJournal,
+)
 
 __all__ = [
     "BrainEntity",
@@ -53,4 +62,11 @@ __all__ = [
     "StoredEntity",
     "StoredEvidence",
     "StoredRelationship",
+    "BrainProjectionJournal",
+    "BrainSourceProjection",
+    "CompanyBrainMemoryError",
+    "CompanyBrainMemoryProjector",
+    "ProjectionReceipt",
+    "ProjectionState",
+    "SqliteBrainProjectionJournal",
 ]

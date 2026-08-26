@@ -36,6 +36,7 @@ a remediation.
   reconciliation evidence. Legal/compliance-led physical
   purge must be designed with a source-system retention schedule and immutable-audit policy; it is
   intentionally not hidden behind a local convenience method.
-- Connector checkpoints, replay idempotency, source ACL reconciliation, and graph
-  confidence/freshness are separate increments. They must write through this contract rather than
-  bypassing it.
+- Repository and knowledge-document lifecycle now write through this contract via the
+  [governed-memory synchronization boundary](COMPANY-BRAIN-MEMORY-SYNC.md). Connector scheduling,
+  managed outbox/receipt storage, broader source coverage, and graph confidence/freshness remain
+  separate increments.

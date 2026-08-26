@@ -14,6 +14,7 @@ RUN useradd --create-home --shell /usr/sbin/nologin --uid 10001 eip
 # infrastructure, and design artifacts into the release image. The list must
 # match app.import_closure.SHIPPED_PACKAGES; CI imports every shipped module.
 COPY --chown=eip:eip app /app/app
+COPY --chown=eip:eip company_brain /app/company_brain
 COPY --chown=eip:eip feedback /app/feedback
 COPY --chown=eip:eip finops /app/finops
 COPY --chown=eip:eip integrations /app/integrations
