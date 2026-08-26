@@ -95,3 +95,61 @@ state/audit configuration; it must not reuse the evidence worker identity. Manag
 migration, backup/restore, Temporal worker failover, and independent operational validation remain
 separately governed future work. This evidence worker must not be repurposed as a generic task
 executor in the meantime.
+
+## Opt-in remediation workflows
+
+`orchestration/remediation_workflow.py` adds `eip.remediation.v1`, the durable form of the existing
+control loop: evidence → plan → wait for a human approval signal → OPA policy → digital-twin
+rehearsal → action → verify → rollback/escalate → audit. Each step is an activity that writes its
+authoritative state change through the `eip.persist-workflow-lifecycle.v1` bridge above, so no
+remediation step can advance without its audit export.
+
+### What the flag enables
+
+`EIP_TEMPORAL_REMEDIATION_WORKFLOWS=enabled` is the only thing that makes those activities
+runnable. Without it every one of them raises `RemediationWorkflowsDisabled`, and the worker
+registers exactly the workflow list it registered before: `eip.control-plane-evidence.v1` and
+nothing else. **The default deployment behaviour is unchanged.**
+
+Registration additionally requires that `state.factory` can build Cosmos state *and* Cosmos audit
+(`EIP_CONTROL_PLANE_MODE=temporal` plus `EIP_COSMOS_ENDPOINT`, `EIP_COSMOS_DATABASE`,
+`EIP_COSMOS_STATE_CONTAINER`, `EIP_COSMOS_AUDIT_CONTAINER`). The flag alone registers nothing;
+`worker_registration_plan()` reports which variables are missing.
+
+When registration does apply, the worker constructs its activities from an explicit configuration
+set and fails closed listing every absent name:
+
+| Variable | Purpose |
+|---|---|
+| `EIP_REMEDIATION_APPROVAL_SECRET` | HMAC secret the approval-verification activity checks against |
+| `EIP_OPA_ENDPOINT` | Authoritative policy decision service; there is no local fallback on this path |
+| `EIP_REMEDIATION_SOURCE_NAMESPACE` | Namespace the digital twin clones from and the adapter acts in |
+| `EIP_REMEDIATION_POLICY_PATH` | JSON file of reviewed `ServiceAutonomy` policies |
+| `EIP_REMEDIATION_EVIDENCE_PROVIDER` | Must be `fixture:<path>` — see below |
+
+### What it still refuses
+
+- **No production evidence source.** `EIP_REMEDIATION_EVIDENCE_PROVIDER` accepts only
+  `fixture:<path>`. No production evidence provider is wired to this worker, and the worker says so
+  rather than inventing one.
+- **No approval by possession of a token.** The Temporal signal carries the exact plan hash. The
+  workflow rejects a signal naming another workflow or another plan hash — deterministically, with
+  no access to the secret — and records the rejection on the
+  `eip.remediation.rejected-approvals.v1` query. Passing that check only makes the signal a
+  candidate: an activity then verifies its HMAC signature, and the mutation boundary independently
+  refuses to execute without a verified approval.
+- **No silent retry of a mutation.** The action activity is configured with a single attempt. A
+  retry would be a second production action against evidence that is no longer known to hold.
+- **No autonomy escalation.** Autonomy levels and certified runbooks are read from the reviewed
+  policy file. Nothing in this path computes, learns, or raises them.
+- **No certification.** Registering this workflow does not grant L3. The exercises that would
+  support that decision are described in [`L3-REHEARSAL-RUNBOOK.md`](L3-REHEARSAL-RUNBOOK.md), and
+  a simulated exercise run is a rehearsal, not certification evidence.
+
+### Still outstanding
+
+ADR-001's requirement stands: the remote immutable/WORM audit exporter, its retention policy, and
+its independently scoped workload identity remain the gate before this worker may be operated for
+real. `state/cosmos_audit.py` is a hash-chained Cosmos sink with the same chain semantics as the
+SQLite reference log; it is not immutable external retention. Nothing in this change has been
+deployed, operated, or proven.
