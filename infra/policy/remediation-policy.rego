@@ -79,8 +79,22 @@ deny_reason := "service kill switch is enabled" if {
 # present and bound to the right scope; the executor compares it against the
 # inputs it can actually see.
 
+# The declared autonomy_level is a claim, not an authority. A declared "L4"
+# always counts; the one sanctioned downgrade ("L3", a supervised exercise of an
+# L4 scope) does not; anything else -- an absent field, an understated level --
+# falls back to the reviewed service policy level, so the bundle can never be
+# talked out of asking for a certification. Mirrors AutonomyContext.is_l4 in
+# remediation/opa_policy.py.
+declared_level := upper(trim_space(object.get(input, "autonomy_level", "")))
+
 is_l4 if {
-  upper(trim_space(input.autonomy_level)) == "L4"
+  declared_level == "L4"
+}
+
+is_l4 if {
+  declared_level != "L4"
+  declared_level != "L3"
+  input.policy.level >= 4
 }
 
 # Undefined -- not an error -- when the timestamp is missing or unparseable, so

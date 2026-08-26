@@ -275,3 +275,142 @@ def test_a_policy_denial_still_reports_the_policy_reason_not_the_gate():
     assert result.status == "denied"
     assert "error budget exhausted" in result.policy.reason
     assert adapter.executed == []
+
+
+# --- the declared level is a claim, not an authority --------------------------
+
+
+def diverge(*, policy_level, declared, certification=None, adapter=None):
+    adapter = adapter or Adapter()
+    result = execute_control_loop(
+        catalog=default_catalog(),
+        policy=policy(policy_level),
+        request=request(),
+        adapter=adapter,
+        evaluator=LocalReferenceEvaluator(),
+        approval_verified=True,
+        certification=certification,
+        autonomy_level=declared,
+        now=NOW,
+    )
+    return result, adapter
+
+
+@pytest.mark.parametrize(
+    "policy_level,declared",
+    [
+        (AutonomyLevel.BOUNDED_AUTONOMOUS, AutonomyLevel.OBSERVE),
+        (AutonomyLevel.BOUNDED_AUTONOMOUS, AutonomyLevel.RECOMMEND),
+        (AutonomyLevel.BOUNDED_AUTONOMOUS, AutonomyLevel.HUMAN_EXECUTE),
+        (AutonomyLevel.APPROVE_AND_EXECUTE, AutonomyLevel.OBSERVE),
+        (AutonomyLevel.APPROVE_AND_EXECUTE, AutonomyLevel.RECOMMEND),
+        (AutonomyLevel.APPROVE_AND_EXECUTE, AutonomyLevel.HUMAN_EXECUTE),
+        (AutonomyLevel.HUMAN_EXECUTE, AutonomyLevel.OBSERVE),
+        (AutonomyLevel.HUMAN_EXECUTE, AutonomyLevel.RECOMMEND),
+    ],
+)
+def test_an_unsanctioned_downgrade_is_refused_and_names_both_levels(policy_level, declared):
+    result, adapter = diverge(policy_level=policy_level, declared=declared)
+    assert result.status == "blocked"
+    assert result.policy.reason.startswith("autonomy-level:")
+    assert f"L{int(declared)}" in result.policy.reason
+    assert f"L{int(policy_level)}" in result.policy.reason
+    assert adapter.executed == []
+
+
+def test_a_declared_l2_can_no_longer_execute_an_uncertified_l4_mutation():
+    """The reported bypass: declaring a low level must not skip the L4 gate."""
+
+    result, adapter = diverge(
+        policy_level=AutonomyLevel.BOUNDED_AUTONOMOUS,
+        declared=AutonomyLevel.HUMAN_EXECUTE,
+        certification=None,
+    )
+    assert result.status == "blocked"
+    assert adapter.executed == []
+
+
+def test_a_declared_l2_cannot_escape_the_kill_switch(monkeypatch):
+    monkeypatch.setenv("EIP_AUTONOMY_KILL_SWITCH", "true")
+    result, adapter = diverge(
+        policy_level=AutonomyLevel.BOUNDED_AUTONOMOUS,
+        declared=AutonomyLevel.HUMAN_EXECUTE,
+        certification=record(),
+    )
+    assert result.status == "blocked"
+    assert result.policy.reason == "kill-switch"
+    assert adapter.executed == []
+
+
+@pytest.mark.parametrize(
+    "policy_level,declared",
+    [
+        (AutonomyLevel.HUMAN_EXECUTE, AutonomyLevel.APPROVE_AND_EXECUTE),
+        (AutonomyLevel.HUMAN_EXECUTE, AutonomyLevel.BOUNDED_AUTONOMOUS),
+        (AutonomyLevel.APPROVE_AND_EXECUTE, AutonomyLevel.BOUNDED_AUTONOMOUS),
+    ],
+)
+def test_a_declared_level_above_the_reviewed_policy_is_refused(policy_level, declared):
+    result, adapter = diverge(
+        policy_level=policy_level, declared=declared, certification=record()
+    )
+    assert result.status == "blocked"
+    assert result.policy.reason.startswith("autonomy-level:")
+    assert f"L{int(declared)}" in result.policy.reason
+    assert f"L{int(policy_level)}" in result.policy.reason
+    assert adapter.executed == []
+
+
+def test_the_one_permitted_downgrade_runs_an_l4_scope_as_a_supervised_l3():
+    """The exercise path: an L4-policy request run as a supervised L3 run."""
+
+    result, adapter = diverge(
+        policy_level=AutonomyLevel.BOUNDED_AUTONOMOUS,
+        declared=AutonomyLevel.APPROVE_AND_EXECUTE,
+        certification=None,
+    )
+    assert result.status == "succeeded"
+    assert adapter.executed == [RUNBOOK_ID]
+
+
+def test_the_permitted_downgrade_does_not_escape_the_kill_switch(monkeypatch):
+    monkeypatch.setenv("EIP_AUTONOMY_KILL_SWITCH", "true")
+    result, adapter = diverge(
+        policy_level=AutonomyLevel.BOUNDED_AUTONOMOUS,
+        declared=AutonomyLevel.APPROVE_AND_EXECUTE,
+    )
+    assert result.status == "blocked"
+    assert result.policy.reason == "kill-switch"
+    assert adapter.executed == []
+
+
+def test_the_policy_boundary_is_told_the_effective_level_not_the_declared_one():
+    seen: dict = {}
+
+    class Recorder(LocalReferenceEvaluator):
+        def evaluate(self, **kwargs):
+            seen.update(kwargs)
+            return super().evaluate(**kwargs)
+
+    execute_control_loop(
+        catalog=default_catalog(),
+        policy=policy(AutonomyLevel.BOUNDED_AUTONOMOUS),
+        request=request(),
+        adapter=Adapter(),
+        evaluator=Recorder(),
+        approval_verified=True,
+        certification=record(),
+        autonomy_level=AutonomyLevel.BOUNDED_AUTONOMOUS,
+        now=NOW,
+    )
+    assert seen["autonomy"].autonomy_level == "L4"
+    assert seen["autonomy"].policy_level == int(AutonomyLevel.BOUNDED_AUTONOMOUS)
+
+
+def test_a_declared_level_that_is_not_a_level_at_all_is_refused():
+    result, adapter = diverge(
+        policy_level=AutonomyLevel.BOUNDED_AUTONOMOUS, declared=42, certification=record()
+    )
+    assert result.status == "blocked"
+    assert result.policy.reason.startswith("autonomy-level:")
+    assert adapter.executed == []

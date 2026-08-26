@@ -218,3 +218,43 @@ def test_l3_is_not_asked_for_a_certification():
         autonomy=context(autonomy_level="L3", certification=None),
     )
     assert decision.allowed
+
+
+def test_a_level_four_policy_is_asked_for_a_certification_even_with_no_declared_level():
+    """The bundle must not fall through permissively when the field is absent."""
+
+    decision = LocalReferenceEvaluator().evaluate(
+        runbook=default_catalog().get("aks.rollout.undo"),
+        policy=policy(),
+        request=request(),
+        approval_verified=True,
+        control=PolicyControlState(),
+        autonomy=AutonomyContext(autonomy_level="", scope_hash="a" * 64, now="2026-08-26T00:00:00+00:00"),
+    )
+    assert not decision.allowed
+    assert decision.reason.startswith("l4-certification:")
+
+
+def test_the_reviewed_policy_level_outranks_a_claimed_low_level():
+    decision = LocalReferenceEvaluator().evaluate(
+        runbook=default_catalog().get("aks.rollout.undo"),
+        policy=policy(),
+        request=request(),
+        approval_verified=True,
+        control=PolicyControlState(),
+        autonomy=context(autonomy_level="L2", certification=None),
+    )
+    assert not decision.allowed
+    assert decision.reason.startswith("l4-certification:")
+
+
+def test_the_sanctioned_supervised_downgrade_is_not_asked_for_a_certification():
+    decision = LocalReferenceEvaluator().evaluate(
+        runbook=default_catalog().get("aks.rollout.undo"),
+        policy=policy(),
+        request=request(),
+        approval_verified=True,
+        control=PolicyControlState(),
+        autonomy=context(autonomy_level="L3", certification=None),
+    )
+    assert decision.allowed

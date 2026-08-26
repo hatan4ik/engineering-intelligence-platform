@@ -143,10 +143,11 @@ no override flag. Recertify: rerun the exercises, retain the evidence, rerun
 
 | Order | Condition | Result | Reason |
 |---|---|---|---|
-| 1 | `EIP_AUTONOMY_KILL_SWITCH=true` and level ≥ L3 | `blocked` | `kill-switch` |
-| 2 | L4 with no record / unreadable or past `expires_on` / wrong `scope_hash` / no scope hash | `blocked` | `l4-certification: …` |
-| 3 | policy (OPA or the reference evaluator) denies | `denied` | the policy reason |
-| 4 | L4 and `inputs_hash` differs from the current material inputs | `blocked` | `l4-certification: material inputs changed …` |
+| 1 | `EIP_AUTONOMY_KILL_SWITCH=true` and `max(policy.level, declared)` ≥ L3 | `blocked` | `kill-switch` |
+| 2 | the declared `autonomy_level` diverges from the policy other than by the one sanctioned downgrade | `blocked` | `autonomy-level: …` (names both levels) |
+| 3 | L4 with no record / unreadable or past `expires_on` / wrong `scope_hash` / no scope hash | `blocked` | `l4-certification: …` |
+| 4 | policy (OPA or the reference evaluator) denies | `denied` | the policy reason |
+| 5 | L4 and `inputs_hash` differs from the current material inputs | `blocked` | `l4-certification: material inputs changed …` |
 
 Ordering notes: the kill switch outranks everything, including a complete and
 valid certification. Presence, expiry and scope are decided before the policy
@@ -154,8 +155,24 @@ service is contacted, so an uncertified L4 request never reaches it. The
 material-inputs check runs last because the hash binds the policy bundle revision
 that authorised the request, which is only known once the decision comes back.
 
-`autonomy_level` defaults to the reviewed service policy's level, so a caller
-that declares nothing is still gated at the level its policy actually grants.
+### The declared level is a claim, not an authority
+
+`autonomy_level` says what level a caller *believes* it is running at. The
+reviewed `ServiceAutonomy` is what actually grants the level, so:
+
+* an absent `autonomy_level` resolves to `policy.level`;
+* a declared level **above** `policy.level` is refused;
+* a declared level **below** `policy.level` is refused — with exactly one
+  exception: `APPROVE_AND_EXECUTE` (L3) under an L4 policy, the supervised
+  exercise path. The promotion rule makes supervised runs the *input* to
+  certification, so they must not require the certification they exist to earn;
+* the kill switch keys off `max(policy.level, declared)`, so no downgrade —
+  sanctioned or not — steps around it.
+
+Without this clamp a caller could declare L2 against an L4 policy and execute an
+uncertified production mutation with the kill switch engaged. The refusal reason
+names both levels.
+
 L0–L2 are unaffected by both the kill switch and the certification gate.
 
 ### The policy boundary decides for itself
@@ -165,7 +182,12 @@ OPA is a separate authorization boundary, so the input document carries
 `certification: {scope_hash, inputs_hash, expires_on}`.
 `infra/policy/remediation-policy.rego` denies an L4 request whose certification
 is absent, null, expired, unreadable, for another scope, or carrying no
-material-inputs hash. OPA cannot recompute the material-inputs hash — it would
+material-inputs hash. It treats the declared level exactly as the executor does:
+a declared `L4` always counts, the sanctioned `L3` downgrade does not, and
+anything else — an absent field, an understated level — falls back to
+`input.policy.level >= 4`. A request with `policy.level: 4` and no
+`autonomy_level` at all is therefore denied without a certification, rather than
+falling through the rule chain. OPA cannot recompute the material-inputs hash — it would
 have to reproduce the executor's canonical JSON of the runbook definition — so it
 checks that one is present and bound to the right scope, and the executor
 compares the value. `LocalReferenceEvaluator` mirrors the same rules so the

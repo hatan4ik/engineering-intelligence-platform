@@ -167,3 +167,47 @@ test_the_error_budget_control_outranks_the_certification_check if {
   result.allowed == false
   result.reason == "error budget exhausted; autonomous mutation disabled"
 }
+
+# --- the declared autonomy_level is a claim, not an authority ----------------
+
+l4_policy_no_declared_level := object.union(base_input, {
+  "policy": object.union(base_input.policy, {"level": 4}),
+  "now": "2026-08-26T00:00:00Z",
+  "scope": {"scope_hash": "scope-aaa"}
+})
+
+test_deny_a_level_four_policy_with_no_declared_level_and_no_certification if {
+  result := decision with input as l4_policy_no_declared_level
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_allow_a_level_four_policy_with_no_declared_level_and_a_valid_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "certification": {
+      "scope_hash": "scope-aaa",
+      "inputs_hash": "inputs-bbb",
+      "expires_on": "2026-11-01T00:00:00Z"
+    }
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_deny_a_level_four_policy_that_understates_its_level if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": "L2"})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_the_sanctioned_supervised_downgrade_is_not_asked_for_a_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": "L3"})
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_a_level_three_policy_with_no_declared_level_is_not_asked_for_a_certification if {
+  result := decision with input as base_input
+  result.allowed == true
+}

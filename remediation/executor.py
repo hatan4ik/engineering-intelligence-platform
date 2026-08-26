@@ -14,6 +14,7 @@ from resilience.certification import (
 
 from .catalog import AutonomyLevel, Runbook, RunbookCatalog
 from .opa_policy import (
+    SUPERVISED_DOWNGRADE,
     AutonomyContext,
     CertificationClaim,
     LocalReferenceEvaluator,
@@ -32,6 +33,9 @@ KILL_SWITCH_ENV = "EIP_AUTONOMY_KILL_SWITCH"
 #: The refusal reason the kill switch produces. It is a fixed token so an
 #: operator can grep for it and a dashboard can count it.
 KILL_SWITCH_REASON = "kill-switch"
+
+#: Prefix on refusals that come from the declared autonomy level itself.
+AUTONOMY_LEVEL_CHECK = "autonomy-level"
 
 
 def autonomy_kill_switch_engaged(environ: Mapping[str, str] | None = None) -> bool:
@@ -75,6 +79,48 @@ def _preflight(adapter: ActionAdapter, runbook: Runbook, request: ActionRequest)
     return bool(result), "runbook preconditions satisfied" if result else "runbook preconditions failed"
 
 
+def _effective_level(
+    declared: AutonomyLevel | int | None, policy: ServiceAutonomy
+) -> tuple[AutonomyLevel, str | None]:
+    """Resolve the level a request actually runs at from the level it claims.
+
+    The reviewed service policy is the authority; the declared level is a claim.
+    A caller may claim the policy's own level, or make exactly one downgrade --
+    running an L4-policy request as a supervised L3, which is the exercise path
+    the promotion rule requires. Every other divergence is refused, naming both
+    levels, because silently honouring it would let a caller execute an
+    uncertified L4 mutation and step around the kill switch.
+    """
+
+    granted = policy.level
+    if declared is None:
+        return granted, None
+    try:
+        claimed = AutonomyLevel(int(declared))
+    except (TypeError, ValueError):
+        return granted, (
+            f"{AUTONOMY_LEVEL_CHECK}: declared autonomy level {declared!r} is not an "
+            f"autonomy level; the reviewed service policy grants L{int(granted)}"
+        )
+    if claimed == granted:
+        return granted, None
+    if claimed > granted:
+        return granted, (
+            f"{AUTONOMY_LEVEL_CHECK}: declared L{int(claimed)} exceeds the reviewed "
+            f"service policy level L{int(granted)}"
+        )
+    if (
+        claimed == AutonomyLevel.APPROVE_AND_EXECUTE
+        and granted == AutonomyLevel.BOUNDED_AUTONOMOUS
+    ):
+        # The one sanctioned downgrade: a supervised exercise of an L4 scope.
+        return claimed, None
+    return granted, (
+        f"{AUTONOMY_LEVEL_CHECK}: declared L{int(claimed)} is not a permitted downgrade "
+        f"from the reviewed service policy level L{int(granted)}"
+    )
+
+
 def _autonomy_context(
     *,
     level: AutonomyLevel,
@@ -98,6 +144,9 @@ def _autonomy_context(
         autonomy_level=f"L{int(level)}",
         scope_hash=scope_hash,
         now=now.isoformat(),
+        # The reviewed policy level travels with the claim so the policy
+        # boundary can refuse to be talked out of asking for a certification.
+        policy_level=int(policy.level),
         certification=(
             CertificationClaim(
                 scope_hash=certification.scope_hash,
@@ -153,10 +202,13 @@ def execute_control_loop(
 ) -> ExecutionResult:
     """Run the bounded control loop for one request.
 
-    ``autonomy_level`` is the level this request is being executed at. It
-    defaults to the reviewed service policy's level, so a caller that says
-    nothing is still gated at the level its policy actually grants; a caller may
-    pass a lower level explicitly, never a higher one than it operates at.
+    ``autonomy_level`` is the level this request *claims* to be executed at. The
+    reviewed service policy is the authority: an absent claim resolves to
+    ``policy.level``, and the only divergence honoured is the one sanctioned
+    downgrade -- running an L4-policy request as a supervised L3, which is the
+    exercise path. Every other divergence, above or below, is refused with a
+    reason naming both levels. The kill switch keys off the higher of the two,
+    so a downgrade cannot step around it.
 
     ``certification`` is the only authority an L4 execution accepts. Its
     presence, expiry and scope are decided before the policy service is
@@ -169,16 +221,24 @@ def execute_control_loop(
     """
 
     runbook = catalog.get(request.runbook_id)
-    level = AutonomyLevel(int(autonomy_level)) if autonomy_level is not None else policy.level
+    level, level_refusal = _effective_level(autonomy_level, policy)
     moment = now or datetime.now(timezone.utc)
 
     # Fail closed first: the kill switch outranks every other control, including
-    # a complete and valid certification.
-    if level >= AutonomyLevel.APPROVE_AND_EXECUTE and autonomy_kill_switch_engaged(environ):
+    # a complete and valid certification. It keys off the *higher* of the granted
+    # and declared levels so no downgrade -- sanctioned or not -- escapes it.
+    switch_level = max(policy.level, level)
+    if switch_level >= AutonomyLevel.APPROVE_AND_EXECUTE and autonomy_kill_switch_engaged(environ):
         return ExecutionResult(
             status="blocked",
             policy=PolicyDecision(False, KILL_SWITCH_REASON),
             error=f"{KILL_SWITCH_ENV} is engaged; no L3 or L4 execution runs",
+        )
+    if level_refusal is not None:
+        return ExecutionResult(
+            status="blocked",
+            policy=PolicyDecision(False, level_refusal),
+            error=level_refusal,
         )
     if evaluator is None and os.getenv("EIP_REQUIRE_OPA", "false").lower() == "true":
         decision = PolicyDecision(False, "OPA policy evaluator is required but not configured")

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
@@ -39,6 +39,12 @@ class CertificationClaim:
         }
 
 
+#: The only downgrade a caller may declare: running an L4-policy request as a
+#: supervised L3. It is the exercise path -- the promotion rule makes supervised
+#: runs the *input* to certification, so they cannot require it.
+SUPERVISED_DOWNGRADE = "L3"
+
+
 @dataclass(frozen=True)
 class AutonomyContext:
     """The autonomy level a request runs at and the certification it presents.
@@ -46,16 +52,36 @@ class AutonomyContext:
     ``scope_hash`` is the scope the *request* falls in. A certification whose
     ``scope_hash`` differs certifies something else, so the policy boundary can
     reject it without knowing anything about runbooks.
+
+    ``policy_level`` is the reviewed service policy's level. It is carried
+    separately from ``autonomy_level`` because a declared level is a *claim*: an
+    absent or understated one must not talk the policy boundary out of asking
+    for a certification.
     """
 
     autonomy_level: str
     scope_hash: str = ""
     now: str = ""
     certification: CertificationClaim | None = None
+    policy_level: int = 0
 
     @property
     def is_l4(self) -> bool:
-        return self.autonomy_level.strip().upper() == "L4"
+        """Whether this request must present an L4 certification.
+
+        Mirrors ``is_l4`` in ``infra/policy/remediation-policy.rego``. A declared
+        ``L4`` always counts. The single sanctioned downgrade (``L3``) does not.
+        Anything else -- including an absent or understated declaration -- falls
+        back to the reviewed policy level, so the field can never be used to
+        talk the gate out of firing.
+        """
+
+        declared = str(self.autonomy_level).strip().upper()
+        if declared == "L4":
+            return True
+        if declared == SUPERVISED_DOWNGRADE:
+            return False
+        return int(self.policy_level) >= 4
 
     @staticmethod
     def for_policy(policy: ServiceAutonomy) -> "AutonomyContext":
@@ -64,6 +90,7 @@ class AutonomyContext:
         return AutonomyContext(
             autonomy_level=f"L{int(policy.level)}",
             now=datetime.now(timezone.utc).isoformat(),
+            policy_level=int(policy.level),
         )
 
 
@@ -225,7 +252,8 @@ class LocalReferenceEvaluator:
         # Mirrors the l4_certification rules in the rego bundle. A caller that
         # supplies no context is evaluated at its reviewed policy level, so an
         # L4 policy is still asked for a certification it cannot produce.
-        denial = certification_denial(autonomy or AutonomyContext.for_policy(policy))
+        context = autonomy or AutonomyContext.for_policy(policy)
+        denial = certification_denial(replace(context, policy_level=int(policy.level)))
         if denial is not None:
             return EvaluatedPolicyDecision(False, denial, "local-reference")
         return EvaluatedPolicyDecision(True, "authorized by local reference policy", "local-reference")
