@@ -9,11 +9,11 @@ from typing import Awaitable, Callable
 from temporalio.client import Client, TLSConfig
 from temporalio.worker import Worker
 
-from control_plane.runtime import TemporalControlPlaneSettings
+from control_plane.runtime import TemporalWorkerSettings
 from orchestration.temporal_workflow import ControlPlaneEvidenceWorkflow
 
 
-def temporal_tls_config(settings: TemporalControlPlaneSettings) -> TLSConfig:
+def temporal_tls_config(settings: TemporalWorkerSettings) -> TLSConfig:
     """Load mTLS material from mounted files; never accept PEM through env vars."""
     return TLSConfig(
         server_root_ca_cert=_read_pem(settings.temporal_tls_ca_cert_path, "Temporal CA certificate"),
@@ -24,7 +24,7 @@ def temporal_tls_config(settings: TemporalControlPlaneSettings) -> TLSConfig:
 
 
 async def connect_temporal(
-    settings: TemporalControlPlaneSettings,
+    settings: TemporalWorkerSettings,
     *,
     connect: Callable[..., Awaitable[Client]] = Client.connect,
 ) -> Client:
@@ -36,7 +36,7 @@ async def connect_temporal(
     )
 
 
-def build_worker(client: Client, settings: TemporalControlPlaneSettings) -> Worker:
+def build_worker(client: Client, settings: TemporalWorkerSettings) -> Worker:
     return Worker(
         client,
         task_queue=settings.temporal_task_queue,
@@ -49,7 +49,7 @@ def build_worker(client: Client, settings: TemporalControlPlaneSettings) -> Work
 
 
 async def run_worker() -> None:
-    settings = TemporalControlPlaneSettings.from_environment()
+    settings = TemporalWorkerSettings.from_environment()
     client = await connect_temporal(settings)
     worker = build_worker(client, settings)
     await worker.run()

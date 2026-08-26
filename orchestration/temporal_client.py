@@ -6,7 +6,7 @@ from typing import Mapping
 
 from temporalio.client import Client
 
-from control_plane.runtime import TemporalControlPlaneSettings
+from control_plane.runtime import TemporalWorkerSettings
 from orchestration.temporal_worker import connect_temporal
 from orchestration.temporal_workflow import (
     ControlPlaneEvidenceRequest,
@@ -16,7 +16,7 @@ from orchestration.temporal_workflow import (
 
 
 async def run_evidence_workflow(
-    settings: TemporalControlPlaneSettings,
+    settings: TemporalWorkerSettings,
     *,
     request_id: str,
     correlation_id: str,

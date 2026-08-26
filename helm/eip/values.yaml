@@ -48,13 +48,13 @@ env:
   AZURE_OPENAI_API_VERSION: "2024-10-21"
 podAnnotations: {}
 temporalWorker:
-  # Off by default: only enable after the separate Temporal server, mTLS
-  # identity, Cosmos RBAC, and immutable-audit evidence path are reviewed.
+  # Off by default. This evidence-only worker has no Azure or Kubernetes API
+  # authority; the future state/audit activity bridge will use a separate,
+  # explicitly reviewed identity and configuration surface.
   enabled: false
   replicaCount: 2
   serviceAccount:
-    name: eip-temporal-worker
-    azureClientId: ""
+    name: eip-temporal-evidence-worker
   podSecurityContext:
     runAsNonRoot: true
     runAsUser: 10001
@@ -80,8 +80,3 @@ temporalWorker:
     caCertKey: ca.crt
     clientCertKey: tls.crt
     clientKeyKey: tls.key
-  cosmos:
-    endpoint: ""
-    database: ""
-    stateContainer: ""
-  immutableAuditEvidenceUri: ""

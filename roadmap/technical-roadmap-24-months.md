@@ -11,6 +11,22 @@ cost evidence—not through completion of a roadmap phase alone. See
 The phases below remain the target-state sequence. They do not authorize an L3/L4 promotion;
 those decisions require the production-proof and evidence contracts.
 
+## Current platform-enablement track
+
+This is an implementation dependency for the product roadmap, not an operational-release plan.
+No Azure, AKS, or private-environment proof is scheduled in this track.
+
+| Slice | Status | Product-boundary outcome |
+|---|---|---|
+| Non-consequential Temporal evidence worker | Complete | An mTLS-only worker contract that cannot execute product actions or use state/audit dependencies |
+| Authoritative state and immutable-audit activity bridge | Current | Durable lifecycle, idempotency, cancellation, restore, failover, and audit-failure semantics for later workflows |
+| Governed knowledge ingestion | Next | Source lifecycle, ACL reconciliation, deletion, and retrieval-quality evaluation needed by PR Intelligence |
+| Product workflow integration | Later | PR Guardian, architecture, deployment, and incident workflows consume the canonical state/event contracts |
+
+Operational validation remains a separate future delivery track defined by
+[`../docs/PRODUCTION-PROOF-PLAN.md`](../docs/PRODUCTION-PROOF-PLAN.md); it is not implied by
+completion of any implementation slice.
+
 ## Phase 0 — Foundation (Months 0–2)
 Build secure model access, AI Gateway/RAG orchestration, hybrid search, metadata store, private networking, identity, token/cost telemetry and retrieval evaluation.
 

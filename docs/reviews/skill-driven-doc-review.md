@@ -23,13 +23,13 @@ supply (and shouldn't — it is a platform, not a deployed enterprise).
 
 | # | Skill | Repo document that feeds it | Verdict |
 |---|---|---|---|
-| 01 | AI Readiness Assessment | DESIGN.md, threat-model, ingestion design; **no org chart** | Partial |
+| 01 | AI Readiness Assessment | design.md, threat-model, ingestion design; **no org chart** | Partial |
 | 02 | Workflow Bottleneck Analysis | — (needs SOPs + frontline transcripts) | N/A |
 | 03 | Use-Case Prioritization | roadmap, PROGRAM-BACKLOG (as candidate list) | Partial |
-| 04 | Build vs Buy | DESIGN.md §11 already records this call (Azure OpenAI vs self-host) | Runnable (audit the existing call) |
+| 04 | Build vs Buy | design.md §11 already records this call (Azure OpenAI vs self-host) | Runnable (audit the existing call) |
 | 05 | ROI Business Case | finops/cfo-roi-model.md | Runnable |
 | 06 | Competitive Landscape | — (needs competitor earnings/postings) | N/A |
-| 07 | Pilot Scoping | vertical-slice.md (as the pilot) | Partial |
+| 07 | Pilot Scoping | milestones/vertical-slice.md (as the pilot) | Partial |
 | 08 | Stakeholder Mapping | governance/operating-model.md (roles only) | Partial |
 | 09 | Architecture Audit | search_schema, topology, integrations/, adapters, app routes | **Runnable (deep)** |
 | 10 | Change-Readiness | — (needs engagement surveys) | N/A |
@@ -37,7 +37,7 @@ supply (and shouldn't — it is a platform, not a deployed enterprise).
 | 12 | Governance Framework | security-threat-model, autonomy tiers, PRODUCTION-READINESS | **Runnable (deep)** |
 | 13 | Decision Rights | "AI recommends / policy authorizes / human approves" model | Runnable |
 | 14 | Escalation Paths | control loop escalate, l4-certification | Runnable |
-| 15 | Vendor Selection | DESIGN.md §11 (Azure chosen) | Partial (audit the call) |
+| 15 | Vendor Selection | design.md §11 (Azure chosen) | Partial (audit the call) |
 | 16 | Sequencing Plan | roadmap, CAPABILITY-RECONCILIATION queue | Runnable |
 | 17 | Pilot Charter | — (needs a specific named pilot + sponsor) | N/A |
 | 18 | Production Gating | docs/PRODUCTION-READINESS.md, l4-certification | **Runnable (deep)** |
@@ -59,7 +59,7 @@ is in production yet.** The docs should not claim outcomes they cannot yet have.
 
 ### Skill 12 — Governance Framework (persona: CISO; kills hand-waving)
 
-**Input used:** `governance/security-threat-model.md`, DESIGN.md §6 + autonomy ladder,
+**Input used:** `governance/security-threat-model.md`, design.md §6 + autonomy ladder,
 `docs/PRODUCTION-READINESS.md`.
 
 **Step 1 — Risk-tiering.** The repo has an autonomy ladder (L0–L4/L5) which is a *capability*

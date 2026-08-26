@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | Certification requirements; a completed document is not a passed certification |
 | **Evidence records** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |
-| **NFRs** | [`../architecture/NFR.md`](../architecture/NFR.md) |
+| **NFRs** | [`../architecture/non-functional-requirements.md`](../architecture/non-functional-requirements.md) |
 
 No agent or remediation is promoted because it appears intelligent. Promotion requires evidence.
 

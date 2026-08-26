@@ -5,13 +5,13 @@ import pytest
 
 pytest.importorskip("temporalio")
 
-from control_plane.runtime import TemporalControlPlaneSettings
+from control_plane.runtime import TemporalWorkerSettings
 from orchestration.temporal_client import run_evidence_workflow
 from orchestration.temporal_workflow import ControlPlaneEvidenceResult
 
 
 def settings():
-    return TemporalControlPlaneSettings(
+    return TemporalWorkerSettings(
         temporal_endpoint="temporal-frontend.eip-system.svc:7233",
         temporal_namespace="eip",
         temporal_task_queue="eip-control-plane",
@@ -19,10 +19,6 @@ def settings():
         temporal_tls_ca_cert_path="/tls/ca.crt",
         temporal_tls_client_cert_path="/tls/tls.crt",
         temporal_tls_client_key_path="/tls/tls.key",
-        cosmos_endpoint="https://eip.documents.azure.com",
-        cosmos_database="eip",
-        cosmos_state_container="state",
-        immutable_audit_evidence_uri="https://audit.example/eip",
     )
 
 

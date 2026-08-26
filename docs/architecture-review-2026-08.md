@@ -53,7 +53,7 @@ E   ModuleNotFoundError: No module named 'app'
 
 `python demo/aks/scenario_runner.py` (step 3 of the CI job, and a documented Quick Start command) fails identically, for the same reason.
 
-**Consequence.** Every correctness claim in the README, `architecture/vertical-slice.md`, and `docs/PRODUCTION-READINESS.md` Gate 1 is unverified. The Dependabot PR (#2, pytest 9.0.3) is red for this reason and not for its own. This is the single highest-leverage fix in the repository: it is roughly four lines and it converts the entire test suite from decorative to load-bearing.
+**Consequence.** Every correctness claim in the README, `architecture/milestones/milestones/vertical-slice.md`, and `docs/PRODUCTION-READINESS.md` Gate 1 is unverified. The Dependabot PR (#2, pytest 9.0.3) is red for this reason and not for its own. This is the single highest-leverage fix in the repository: it is roughly four lines and it converts the entire test suite from decorative to load-bearing.
 
 **Fix.**
 
@@ -103,7 +103,7 @@ def authorized_groups(raw: str | None) -> list[str]:
 
 Group membership is taken verbatim from the client-supplied `X-EIP-Groups` header. There is no authentication, no token validation, no identity at all. Any caller who can reach `/v1/query` can assert any group and retrieve any chunk indexed under it. When the header is absent, the caller is silently granted the `engineering` group — a fail-open default on the exact control that the IP-protection argument depends on.
 
-This directly contradicts three stated invariants: `governance/security-threat-model.md` ("Authenticate every caller with Entra ID; authorize before retrieval"), `architecture/vertical-slice.md` invariant 1, and `docs/PRODUCTION-READINESS.md` Gate 2. The *ordering* is right — authorization precedes retrieval, which is the hard part to retrofit — but the authorization itself is not enforced.
+This directly contradicts three stated invariants: `governance/security-threat-model.md` ("Authenticate every caller with Entra ID; authorize before retrieval"), `architecture/milestones/milestones/vertical-slice.md` invariant 1, and `docs/PRODUCTION-READINESS.md` Gate 2. The *ordering* is right — authorization precedes retrieval, which is the hard part to retrofit — but the authorization itself is not enforced.
 
 **Fix.** Validate an Entra ID bearer token and derive groups from token claims (`groups` / `roles`), never from a request header. Fail closed with `401` when no valid token is present. Keep the header path, if at all, behind an explicit `EIP_ALLOW_HEADER_IDENTITY=true` dev-only flag that refuses to start when `EIP_BACKEND=azure`. Add a test asserting that an unauthenticated request retrieves nothing.
 

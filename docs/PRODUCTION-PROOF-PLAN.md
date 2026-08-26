@@ -4,12 +4,15 @@
 |---|---|
 | **Status** | Target promotion plan; not itself evidence that a gate has passed |
 | **Evidence contract** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |
-| **Operational requirements** | [`../architecture/NFR.md`](../architecture/NFR.md) |
+| **Operational requirements** | [`../architecture/non-functional-requirements.md`](../architecture/non-functional-requirements.md) |
 
 The Engineering Intelligence Platform must not be described as production-ready merely because
 the reference implementation and CI are green. Production readiness is earned from external
 integration evidence, sustained operation, failure drills and measured control-plane behavior.
 Each result must be retained using the evidence contract; a CI artifact alone is insufficient.
+
+This plan is deliberately deferred while the active delivery work is product design and
+implementation. It does not authorize Azure, AKS, or private-environment validation work.
 
 ## Required proof sequence
 

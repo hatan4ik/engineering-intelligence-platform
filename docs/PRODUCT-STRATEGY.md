@@ -5,7 +5,7 @@
 | **Status** | Current product decision — reference implementation, not production proof |
 | **Primary owner** | Engineering Intelligence lead + Developer Experience |
 | **Decision date** | 2026-08-26 |
-| **Related delivery status** | [`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md) |
+| **Related delivery status** | [`../architecture/capability-reconciliation.md`](../architecture/capability-reconciliation.md) |
 
 ## Decision
 

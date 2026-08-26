@@ -1,9 +1,9 @@
-"""Private-runner proof for the non-consequential Temporal worker boundary.
+"""Deferred operational-validation tool for the non-consequential Temporal worker.
 
 This script intentionally creates one *Temporal evidence workflow* (and only
 that workflow). It does not mutate EIP application state, audit exports, cloud
-resources, or remediation targets. Its caller must retain the resulting record
-in the approved immutable evidence system.
+resources, or remediation targets. It is not part of the active product-build
+stage; a later approved validation plan must govern its use and evidence.
 """
 
 from __future__ import annotations
@@ -15,14 +15,14 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from control_plane.runtime import TemporalControlPlaneSettings
+from control_plane.runtime import TemporalWorkerSettings
 from orchestration.temporal_client import run_evidence_workflow
 
 
 def main() -> int:
     request_id = _required("EIP_TEMPORAL_PROBE_REQUEST_ID")
     correlation_id = _required("EIP_TEMPORAL_PROBE_CORRELATION_ID")
-    settings = TemporalControlPlaneSettings.from_environment()
+    settings = TemporalWorkerSettings.from_environment()
     result = asyncio.run(
         run_evidence_workflow(
             settings,

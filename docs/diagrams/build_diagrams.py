@@ -1,6 +1,6 @@
 """Generate the platform's architecture diagrams as themed SVGs.
 
-Diagrams-as-code: every figure in README.md and architecture/DESIGN.md is
+Diagrams-as-code: every figure in README.md and architecture/design.md is
 emitted by this script in a light and a dark variant, sharing one visual
 system (palette roles, entity-stable accents, labeled edges, 8px grid).
 

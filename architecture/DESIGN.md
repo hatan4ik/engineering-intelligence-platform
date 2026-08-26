@@ -4,9 +4,9 @@
 |---|---|
 | **Classification** | Current design — target architecture with referenced implementation contracts |
 | **Owners** | Platform Engineering |
-| **Current implementation state** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md) |
+| **Current implementation state** | [`capability-reconciliation.md`](capability-reconciliation.md) |
 | **Product decision** | [`../docs/PRODUCT-STRATEGY.md`](../docs/PRODUCT-STRATEGY.md) |
-| **NFRs and production evidence** | [`NFR.md`](NFR.md) · [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
+| **NFRs and production evidence** | [`non-functional-requirements.md`](non-functional-requirements.md) · [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 | **Threat model** | [`../governance/security-threat-model.md`](../governance/security-threat-model.md) |
 | **Diagrams** | Generated light/dark SVGs — [`../docs/diagrams/build_diagrams.py`](../docs/diagrams/build_diagrams.py) |
 
@@ -42,7 +42,7 @@ trustworthy, into **supervised self-healing** for certified failure classes.
 
 This document describes the system as designed and identifies contracts implemented in the
 repository. It does not make deployment or production-readiness claims. The
-[capability reconciliation](CAPABILITY-RECONCILIATION.md) records repository/reference status;
+[capability reconciliation](capability-reconciliation.md) records repository/reference status;
 the [production-evidence registry](../docs/PRODUCTION-EVIDENCE.md) records what has actually
 been proven for a named environment and scope.
 
@@ -342,7 +342,7 @@ Crucially, new AI agents or prompt modifications are never deployed directly to 
 ## 12. Risks and open questions
 
 Tracked honestly; grades and queue live in the
-[capability reconciliation](CAPABILITY-RECONCILIATION.md).
+[capability reconciliation](capability-reconciliation.md).
 
 1. **Identity is implemented but not yet universally enforced** — Entra JWT validation and
    hashed-API-key principals exist (`app/entra_identity.py`, `app/gateway.py`); the residual

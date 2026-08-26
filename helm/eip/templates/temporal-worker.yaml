@@ -1,7 +1,6 @@
 {{- if .Values.temporalWorker.enabled }}
 {{- $worker := .Values.temporalWorker }}
 {{- $workerServiceAccount := required "temporalWorker.serviceAccount.name is required when the Temporal worker is enabled" $worker.serviceAccount.name }}
-{{- $workerClientId := required "temporalWorker.serviceAccount.azureClientId is required when the Temporal worker is enabled" $worker.serviceAccount.azureClientId }}
 {{- if lt (int $worker.replicaCount) 2 }}
 {{- fail "temporalWorker.replicaCount must be at least 2 for the worker disruption budget" }}
 {{- end }}
@@ -18,19 +17,11 @@
 {{- fail (printf "temporalWorker.tls.%s must be a Kubernetes Secret key" $keyName) }}
 {{- end }}
 {{- end }}
-{{- $cosmosEndpoint := required "temporalWorker.cosmos.endpoint is required" $worker.cosmos.endpoint }}
-{{- $cosmosDatabase := required "temporalWorker.cosmos.database is required" $worker.cosmos.database }}
-{{- $cosmosContainer := required "temporalWorker.cosmos.stateContainer is required" $worker.cosmos.stateContainer }}
-{{- $auditUri := required "temporalWorker.immutableAuditEvidenceUri is required" $worker.immutableAuditEvidenceUri }}
-{{- if hasPrefix "file:" $auditUri }}
-{{- fail "temporalWorker.immutableAuditEvidenceUri must name an approved remote evidence store" }}
-{{- end }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $workerServiceAccount }}
-  annotations:
-    azure.workload.identity/client-id: {{ $workerClientId | quote }}
+automountServiceAccountToken: false
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -47,7 +38,6 @@ spec:
       labels:
         app.kubernetes.io/name: {{ .Chart.Name }}
         app.kubernetes.io/component: temporal-worker
-        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: {{ $workerServiceAccount }}
       terminationGracePeriodSeconds: 60
@@ -79,14 +69,6 @@ spec:
               value: "/var/run/eip/temporal-tls/{{ $worker.tls.clientCertKey }}"
             - name: EIP_TEMPORAL_TLS_CLIENT_KEY_PATH
               value: "/var/run/eip/temporal-tls/{{ $worker.tls.clientKeyKey }}"
-            - name: EIP_COSMOS_ENDPOINT
-              value: {{ $cosmosEndpoint | quote }}
-            - name: EIP_COSMOS_DATABASE
-              value: {{ $cosmosDatabase | quote }}
-            - name: EIP_COSMOS_STATE_CONTAINER
-              value: {{ $cosmosContainer | quote }}
-            - name: EIP_IMMUTABLE_AUDIT_EVIDENCE_URI
-              value: {{ $auditUri | quote }}
           volumeMounts:
             - name: temporal-client-tls
               mountPath: /var/run/eip/temporal-tls

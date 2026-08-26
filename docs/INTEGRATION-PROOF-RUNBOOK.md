@@ -1,9 +1,10 @@
-# Private integration-proof runbook
+# Deferred private integration-validation runbook
 
 | | |
 |---|---|
 | **Purpose** | Produce read-only evidence for a named integration environment |
 | **Mutation authority** | None — this runner must not apply Terraform, Helm, schemas, or source changes |
+| **Current status** | Deferred operational-validation track; do not run during the active product-build stage |
 | **Evidence contract** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |
 
 ## Preconditions

@@ -33,14 +33,14 @@ production-certified.
 
 | Document | Classification | Authority |
 |---|---|---|
-| [`../architecture/DESIGN.md`](../architecture/DESIGN.md) | Current design | System invariants and target architecture |
-| [`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md) | Current implementation state | Reference implementation capability status and queue |
-| [`../architecture/NFR.md`](../architecture/NFR.md) | Current design | Operational, data, and safety requirements |
+| [`../architecture/design.md`](../architecture/design.md) | Current design | System invariants and target architecture |
+| [`../architecture/capability-reconciliation.md`](../architecture/capability-reconciliation.md) | Current implementation state | Reference implementation capability status and queue |
+| [`../architecture/non-functional-requirements.md`](../architecture/non-functional-requirements.md) | Current design | Operational, data, and safety requirements |
 | [`PRODUCT-STRATEGY.md`](PRODUCT-STRATEGY.md) | Current product decision | First product wedge and expansion gates |
 | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) | Current evidence contract | What must be retained to support a promotion claim |
 | [`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md) | Target promotion plan | Required sequence and gates |
-| [`../architecture/MATURITY-SCORECARD.md`](../architecture/MATURITY-SCORECARD.md) | Current repository assessment | Directional maturity, never production proof |
-| [`../architecture/ALIGNMENT-REVIEW.md`](../architecture/ALIGNMENT-REVIEW.md) | Historical review | Pre-corrective baseline only |
+| [`../architecture/maturity-scorecard.md`](../architecture/maturity-scorecard.md) | Current repository assessment | Directional maturity, never production proof |
+| [`../architecture/alignment-review.md`](../architecture/alignment-review.md) | Historical review | Pre-corrective baseline only |
 | [`architecture-review-2026-08.md`](architecture-review-2026-08.md) | Historical review | Point-in-time assessment only |
 
 ## Review cadence

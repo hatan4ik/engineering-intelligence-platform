@@ -1,91 +1,93 @@
-# Temporal Worker Runbook
+# Temporal Worker Implementation Boundary
 
 | | |
 |---|---|
-| **Status** | Implemented worker boundary; no Temporal environment has been deployed or certified |
-| **Scope** | L0 durable-scheduling evidence only; no business state, audit export, or remediation mutation |
-| **Decision** | [`../architecture/ADR-001-temporal-control-plane.md`](../architecture/ADR-001-temporal-control-plane.md) |
-| **Evidence contract** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |
+| **Classification** | Current implementation state |
+| **Status** | Evidence-worker boundary implemented; undeployed, unoperated, and not production-proven |
+| **Scope** | L0 durable-scheduling capability only; no business state, audit export, product action, or remediation mutation |
+| **Pipeline position** | Enablement slice complete; authoritative state and immutable-audit activity bridge is the current next stage |
+| **Decision** | [`../architecture/adr/001-temporal-control-plane.md`](../architecture/adr/001-temporal-control-plane.md) |
+| **Product roadmap** | [`../roadmap/technical-roadmap-24-months.md`](../roadmap/technical-roadmap-24-months.md) |
 
-## What is implemented
+This file intentionally keeps its historical name so existing links remain valid. It is an
+implementation-boundary document, not an operating runbook: there is no Temporal environment to
+operate in the active product-build stage.
 
-`orchestration.temporal_worker` starts a pinned Temporal Python SDK worker only when
-`EIP_CONTROL_PLANE_MODE=temporal` and every managed dependency is explicit. It registers exactly
-one deterministic workflow: `eip.control-plane-evidence.v1`.
+## Implemented boundary
 
-That workflow returns the caller's bounded request/correlation identifiers and its Temporal
-workflow ID. Its result is explicitly `mutation_performed: false`. It does not call Cosmos, write
-the EIP audit log, execute a runbook, or approve/block a PR. This small slice proves the worker
-registration, mTLS connection contract, task-queue binding, and restart boundary without creating
-a false claim that the control plane is ready for consequential work.
+`orchestration.temporal_worker` starts only when `EIP_CONTROL_PLANE_MODE=temporal` and registers
+exactly one deterministic workflow: `eip.control-plane-evidence.v1`.
 
-The worker is enabled separately through `helm/eip` under `temporalWorker.enabled`; it defaults to
-`false`. The deployment has a distinct Azure Workload Identity service account, at least two
-replicas, a disruption budget, non-root/read-only filesystem settings, and a writable `emptyDir`
-only for `/tmp`.
+The workflow returns its bounded request/correlation identifiers and Temporal workflow ID with
+`mutation_performed: false`. It does not call Cosmos, export an audit record, read a Kubernetes
+API, run a remediation, approve/block a PR, or carry product authority. The purpose is to keep
+the Temporal scheduling and mTLS adapter narrow and testable without claiming that a durable
+business/control plane exists.
 
-## Mandatory configuration
+## Current configuration contract
 
-All values below are required when the worker is enabled. No local default or environment fallback
-exists.
+The evidence worker accepts only the dependencies it consumes. There is no local default or
+fallback.
 
-| Input | Source | Requirement |
-|---|---|---|
-| Temporal endpoint/namespace/task queue | reviewed worker values | Cluster-private `host:port`, dedicated namespace and queue |
-| mTLS server name and Secret | approved certificate delivery | Existing Secret; no PEM material in Helm values or environment variables |
-| `ca.crt`, `tls.crt`, `tls.key` | mounted Secret keys | CA, client certificate, and private key read from fixed mounted paths |
-| Cosmos endpoint/database/container | reviewed worker values + Workload Identity RBAC | Required prerequisite for the future authoritative-state activity bridge |
-| Immutable audit evidence URI | reviewed worker values | Remote URI only; a `file:` URI is rejected |
-| Image | reviewed worker values | Existing digest-pinned image; the worker never accepts a mutable tag |
+| Input | Requirement |
+|---|---|
+| Temporal endpoint, namespace, task queue | Explicit private `host:port`, dedicated namespace and queue |
+| mTLS server name and Secret | Existing approved Secret; no PEM material in Helm values or environment variables |
+| `ca.crt`, `tls.crt`, `tls.key` | Mounted Secret files, read from fixed paths only |
+| Image | Digest-pinned image; no mutable tag |
 
-The worker exits rather than connecting if any setting or PEM file is absent/malformed. The chart
-does not create the certificate Secret, PostgreSQL user, Temporal databases, or schemas.
+`EIP_COSMOS_ENDPOINT`, state-container settings, and immutable-audit destination settings are
+not evidence-worker configuration. They will be introduced only with the activity bridge that
+uses them.
 
-## Render-only preflight
+## Deployment boundary
 
-Use the CI fixture only to validate template shape; it contains `example.invalid` identifiers and
-cannot be applied:
+`helm/eip` renders this worker only when `temporalWorker.enabled=true`; it is `false` by default.
+The rendered workload has at least two replicas, a disruption budget, non-root/read-only
+filesystem settings, a writable `emptyDir` only for `/tmp`, and a dedicated ServiceAccount with
+Kubernetes API token mounting disabled.
+
+The evidence worker deliberately has no Azure Workload Identity, Cosmos RBAC, or audit-store
+credential. Granting those permissions before an activity consumes them would expand the trust
+boundary without product value. The state/audit bridge must receive its own least-privilege
+identity and configuration surface; it must not reuse this worker's identity merely for
+convenience.
+
+Source-only template checks remain valid and do not contact Azure:
 
 ```bash
 helm lint helm/eip --values helm/eip/values.ci.yaml
 helm template eip helm/eip --values helm/eip/values.ci.yaml
 ```
 
-Before any private integration release, use an approved private runner to verify the rendered
-image digest, Workload Identity client IDs, private DNS resolution, mTLS chain/server name, the
-separately migrated Temporal server, and the least-privilege Cosmos access. Do not use `--set` for
-certificate material, database credentials, or audit endpoints.
+The CI fixture uses `example.invalid` identifiers and an all-zero image digest; it cannot identify
+or deploy a real environment.
 
-## Integration proof and stop conditions
+## Explicitly out of scope now
 
-The first private proof is a read-only Temporal evidence workflow. Retain its request ID, Temporal
-workflow ID/run ID, namespace, queue, worker image digest, mTLS/DNS verification, worker restart
-observation, and independent reviewer approval in the immutable evidence system.
+No Azure, AKS, Temporal-server, private-runner, certificate, DNS, workflow-execution, or
+production-proof exercise is part of this stage. The deferred helper
+`validation.temporal_control_plane_probe` is retained for a later approved operational-validation
+plan; this document deliberately provides no execution procedure for it.
 
-From an approved private runner with the reviewed worker environment and mounted client
-certificate files, assign retained identifiers and run the probe once:
+[`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md) and
+[`INTEGRATION-PROOF-RUNBOOK.md`](INTEGRATION-PROOF-RUNBOOK.md) describe a future validation track.
+They do not authorize current work.
 
-```bash
-EIP_TEMPORAL_PROBE_REQUEST_ID='proof-2026-08-26-001' \
-EIP_TEMPORAL_PROBE_CORRELATION_ID='integration-proof-2026-08-26-001' \
-EIP_TEMPORAL_PROBE_EVIDENCE='/approved-evidence/temporal-control-plane-evidence.json' \
-python -m validation.temporal_control_plane_probe
-```
+## Next implementation stage: state and immutable audit activity bridge
 
-The command starts a Temporal workflow record by design, but the registered workflow is
-non-consequential and rejects a result that reports a mutation. It must not run from a public
-workstation or with unreviewed client certificates. Copy the resulting SHA-256 and the Temporal
-workflow run reference into the immutable evidence record; do not rely on the local JSON file.
+Before a PR, incident, approval, or remediation workflow can execute through Temporal, implement
+the following as one coherent slice:
 
-Stop immediately if mTLS validation fails, the endpoint resolves publicly, the worker requires a
-SQLite fallback, an evidence result reports a mutation, or an artifact cannot be tied to the
-deployed image/namespace/task queue. A GitHub Actions run, chart rendering, or local test is not
-integration evidence.
+1. a canonical workflow-lifecycle/event contract with correlation, causation, plan hash, actor,
+   tenant/service scope, and schema version;
+2. an authoritative-state activity with compare-and-swap/version semantics and an idempotency key;
+3. an immutable-audit export activity that fails closed for consequential transitions;
+4. explicit replay, cancellation, timeout, restore, and worker-failover behavior; and
+5. deterministic tests for duplicate delivery, stale writes, partial failure, audit outage, and
+   recovery.
 
-## Deliberately deferred
-
-The next implementation slice must add the authoritative Cosmos state activity and immutable audit
-export adapter together, with idempotency, replay, cancellation, restore, and worker-failover
-tests. Only after that proof can a PR, incident, approval, or remediation workflow be considered
-for Temporal execution. This worker must not be repurposed as a generic task executor in the
-meantime.
+That slice will define its own remote-store configuration, retention/immutability requirements,
+and least-privilege workload identity. Only after its implementation is complete may a later,
+separately governed operational-validation plan be proposed. This evidence worker must not be
+repurposed as a generic task executor in the meantime.

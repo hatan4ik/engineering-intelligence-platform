@@ -4,7 +4,7 @@ import pytest
 
 pytest.importorskip("temporalio")
 
-from control_plane.runtime import TemporalControlPlaneSettings
+from control_plane.runtime import TemporalWorkerSettings
 from orchestration.temporal_worker import connect_temporal, temporal_tls_config
 from orchestration.temporal_workflow import ControlPlaneEvidenceRequest
 
@@ -16,7 +16,7 @@ def settings(tmp_path):
     ca.write_text("-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----\n")
     cert.write_text("-----BEGIN CERTIFICATE-----\ncert\n-----END CERTIFICATE-----\n")
     key.write_text("-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----\n")
-    return TemporalControlPlaneSettings(
+    return TemporalWorkerSettings(
         temporal_endpoint="temporal-frontend.eip-system.svc:7233",
         temporal_namespace="eip",
         temporal_task_queue="eip-control-plane",
@@ -24,10 +24,6 @@ def settings(tmp_path):
         temporal_tls_ca_cert_path=str(ca),
         temporal_tls_client_cert_path=str(cert),
         temporal_tls_client_key_path=str(key),
-        cosmos_endpoint="https://eip.documents.azure.com",
-        cosmos_database="eip",
-        cosmos_state_container="state",
-        immutable_audit_evidence_uri="https://audit.example/eip",
     )
 
 

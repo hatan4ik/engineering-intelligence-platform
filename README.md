@@ -47,7 +47,7 @@ repository assessment; production claims require retained evidence under
 </p>
 
 Full design with per-plane diagrams, data model, failure modes, and alternatives considered:
-**[`architecture/DESIGN.md`](architecture/DESIGN.md)**.
+**[`architecture/design.md`](architecture/design.md)**.
 
 ## Quick start
 
@@ -98,7 +98,7 @@ compiled into every search request **before** any content reaches the model.
 An Azure-backed request path is a reference integration until its identity, private network,
 state/audit, quality, and operational evidence has been retained for a named environment. See
 [`docs/PRODUCTION-EVIDENCE.md`](docs/PRODUCTION-EVIDENCE.md) and
-[`architecture/NFR.md`](architecture/NFR.md).
+[`architecture/non-functional-requirements.md`](architecture/non-functional-requirements.md).
 
 The Helm chart deliberately refuses its default values. A deployment must provide a reviewed
 values file with a digest-pinned image, Workload Identity client ID, Entra tenant/audience, and
@@ -110,7 +110,7 @@ is a placeholder-only starting point, not an apply authorization.
 For the durable control plane, the selected integration path is Temporal on private AKS with
 private PostgreSQL. Its chart has separate fail-closed defaults and requires an existing secret;
 it does not run schema migrations or create database users during a normal server release. See
-[`architecture/ADR-001-temporal-control-plane.md`](architecture/ADR-001-temporal-control-plane.md).
+[`architecture/adr/001-temporal-control-plane.md`](architecture/adr/001-temporal-control-plane.md).
 The image also contains an mTLS-only, non-consequential Temporal evidence worker; see
 [`docs/TEMPORAL-WORKER-RUNBOOK.md`](docs/TEMPORAL-WORKER-RUNBOOK.md). It is not yet the
 authoritative state/audit or remediation execution path.
@@ -123,7 +123,7 @@ authoritative state/audit or remediation execution path.
 | PR Guardian is the first product surface; it starts as evidence-backed advisory feedback | General engineering chat, enterprise-wide source rollout, blocking controls without calibration, and production self-healing |
 
 The exact status, owner, and remaining depth are in
-[`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md). Do not
+[`architecture/capability-reconciliation.md`](architecture/capability-reconciliation.md). Do not
 infer deployment readiness from a demo, test, or maturity score.
 
 ## Documentation
@@ -174,7 +174,7 @@ pytest -q  # contracts, durability, composition, API, and policy tests
   See [the shadow-pilot runbook](docs/PR-GUARDIAN-SHADOW-PILOT.md); no pilot evidence is collected
   or claimed by this repository alone.
 - Every PR must map to a capability in the
-  [reconciliation](architecture/CAPABILITY-RECONCILIATION.md) and improve a measurable
+  [reconciliation](architecture/capability-reconciliation.md) and improve a measurable
   outcome.
 
 ## Transformation path
