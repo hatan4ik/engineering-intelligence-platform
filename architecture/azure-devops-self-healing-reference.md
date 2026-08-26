@@ -1,6 +1,6 @@
 # Azure DevOps, AKS & On-Prem Kubernetes Self-Healing Reference Architecture
 
-> This file describes the **target state**. The implemented reference is intentionally smaller. See `alignment-review.md` for the exact gap matrix.
+> This file describes the **target state**. The implemented reference is intentionally smaller. See the historical [alignment review](ALIGNMENT-REVIEW.md) for the gap matrix recorded at that time.
 
 ## 1. Experience and SDLC integration layer
 

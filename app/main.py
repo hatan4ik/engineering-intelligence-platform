@@ -4,8 +4,9 @@ import json
 import os
 import re
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Protocol
+from typing import AsyncIterator, Protocol
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel
@@ -14,13 +15,25 @@ from app.auth_mode import header_identity_permitted
 from app.gateway import ApiKeyPrincipalStore, GatewayAuthError, GatewayPolicyError, authorize_request
 from app.observability import configure_tracing, tracer
 from app.portal_api import router as portal_router
+from app.runtime_wiring import capability_report, configure_capabilities, release_capabilities
 from feedback.outcome_capture import normalize_github_pr_outcome
 from integrations.github.pr_guardian import normalize_pull_request_event
 from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
 
 configure_tracing()
 trace = tracer()
-app = FastAPI(title="Engineering Intelligence Platform", version="0.6.0")
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    configured = configure_capabilities(application)
+    try:
+        yield
+    finally:
+        release_capabilities(application, configured)
+
+
+app = FastAPI(title="Engineering Intelligence Platform", version="0.6.0", lifespan=lifespan)
 app.include_router(portal_router)
 
 
@@ -160,8 +173,8 @@ def _gateway_identity(
 
 
 @app.get("/healthz")
-def healthz() -> dict[str, str]:
-    return {"status": "ok"}
+def healthz() -> dict[str, object]:
+    return {"status": "ok", "capabilities": capability_report(app)}
 
 
 @app.post("/v1/events/github")

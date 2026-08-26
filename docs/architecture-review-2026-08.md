@@ -6,6 +6,22 @@
 
 ---
 
+## Finding status at 2026-08-26
+
+This review is retained as a point-in-time record. The table records what later work closed so a
+reader can separate live findings from historical ones. Anything not listed is still open.
+
+| Finding | Status | Where |
+|---|---|---|
+| P0-1 pytest cannot collect | Closed | `pyproject.toml` `[tool.pytest.ini_options]` |
+| P0-3 header-asserted identity | Closed | `app/auth_mode.py` fails closed for the Azure backend; Entra validation in `app/entra_identity.py` |
+| P1-7 eval harness fabricates results | Closed | `eval/evaluate.py` drives the real app over a golden set and gates CI |
+| P2-11 `src/` returns nothing | Closed | `src/` and the unused `providers/` stubs were deleted |
+| P2-12 container excludes `ingestion/`, runs as root | Closed | Dockerfile copies the runtime closure, runs as `eip`; CI imports every shipped module inside the image |
+| P0-2, P1-4, P1-5, P1-6, P2-8, P2-9, P2-10, P3-13, P3-14 | Open or partial | Track against the roadmap stages in [`CURRENT-POSITION.md`](CURRENT-POSITION.md) |
+
+---
+
 ## 1. Verdict
 
 The strategic position of this repository is right, and it is unusually well-argued: the control model (*AI recommends, deterministic policy authorizes, allow-listed automation executes, verification closes the loop*) is exactly the invariant that separates a self-healing platform from an outage generator. The autonomy tiers in `governance/security-threat-model.md`, the certification gates in `docs/PRODUCTION-READINESS.md`, and the retrieve-then-reason boundary in `app/main.py` are the correct primitives, and the build-vs-buy call — Azure OpenAI + Managed Identity rather than self-hosted foundation models — matches what scaled engineering organizations actually do.

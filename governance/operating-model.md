@@ -1,5 +1,14 @@
 # Operating Model
 
+| | |
+|---|---|
+| **Classification** | Current design |
+| **Owner** | Platform Engineering |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | intended governance; not evidence that the roles are staffed |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+
+
 ## Executive ownership
 Executive sponsor: VP Engineering / CTO. Program owner: AI Platform / Engineering Intelligence lead.
 

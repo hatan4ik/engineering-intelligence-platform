@@ -1,5 +1,14 @@
 # Durable Orchestration
 
+| | |
+|---|---|
+| **Classification** | Current design |
+| **Owner** | Platform Engineering |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | design; the SQLite queue is reference-only, Temporal runs an evidence-only worker |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+
+
 Workflow state and execution scheduling are separate concerns. `WorkflowRecord` is authoritative business/control-plane state; the durable job queue drives resumable work.
 
 ## Semantics

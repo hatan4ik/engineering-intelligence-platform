@@ -1,5 +1,14 @@
 # Organizational Memory Ingestion
 
+| | |
+|---|---|
+| **Classification** | Current design |
+| **Owner** | Platform Engineering |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | design; ingestion has no runtime trigger yet |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+
+
 The original architecture requires more than repository code. Engineering decisions live in work items, ADRs, runbooks, incident records, deployment history and documentation. These sources use a source-neutral `KnowledgeDocument` contract instead of being disguised as Git files.
 
 ## Required metadata

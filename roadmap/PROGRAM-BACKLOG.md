@@ -1,5 +1,14 @@
 # Engineering Intelligence Platform — A–Z Program Backlog
 
+| | |
+|---|---|
+| **Classification** | Target proposal |
+| **Owner** | Platform Engineering |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | planning themes; sequencing is owned by the roadmap stages |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+
+
 This backlog turns the reference implementation into an enterprise transformation program. Work is deliberately sequenced from evidence and safety foundations toward bounded autonomy.
 
 ## North-star architecture
@@ -80,15 +89,21 @@ Z only after prior controls have production evidence.
 11. Security review and threat-model update.
 12. Runbook and operator documentation.
 
-## Priority execution queue
+## Execution order
 
-1. Production ingestion + AST-aware chunking + ACL propagation.
-2. Service/dependency graph and ownership model.
-3. PR change-risk engine and event-driven PR Guardian.
-4. Incident intelligence correlation pipeline.
-5. Remediation catalog + autonomy policy framework.
-6. SLO-aware verification and digital-twin replay.
-7. Human approval UX and platform portal.
-8. Multi-agent durable orchestration.
-9. Supply-chain + FinOps agents.
-10. Executive control tower and bounded-autonomy certification.
+The A–Z workstreams are themes, not a sequence. Delivery order is owned by the roadmap stages in
+[`technical-roadmap-24-months.md`](technical-roadmap-24-months.md):
+
+| Roadmap stage | Workstreams it draws on |
+|---|---|
+| Stage 0 | A, B, Q, T (architecture/ADRs, build and developer experience, supply chain, threat model and red team) |
+| Stage 1 | W, G, E (SDLC intelligence / PR Guardian, graph intelligence, evaluation golden sets) |
+| Stage 2 | C, D, L, N, O (continuous ingestion, knowledge quality, LLM gateway, private identity/network, observability) |
+| Stage 3 | K, U, F (knowledge lifecycle, portal, FinOps unit economics) |
+| Stage 4 | I, M, Y (incident intelligence, shared agent contracts, executive metrics) |
+| Stage 5 | J, P, R, S, V, H (orchestration, policy-as-code, remediation library, self-healing control plane, digital twin, approval UX) |
+| Stage 6 | Z (zero-touch bounded autonomy) |
+| Deferred | X (cross-cloud interfaces) — see the roadmap's explicit deferrals |
+
+Letters are the workstream keys in the table above; where a letter's scope spans stages, the
+earlier stage takes only the slice its exit gate needs.

@@ -4,6 +4,7 @@
 |---|---|
 | **Classification** | Historical review |
 | **Reviewed revision** | `faa1ba4` (recorded by the original review) |
+| **Label note** | The P0–P4 labels below are *correction waves* recorded by this review. They are unrelated to the P0–P3 *finding severities* in [`../docs/architecture-review-2026-08.md`](../docs/architecture-review-2026-08.md). |
 | **Superseded by** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md), [`non-functional-requirements.md`](non-functional-requirements.md), and [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 
 ## Historical executive conclusion

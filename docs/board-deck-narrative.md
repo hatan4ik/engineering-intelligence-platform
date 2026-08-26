@@ -1,5 +1,14 @@
 # 12-Slide Board Narrative
 
+| | |
+|---|---|
+| **Classification** | Target proposal |
+| **Owner** | Engineering Intelligence lead |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | narrative; benefit figures are modeled, not measured |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+
+
 1. **Engineering Intelligence Transformation Program** — From reactive engineering to supervised autonomous systems.
 2. **The Scaling Problem** — Complexity, fragmented knowledge, MTTR, regression risk and architecture drift grow faster than headcount.
 3. **The Strategic Opportunity** — Build a Private Engineering Intelligence Platform embedded in the SDLC.

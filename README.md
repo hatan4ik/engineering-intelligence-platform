@@ -154,9 +154,7 @@ The portal is organized into:
 | `infra/` | Infra | Terraform (Azure baseline + private AI foundation), OPA policy examples |
 | `helm/eip/` · `helm/temporal/` · `Dockerfile` | Deploy | Fail-closed API chart, pinned Temporal wrapper, and container image |
 | `demo/aks/` | Demo | Fault/remediation scenario runner |
-| `providers/` | Portability | Cloud-neutral provider contracts |
 | `slides/` | Program | Board-deck generator |
-| `src/` | Legacy | Early prototypes retained for reference |
 
 ## Development
 

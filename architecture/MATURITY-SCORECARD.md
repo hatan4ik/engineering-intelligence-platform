@@ -59,18 +59,20 @@ claim.
 
 ## Balance check
 
-Approximate product maturity by architectural layer:
+Layer maturity is the arithmetic mean of the capability rows listed for it, recomputed whenever a
+row changes. The membership is the mapping; there is no separately asserted layer score.
 
-```text
-Organizational Knowledge / RAG        2.7 / 5
-Developer & SDLC Intelligence         2.8 / 5
-Operational Intelligence              2.7 / 5
-Portal / Feedback / Executive UX      2.5 / 5
-Control Plane / Safety                 2.8 / 5
-Self-Healing Mechanics                 3.0 / 5
-Operational L3 Certification           2.0 / 5
-Bounded L4 Autonomy                    1.5 / 5
-```
+| Layer | Capability rows | Mean |
+|---|---|---:|
+| Organizational Knowledge / RAG | Code ingestion, Organizational engineering memory, Hybrid/vector RAG, AI Gateway | **2.8** |
+| Developer & SDLC Intelligence | Service/resource intelligence graph, PR Guardian, Architecture Guard, Predictive / change-risk intelligence, Knowledge Decay | **2.7** |
+| Operational Intelligence | Deployment Failure Investigator, Incident Intelligence, Drift Detector | **2.7** |
+| Portal / Feedback / Executive UX | Engineering Portal / service intelligence, Feedback learning, Executive Control Tower | **2.5** |
+| Control Plane / Safety | Authoritative state, Durable orchestration, OPA mutation authorization, Human approval, Control-plane observability, AI security / red team, Software supply chain | **2.8** |
+| Self-Healing Mechanics | Certified runbook library / AKS actions, Digital twin, Supervised self-healing L3 implementation | **3.0** |
+| Operational L3 Certification | L3 operational certification | **2.0** |
+| Bounded L4 Autonomy | L4 bounded autonomy | **1.5** |
+| Foundations (not a product layer) | Architecture coherence / governance, Secure Azure foundation, FinOps / AI economics, Cross-cloud portability | **2.6** |
 
 The control-plane mechanics are intentionally ahead of L4 certification, but no layer is
 production-capable until its applicable NFRs and retained evidence are satisfied. Future work
@@ -85,13 +87,19 @@ must not increase L4 depth while the upper product layers lack measured outcomes
 5. **Measured vs modeled stays explicit.** Board/ROI metrics carry source and basis lineage.
 6. **Human authority remains for high blast radius.** L5 unrestricted autonomy remains unsupported.
 
-## Next balanced execution queue
+## Next execution queue
 
-1. **PR Guardian / Predictive Risk 2.1:** connect real feedback outcomes to service-specific calibration and monitored false-negative rates.
-2. **Architecture Guard 2.1:** GitHub/ADO publisher, ADR provenance links, reviewed waivers and expiry.
-3. **Knowledge Decay 2.1:** publish maintenance PRs/tickets and track resolution/freshness SLOs.
-4. **Engineering Portal 2.1:** authenticated API/UI combining service intelligence and evidence drill-down.
-5. **Incident Intelligence 2.1:** incident-system publisher and feedback capture from confirmed RCA.
-6. **Drift 2.1:** corrective PR generation and measured false-positive rates.
-7. **Control Tower 2.1:** time-series/trend API and source-lineage drill-down.
-8. **Only after upper layers are ~4.0:** execute retained L3 certification exercises; then evaluate narrowly scoped L4 promotion candidates.
+Sequencing is owned by the roadmap stages in
+[`../roadmap/technical-roadmap-24-months.md`](../roadmap/technical-roadmap-24-months.md); this
+scorecard no longer keeps a competing queue. The capability rows above map to those stages as
+follows:
+
+| Roadmap stage | Capability rows it advances |
+|---|---|
+| Stage 0 — product truth and pilot foundation | Architecture coherence / governance, Software supply chain |
+| Stage 1 — pilot-ready shadow PR Guardian | PR Guardian, Feedback learning, Predictive / change-risk intelligence |
+| Stage 2 — measured advisory decision | Code ingestion, Hybrid/vector RAG, AI Gateway, Secure Azure foundation, Authoritative state |
+| Stage 3 — PR Intelligence V2 and Architecture Guard | Architecture Guard, Knowledge Decay, Service/resource intelligence graph, Engineering Portal |
+| Stage 4 — operations intelligence at L1/L2 | Incident Intelligence, Deployment Failure Investigator, Drift Detector, Executive Control Tower, Control-plane observability |
+| Stage 5 — rehearsed remediation and narrow L3 candidates | Durable orchestration, OPA mutation authorization, Human approval, Certified runbook library, Digital twin, Supervised self-healing L3, L3 operational certification |
+| Stage 6 — bounded L4 autonomy | L4 bounded autonomy (only after Stage 5 evidence; guardrail 2 above still applies) |

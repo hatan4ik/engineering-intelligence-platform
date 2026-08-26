@@ -1,5 +1,14 @@
 # Executive Memo
 
+| | |
+|---|---|
+| **Classification** | Target proposal |
+| **Owner** | Engineering Intelligence lead |
+| **Reviewed** | 2026-08-26 |
+| **Assertions are** | narrative; benefit figures are modeled, not measured |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+
+
 ## Subject
 Engineering Intelligence Transformation Program: velocity, resilience and governed autonomy.
 

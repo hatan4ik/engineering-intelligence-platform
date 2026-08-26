@@ -7,6 +7,7 @@ specific to the supplied documents; anything not traceable to a document is labe
 `[ASSUMPTION]`. Every audit ends with an **Operator Handoff** — what a human still owns.
 
 **Reviewed at:** `main` @ `f598967` + safety-fix branch (PR #74).
+**Citation note (added 2026-08-26):** this review cites a "board review" (`P-F2`, `P-F3`, `P-F7`, `R-F2`, `R-F3`, `R-F6`, `S-F5`, `S-F8`) and a "board plan" (`PR-9`–`PR-12`) that are not in the repository. Treat those references as external context, not as repository evidence; the eight handoff items stand on their own.
 **Framing note:** the pack is built for an *enterprise transformation* (org charts, SOPs,
 frontline transcripts, vendor proposals). This repo is a *reference-implementation platform*
 with rich design/process docs. The "AI workflow under audit" is therefore the platform's own

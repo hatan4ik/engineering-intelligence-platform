@@ -7,6 +7,7 @@ Welcome to the documentation for the Engineering Intelligence Platform. To preve
 - [The Executive Memo](executive-memo.md) - The core problem, scaling tax, and high-level platform vision.
 - [Board Deck Narrative](board-deck-narrative.md) - The 12-slide pitch for VP-level stakeholders.
 - [Product Strategy (Initial Wedge)](PRODUCT-STRATEGY.md) - Why we start with PR Guardian before attempting self-healing.
+- [Current Position](CURRENT-POSITION.md) - Where the platform stands today, on both yardsticks.
 - [24-Month Technical Roadmap](../roadmap/technical-roadmap-24-months.md)
 - [CFO ROI Model](../finops/cfo-roi-model.md) - Value equation and investment gates.
 

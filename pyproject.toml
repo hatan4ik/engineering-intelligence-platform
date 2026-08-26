@@ -1,3 +1,43 @@
+[project]
+name = "engineering-intelligence-platform"
+version = "0.6.0"
+description = "Evidence-backed engineering intelligence: PR Guardian, governed retrieval, and a bounded control plane"
+requires-python = ">=3.12"
+readme = "README.md"
+license = { file = "LICENSE" }
+# Runtime dependencies are pinned exactly in app/requirements.txt, which the
+# container image and CI install from. This list mirrors it without pins so
+# tooling that reads project metadata sees the same closure.
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "pydantic",
+  "httpx",
+  "azure-identity",
+  "azure-search-documents",
+  "azure-cosmos",
+  "openai",
+  "opentelemetry-api",
+  "opentelemetry-sdk",
+  "opentelemetry-exporter-otlp-proto-http",
+  "PyJWT[crypto]",
+  "temporalio",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = [
+  "app*", "control_plane*", "feedback*", "finops*", "ingestion*", "integrations*",
+  "intelligence*", "orchestration*", "portal*", "product*", "security*", "state*",
+  "telemetry*",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]

@@ -70,8 +70,9 @@ with PR Guardian for the first pilot's scope.
   and `EvaluationRun` contracts.
 - Keep GitHub/ADO/PagerDuty-style concerns in `integrations/`; organize only PR Guardian beneath a
   vertical `product/pr_guardian/` boundary as it grows. Do not perform a broad repository rewrite.
-- Make documentation links/anchors a required CI gate, set a documentation authority order, and
-  label `src/` as legacy/reference-only or retire it through a separately reviewed migration.
+- Make documentation links/anchors a required CI gate and set a documentation authority order.
+  The unreferenced `src/` prototypes and `providers/` stubs were retired; their concepts live in
+  `app/` and the target-state architecture documents.
 - Reconcile the capability matrix, scorecard, and roadmap whenever a material reference slice is
   added.
 - Define named pilot repositories, service owners, source access model, data classification,
