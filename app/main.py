@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from app.auth_mode import header_identity_permitted
 from app.gateway import ApiKeyPrincipalStore, GatewayAuthError, GatewayPolicyError, authorize_request
 from app.observability import configure_tracing, tracer
+from app.operations_api import router as operations_router
 from app.portal_api import router as portal_router
 from app.runtime_wiring import capability_report, configure_capabilities, release_capabilities
 from feedback.outcome_capture import normalize_github_pr_outcome
@@ -35,6 +36,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Engineering Intelligence Platform", version="0.6.0", lifespan=lifespan)
 app.include_router(portal_router)
+app.include_router(operations_router)
 
 
 class QueryRequest(BaseModel):

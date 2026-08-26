@@ -14,13 +14,28 @@ class DeploymentEvidenceProvider(Protocol):
 
 
 class DeploymentOutputPublisher(Protocol):
-    def publish(self, *, event: DeploymentFailureEvent, analysis: DeploymentFailureAnalysis) -> None: ...
+    # ``evidence`` is the timeline the analysis was derived from. A publisher that
+    # renders L2 proposals needs it: DeploymentFailureAnalysis keeps derived facts
+    # only, so the deployment events (and their commit attributes) are not in it.
+    def publish(
+        self,
+        *,
+        event: DeploymentFailureEvent,
+        analysis: DeploymentFailureAnalysis,
+        evidence: tuple[EvidenceEvent, ...],
+    ) -> None: ...
 
 
 @dataclass(frozen=True)
 class DeploymentFailureResult:
     workflow_id: str
     analysis: DeploymentFailureAnalysis
+    #: Correlation id of the control-plane workflow, echoed by the trigger routes.
+    correlation_id: str = ""
+    #: The evidence the analysis was derived from. ``DeploymentFailureAnalysis``
+    #: keeps only derived facts, but L2 proposals need the deployment events to
+    #: name an exact commit range.
+    evidence: tuple[EvidenceEvent, ...] = ()
 
 
 class DeploymentFailureInvestigatorService:
@@ -46,5 +61,10 @@ class DeploymentFailureInvestigatorService:
             environment=event.environment,
             analysis=analysis,
         )
-        self.publisher.publish(event=event, analysis=analysis)
-        return DeploymentFailureResult(workflow_id=workflow.workflow_id, analysis=analysis)
+        self.publisher.publish(event=event, analysis=analysis, evidence=tuple(events))
+        return DeploymentFailureResult(
+            workflow_id=workflow.workflow_id,
+            analysis=analysis,
+            correlation_id=workflow.correlation_id,
+            evidence=tuple(events),
+        )

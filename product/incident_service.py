@@ -21,6 +21,9 @@ class IncidentResult:
     workflow_id: str
     analysis: IncidentAnalysis
     impacted_services: tuple[str, ...]
+    #: Correlation id of the control-plane workflow, so a trigger can echo the
+    #: same identifier the audit log recorded.
+    correlation_id: str = ""
 
 
 class IncidentIntelligenceService:
@@ -54,4 +57,4 @@ class IncidentIntelligenceService:
             analysis=analysis,
             impacted_services=impacted,
         )
-        return IncidentResult(workflow.workflow_id, analysis, impacted)
+        return IncidentResult(workflow.workflow_id, analysis, impacted, workflow.correlation_id)

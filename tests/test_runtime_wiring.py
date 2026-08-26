@@ -12,6 +12,7 @@ from feedback.store import SqliteFeedbackStore
 WIRED_ATTRIBUTES = (
     "pr_guardian",
     "feedback_recorder",
+    "operations",
     "service_intelligence_provider",
     "portfolio_intelligence_provider",
     "portfolio_trend_provider",
@@ -63,12 +64,15 @@ def test_healthz_reports_every_capability_as_unconfigured_by_default(monkeypatch
             "pr_guardian_webhook": "unconfigured",
             "feedback_recorder": "unconfigured",
             "portal": "unconfigured",
+            "operations": "unconfigured",
         },
     }
 
 
 def test_lifespan_wires_feedback_recorder_from_environment(monkeypatch, tmp_path):
     db = tmp_path / "feedback.db"
+    monkeypatch.delenv("EIP_OPERATIONS_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("EIP_OPERATIONS_EVIDENCE", raising=False)
     monkeypatch.setenv("EIP_FEEDBACK_DB", str(db))
     monkeypatch.setenv("EIP_GITHUB_WEBHOOK_SECRET", "hooksecret")
     monkeypatch.delenv("EIP_PR_GUARDIAN_WEBHOOK", raising=False)
@@ -91,6 +95,8 @@ def test_lifespan_wires_feedback_recorder_from_environment(monkeypatch, tmp_path
 def test_lifespan_wires_shadow_pr_guardian_when_explicitly_enabled(monkeypatch, tmp_path):
     graph_root = tmp_path / "checkout"
     graph_root.mkdir()
+    monkeypatch.delenv("EIP_OPERATIONS_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("EIP_OPERATIONS_EVIDENCE", raising=False)
     monkeypatch.setenv("EIP_PR_GUARDIAN_WEBHOOK", "enabled")
     monkeypatch.setenv("GITHUB_TOKEN", "token")
     monkeypatch.setenv("EIP_STATE_DIR", str(tmp_path / "state"))
@@ -107,6 +113,8 @@ def test_lifespan_wires_shadow_pr_guardian_when_explicitly_enabled(monkeypatch, 
 
 def test_enabling_pr_guardian_webhook_without_its_dependencies_fails_closed_at_startup(monkeypatch):
     monkeypatch.setenv("EIP_PR_GUARDIAN_WEBHOOK", "enabled")
+    monkeypatch.delenv("EIP_OPERATIONS_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("EIP_OPERATIONS_EVIDENCE", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("EIP_STATE_DIR", raising=False)
     monkeypatch.delenv("EIP_SERVICE_GRAPH_ROOT", raising=False)
