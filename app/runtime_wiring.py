@@ -30,11 +30,13 @@ def capability_report(app: FastAPI, environ: Mapping[str, str] | None = None) ->
     guardian = getattr(app.state, "pr_guardian", None)
     recorder = getattr(app.state, "feedback_recorder", None)
     portal_ready = all(getattr(app.state, name, None) is not None for name in _PORTAL_PROVIDERS)
+    operations = getattr(app.state, "operations", None)
     return {
         "query": source.get("EIP_BACKEND", "deterministic").strip().lower() or "deterministic",
         "pr_guardian_webhook": getattr(guardian, "mode", "unconfigured") if guardian is not None else "unconfigured",
         "feedback_recorder": "sqlite" if recorder is not None else "unconfigured",
         "portal": "configured" if portal_ready else "unconfigured",
+        "operations": "configured" if operations is not None else "unconfigured",
     }
 
 
@@ -59,6 +61,15 @@ def configure_capabilities(app: FastAPI, environ: Mapping[str, str] | None = Non
     if source.get("EIP_PR_GUARDIAN_WEBHOOK", "").strip().lower() == "enabled":
         app.state.pr_guardian = _build_shadow_pr_guardian(source)
         configured.append("pr_guardian")
+
+    # Operational intelligence (L1 analysis + L2 proposals) is enabled by the
+    # presence of any of its variables; an incomplete set raises here rather than
+    # answering 503 forever. See app/operations_api.build_operations_capability.
+    from app.operations_api import build_operations_capability, operations_enabled
+
+    if operations_enabled(source):
+        app.state.operations = build_operations_capability(source)
+        configured.append("operations")
 
     return tuple(configured)
 

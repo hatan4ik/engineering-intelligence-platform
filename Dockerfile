@@ -29,6 +29,9 @@ COPY --chown=eip:eip telemetry /app/telemetry
 COPY --chown=eip:eip control_plane /app/control_plane
 COPY --chown=eip:eip orchestration /app/orchestration
 COPY --chown=eip:eip state /app/state
+# The operational-intelligence routes (app/operations_api.py) resolve a blast
+# radius from the topology store before proposing anything.
+COPY --chown=eip:eip topology /app/topology
 
 EXPOSE 8000
 USER eip

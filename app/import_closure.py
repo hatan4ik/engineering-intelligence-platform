@@ -34,6 +34,9 @@ SHIPPED_PACKAGES: tuple[str, ...] = (
     "control_plane",
     "orchestration",
     "state",
+    # product/incident_service.py (reached by app/operations_api.py) resolves the
+    # blast radius from the topology store, so topology ships with the API.
+    "topology",
 )
 
 
