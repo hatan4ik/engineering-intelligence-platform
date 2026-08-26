@@ -35,7 +35,7 @@ jobs:
           grep --quiet "image.repository must be" /tmp/eip-default-chart.err
       - name: Build and lint Temporal control-plane chart
         run: |
-          helm dependency build helm/temporal
+          helm dependency update helm/temporal
           helm lint helm/temporal --values helm/temporal/values.ci.yaml
       - name: Ensure Temporal defaults fail closed
         shell: bash

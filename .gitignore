@@ -12,6 +12,7 @@ slides/*.pptx
 *.tfvars
 !terraform.tfvars.example
 helm/**/charts/
+integration-evidence*.json
 docs/diagrams/*.png
 
 # Locally-installed enterprise AI transformation skill pack (uploaded tooling, not vendored)

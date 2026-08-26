@@ -126,8 +126,10 @@ infer deployment readiness from a demo, test, or maturity score.
 ## Documentation
 
 Suggested reading order within each audience.
+The platform's documentation is organized as a centralized **Developer Portal**, separating high-level strategic vision from deep architectural operations.
 
 ### Start here
+**👉 [View the Developer Portal & Master Index (docs/README.md)](docs/README.md)**
 
 | Document | What it is |
 |---|---|
@@ -135,9 +137,15 @@ Suggested reading order within each audience.
 | [`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md) | **Current implementation state** — reference capability status and product implementation queue |
 | [`architecture/MATURITY-SCORECARD.md`](architecture/MATURITY-SCORECARD.md) | **Repository maturity assessment** — directional scores, not production proof |
 | [`docs/PRODUCT-STRATEGY.md`](docs/PRODUCT-STRATEGY.md) | **Initial product decision** — PR Guardian wedge, success metrics, and expansion gates |
+| [`docs/INTEGRATION-PROOF-RUNBOOK.md`](docs/INTEGRATION-PROOF-RUNBOOK.md) | **Private integration proof** — read-only identity, ACL, citation, and private-network evidence runner |
 | [`docs/PRODUCTION-EVIDENCE.md`](docs/PRODUCTION-EVIDENCE.md) | **Evidence contract** — required retained evidence for real-data pilots and autonomy promotion |
 | [`docs/DOCUMENT-STATUS.md`](docs/DOCUMENT-STATUS.md) | **Documentation status** — current vs target vs historical authority and review rules |
 | [`governance/security-threat-model.md`](governance/security-threat-model.md) | Threats, required controls, and the L0–L5 autonomy tiers |
+The portal is organized into:
+1. **Strategic Vision & Executive Context** (The "Why")
+2. **Core Architecture** (The Master Design & Security)
+3. **Component Deep Dives** (Ingestion, Control Plane, RAG)
+4. **Operations & Governance** (FinOps, KPIs, Certification)
 
 ### Engineering deep dives
 
