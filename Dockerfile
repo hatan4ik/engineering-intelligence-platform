@@ -15,6 +15,7 @@ COPY --chown=eip:eip app /app/app
 COPY --chown=eip:eip feedback /app/feedback
 COPY --chown=eip:eip finops /app/finops
 COPY --chown=eip:eip integrations /app/integrations
+COPY --chown=eip:eip ingestion /app/ingestion
 COPY --chown=eip:eip portal /app/portal
 COPY --chown=eip:eip security /app/security
 COPY --chown=eip:eip telemetry /app/telemetry

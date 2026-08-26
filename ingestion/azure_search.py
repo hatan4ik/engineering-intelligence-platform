@@ -46,6 +46,16 @@ class AzureSearchIndex:
         if deletes:
             client.delete_documents(documents=deletes)
 
+    def has_document(self, document_id: str) -> bool:
+        client = self._client()
+        rows = client.search(
+            search_text="*",
+            filter=self._document_filter(document_id),
+            select=["id"],
+            top=1,
+        )
+        return next(iter(rows), None) is not None
+
     def search(self, query: str, groups: list[str], users: list[str] | None = None) -> list[dict[str, object]]:
         client = self._client()
         users = users or []

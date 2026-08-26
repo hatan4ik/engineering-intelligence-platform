@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from .catalog import SourceCatalog
 from .chunkers import chunk_change
 from .index import Index
-from .models import ChangeType
+from .models import ChangeType, FileChange
 from .events import NormalizedEvent
 
 

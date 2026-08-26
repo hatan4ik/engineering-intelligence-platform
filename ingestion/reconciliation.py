@@ -25,6 +25,10 @@ class SourceReconciler:
     pipeline: IngestionPipeline
     catalog: SourceCatalog
 
+    def __post_init__(self) -> None:
+        if self.pipeline.catalog is not self.catalog:
+            raise ValueError("reconciliation pipeline must use the same authoritative source catalog")
+
     def reconcile(self, scope: SourceScope, manifest: Iterable[FileChange]) -> ReconciliationResult:
         observed: dict[str, FileChange] = {}
         candidates: list[FileChange] = []
@@ -43,7 +47,8 @@ class SourceReconciler:
             if document_id in observed:
                 raise ValueError("a reconciliation manifest cannot contain duplicate document IDs")
             observed[document_id] = change
-            if self.catalog.needs_upsert(change):
+            index_missing = bool((change.content or "").strip()) and not self.pipeline.index.has_document(document_id)
+            if self.catalog.needs_upsert(change) or index_missing:
                 candidates.append(change)
             else:
                 unchanged += 1

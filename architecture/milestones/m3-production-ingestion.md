@@ -10,6 +10,8 @@
 - durable SQLite event ledger and DLQ
 - durable worker lifecycle
 - DLQ replay helper
+- durable source-lifecycle catalog
+- complete-manifest reconciliation for changed ACL/content/revision, source deletion, and missing-index repair
 - GitHub/Azure DevOps file loaders
 - pluggable ACL resolver
 - deterministic embedding/vector enrichment contract
@@ -18,10 +20,10 @@
 ## Production adapters still required
 - Entra/repository ACL resolver backed by authoritative provider APIs
 - Azure OpenAI embedding adapter + configured vector dimensions/index profiles
-- durable shared ledger implementation for multi-worker deployment (PostgreSQL/Cosmos/queue-backed)
+- durable shared event ledger and source catalog for multi-worker deployment (PostgreSQL/Cosmos/queue-backed)
 - webhook signature/token validation at ingress
 - OTel metrics/spans, rate limiting, retry/backoff and queue backpressure
-- full reconciliation/reindex job and provider contract tests
+- scheduled provider manifest loader, tree attestation/reindex job, and provider contract tests
 
 ## Safety invariant
 Unauthorized source material is excluded before retrieval/synthesis. Model output is never used to decide access rights.

@@ -9,6 +9,7 @@ from .models import Chunk
 class Index(Protocol):
     def replace_document(self, document_id: str, chunks: list[Chunk]) -> None: ...
     def delete_document(self, document_id: str) -> None: ...
+    def has_document(self, document_id: str) -> bool: ...
     def search(self, query: str, groups: list[str], users: list[str] | None = None) -> list[dict[str, object]]: ...
 
 
@@ -21,6 +22,9 @@ class InMemoryIndex:
 
     def delete_document(self, document_id: str) -> None:
         self.documents.pop(document_id, None)
+
+    def has_document(self, document_id: str) -> bool:
+        return document_id in self.documents
 
     def search(self, query: str, groups: list[str], users: list[str] | None = None) -> list[dict[str, object]]:
         users = users or []
