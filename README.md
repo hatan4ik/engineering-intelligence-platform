@@ -125,64 +125,15 @@ infer deployment readiness from a demo, test, or maturity score.
 
 ## Documentation
 
-Suggested reading order within each audience.
 The platform's documentation is organized as a centralized **Developer Portal**, separating high-level strategic vision from deep architectural operations.
 
-### Start here
 **👉 [View the Developer Portal & Master Index (docs/README.md)](docs/README.md)**
 
-| Document | What it is |
-|---|---|
-| [`architecture/DESIGN.md`](architecture/DESIGN.md) | **System design** — goals/non-goals, per-plane detailed design, security model, data model, failure modes, alternatives considered |
-| [`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md) | **Current implementation state** — reference capability status and product implementation queue |
-| [`architecture/MATURITY-SCORECARD.md`](architecture/MATURITY-SCORECARD.md) | **Repository maturity assessment** — directional scores, not production proof |
-| [`docs/PRODUCT-STRATEGY.md`](docs/PRODUCT-STRATEGY.md) | **Initial product decision** — PR Guardian wedge, success metrics, and expansion gates |
-| [`docs/INTEGRATION-PROOF-RUNBOOK.md`](docs/INTEGRATION-PROOF-RUNBOOK.md) | **Private integration proof** — read-only identity, ACL, citation, and private-network evidence runner |
-| [`docs/PRODUCTION-EVIDENCE.md`](docs/PRODUCTION-EVIDENCE.md) | **Evidence contract** — required retained evidence for real-data pilots and autonomy promotion |
-| [`docs/DOCUMENT-STATUS.md`](docs/DOCUMENT-STATUS.md) | **Documentation status** — current vs target vs historical authority and review rules |
-| [`governance/security-threat-model.md`](governance/security-threat-model.md) | Threats, required controls, and the L0–L5 autonomy tiers |
 The portal is organized into:
 1. **Strategic Vision & Executive Context** (The "Why")
 2. **Core Architecture** (The Master Design & Security)
 3. **Component Deep Dives** (Ingestion, Control Plane, RAG)
 4. **Operations & Governance** (FinOps, KPIs, Certification)
-
-### Engineering deep dives
-
-| Document | What it is |
-|---|---|
-| [`docs/INGESTION.md`](docs/INGESTION.md) | Ingestion flow, chunk/document identity, idempotency and reconciliation |
-| [`architecture/m3-production-ingestion.md`](architecture/m3-production-ingestion.md) | Production ingestion design (ledger, DLQ, loaders, ACL propagation) |
-| [`architecture/organizational-memory.md`](architecture/organizational-memory.md) | Work items, docs, incidents, and conversations as governed knowledge |
-| [`architecture/authoritative-state.md`](architecture/authoritative-state.md) | State store, optimistic concurrency, and the hash-chained audit log |
-| [`architecture/durable-orchestration.md`](architecture/durable-orchestration.md) | Job queue leases, retry/backoff, DLQ, and crash recovery |
-| [`architecture/azure-devops-self-healing-reference.md`](architecture/azure-devops-self-healing-reference.md) | Target-state Azure/ADO/AKS closed-loop reference |
-| [`architecture/p1-secure-azure-foundation.md`](architecture/p1-secure-azure-foundation.md) | Private endpoints, Workload Identity, private DNS foundation |
-| [`architecture/NFR.md`](architecture/NFR.md) | Availability, data lifecycle, recovery, security, quality, observability, capacity, and cost requirements |
-| [`architecture/runtime-observability.md`](architecture/runtime-observability.md) | Operation telemetry and FinOps contract |
-| [`architecture/l4-certification.md`](architecture/l4-certification.md) | Evidence-based bounded-autonomy certification |
-| [`architecture/vertical-slice.md`](architecture/vertical-slice.md) | The original end-to-end demo slice and its security invariants |
-| [`architecture/adr/`](architecture/adr) | Architecture decision records |
-| [`docs/PRODUCTION-READINESS.md`](docs/PRODUCTION-READINESS.md) | Promotion gates: functional, security, reliability, operational safety, economics |
-
-### Program and executive
-
-| Document | What it is |
-|---|---|
-| [`docs/executive-memo.md`](docs/executive-memo.md) | The decision memo: problem, program, guardrails |
-| [`docs/board-deck-narrative.md`](docs/board-deck-narrative.md) | 12-slide board narrative (generator in `slides/`) |
-| [`docs/kpi-system.md`](docs/kpi-system.md) | Engineering, AI-quality, safety, and FinOps KPIs |
-| [`finops/cfo-roi-model.md`](finops/cfo-roi-model.md) | Value equation, cost buckets, investment gates |
-| [`roadmap/technical-roadmap-24-months.md`](roadmap/technical-roadmap-24-months.md) | Phased 18–24-month roadmap |
-| [`roadmap/PROGRAM-BACKLOG.md`](roadmap/PROGRAM-BACKLOG.md) | A–Z program backlog |
-| [`governance/operating-model.md`](governance/operating-model.md) | Ownership, council, release gates, decision rights |
-
-### Historical reviews
-
-| Document | What it is |
-|---|---|
-| [`architecture/ALIGNMENT-REVIEW.md`](architecture/ALIGNMENT-REVIEW.md) | Structural gap audit that motivated the corrective P-slices |
-| [`docs/architecture-review-2026-08.md`](docs/architecture-review-2026-08.md) | Point-in-time implementation review (pre-corrective baseline) |
 
 ## Repository map
 
@@ -214,9 +165,11 @@ pytest -q  # contracts, durability, composition, API, and policy tests
   runner, Terraform fmt/validate, Helm lint, an SBOM generated from the built image, and container
   smoke tests. The resulting local CI evidence is **not** a signed deployment attestation; registry
   attestation and admission enforcement are required before a production promotion.
-- **The repository reviews itself**: `.github/workflows/pr-guardian.yml` runs the PR
-  Guardian on every pull request — diff → service graph → deterministic risk → durable
-  workflow with verified audit chain → evidence comment on the PR.
+- **PR Guardian is a shadow pilot, not a merge gate**: the pull-request workflow evaluates the
+  diff with a read-only token and publishes a separate `neutral` advisory check only through a
+  trusted default-branch workflow. Closed PRs can capture explicit reviewer labels for calibration.
+  See [the shadow-pilot runbook](docs/PR-GUARDIAN-SHADOW-PILOT.md); no pilot evidence is collected
+  or claimed by this repository alone.
 - Every PR must map to a capability in the
   [reconciliation](architecture/CAPABILITY-RECONCILIATION.md) and improve a measurable
   outcome.

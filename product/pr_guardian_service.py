@@ -10,6 +10,7 @@ from intelligence.graph import ServiceGraph
 from intelligence.pr_guardian import PRPolicyDecision, render_markdown
 from intelligence.risk import ChangeContext, RiskAssessment, assess_change
 from integrations.github.pr_guardian import GitHubPRClient, PullRequestEvent
+from product.pr_guardian_shadow import observation_from_assessment, observation_comment
 from telemetry.events import NullTelemetrySink, OperationEvent, TelemetrySink
 
 
@@ -24,6 +25,8 @@ class PRGuardianResult:
     workflow_id: str
     conclusion: str
     changed_services: tuple[str, ...]
+    mode: str
+    would_block: bool
 
 
 class PRGuardianService:
@@ -41,14 +44,18 @@ class PRGuardianService:
         workflows: ControlPlaneWorkflows,
         history: HistoricalFailureProvider | None = None,
         telemetry: TelemetrySink | None = None,
+        mode: str = "shadow",
     ) -> None:
+        if mode != "shadow":
+            raise ValueError("PR Guardian supports only non-blocking shadow mode")
         self.graph = graph
         self.github = github
         self.workflows = workflows
         self.history = history
         self.telemetry = telemetry or NullTelemetrySink()
+        self.mode = mode
 
-    def evaluate(self, event: PullRequestEvent) -> PRGuardianResult:
+    def evaluate(self, event: PullRequestEvent, *, publish: bool = True) -> PRGuardianResult:
         started = time.monotonic()
         files = self.github.list_changed_files(event.repository, event.number)
         filenames = tuple(item.filename for item in files)
@@ -94,25 +101,43 @@ class PRGuardianService:
             assessment=assessment,
         )
 
-        markdown = render_markdown(assessment)
-        summary = (
-            f"Changed services: {', '.join(changed_services) if changed_services else 'unmapped'}\n\n"
-            + markdown
-        )
-        conclusion = "failure" if policy.block_merge else "neutral" if policy.require_additional_approval else "success"
-        self.github.publish_check(
-            repository=event.repository,
-            head_sha=event.head_sha,
-            name="Engineering Intelligence / PR Guardian",
+        # Shadow mode intentionally makes every published check neutral.  The
+        # policy remains visible only as a simulated "would" decision.
+        conclusion = "neutral"
+        result = PRGuardianResult(
+            assessment=assessment,
+            policy=policy,
+            workflow_id=workflow.workflow_id,
             conclusion=conclusion,
-            title=f"Change risk: {assessment.score}/100 ({assessment.band})",
-            summary=summary,
+            changed_services=changed_services,
+            mode=self.mode,
+            would_block=policy.block_merge,
         )
-        self.github.publish_comment(
-            repository=event.repository,
-            pr_number=event.number,
-            body=summary,
-        )
+        if publish:
+            observation = observation_from_assessment(
+                event=event,
+                assessment=assessment,
+                workflow_id=workflow.workflow_id,
+                changed_services=changed_services,
+                would_require_extended_tests=policy.require_extended_tests,
+                would_require_additional_approval=policy.require_additional_approval,
+                would_block=policy.block_merge,
+                audit_chain_verified=True,
+            )
+            summary = observation_comment(observation)
+            self.github.publish_check(
+                repository=event.repository,
+                head_sha=event.head_sha,
+                name="Engineering Intelligence / PR Guardian (shadow)",
+                conclusion=conclusion,
+                title=f"Shadow risk: {assessment.score}/100 ({assessment.band})",
+                summary=summary,
+            )
+            self.github.publish_comment(
+                repository=event.repository,
+                pr_number=event.number,
+                body=summary,
+            )
         self.telemetry.emit(OperationEvent(
             correlation_id=workflow.correlation_id,
             operation="pr-guardian-review",
@@ -129,13 +154,7 @@ class PRGuardianService:
                 "band": assessment.band,
             },
         ))
-        return PRGuardianResult(
-            assessment=assessment,
-            policy=policy,
-            workflow_id=workflow.workflow_id,
-            conclusion=conclusion,
-            changed_services=changed_services,
-        )
+        return result
 
 
 def _is_test(path: str) -> bool:

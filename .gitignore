@@ -13,6 +13,7 @@ slides/*.pptx
 !terraform.tfvars.example
 helm/**/charts/
 integration-evidence*.json
+pr-guardian-shadow-*.json
 docs/diagrams/*.png
 
 # Locally-installed enterprise AI transformation skill pack (uploaded tooling, not vendored)

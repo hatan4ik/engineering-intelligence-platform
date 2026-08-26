@@ -38,7 +38,7 @@ audit/evidence system. A GitHub Actions artifact may be an input, but cannot be 
 | Decision | Minimum retained evidence |
 |---|---|
 | **Use real data in L0/L1 pilot** | Entra authentication; authorized and denied ACL tests; private-path evidence; source classification/retention; retrieval/citation/adversarial evaluation; operational SLO dashboard |
-| **Enable PR Guardian advisory check** | Shadow sample with reviewer outcomes; precision/false-negative analysis by severity; citation review; cost/latency report; documented disable switch |
+| **Enable PR Guardian advisory check** | Shadow sample with reviewer outcomes; precision/false-negative analysis by severity; citation review; cost/latency report; documented disable switch. Follow [`PR-GUARDIAN-SHADOW-PILOT.md`](PR-GUARDIAN-SHADOW-PILOT.md); an Actions artifact or PR comment alone is insufficient. |
 | **Enable any blocking PR rule** | Advisory evidence plus service-owner approval, calibrated deterministic threshold, waiver/expiry procedure, rollback/disable drill, and monitored false-negative rate |
 | **L3 remediation pilot** | All production-proof gates: durable state/queue, immutable audit export, OPA policy decision, digital-twin result where required, independent verification, rollback, kill switch, backup/restore, and retained drills |
 | **L4 promotion** | Complete L3 evidence plus service/environment/runbook-specific certification, error-budget enforcement, repeated exercised evidence, and Security/SRE sign-off |

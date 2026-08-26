@@ -25,6 +25,8 @@ Each result must be retained using the evidence contract; a CI artifact alone is
    - PR Guardian, Incident Intelligence, Drift and risk run against real events
    - no automatic production mutation
    - capture recommendation acceptance, correctness, false-positive and false-negative outcomes
+   - PR Guardian uses the separate read-only evaluation/trusted-publication flow in
+     [`PR-GUARDIAN-SHADOW-PILOT.md`](PR-GUARDIAN-SHADOW-PILOT.md)
 
 3. **L2 recommendation/corrective-work mode**
    - Architecture Guard and Drift may create reviewable checks/issues/PR plans

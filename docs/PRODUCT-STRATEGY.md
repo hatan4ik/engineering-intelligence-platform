@@ -59,7 +59,7 @@ copied from a generic platform target.
 
 | Stage | Required evidence | Decision |
 |---|---|---|
-| **Shadow** | Representative PR sample, reviewer disposition for every material finding, false-positive/false-negative analysis, citation review, ACL isolation checks, latency/cost distribution | Continue only if the feedback is useful and safe enough to improve |
+| **Shadow** | Representative PR sample, reviewer disposition for every material finding, false-positive/false-negative analysis, citation review, ACL isolation checks, latency/cost distribution | Continue only if the feedback is useful and safe enough to improve; follow the [shadow-pilot runbook](PR-GUARDIAN-SHADOW-PILOT.md) |
 | **Advisory** | Sustained precision and acceptance above the pre-agreed threshold; no unresolved high-severity ACL, provenance, or evidence defect | Enable a non-blocking check for the certified repository scope |
 | **Selective enforcement** | Service-owner approval, calibrated high-severity threshold, documented waiver/expiry path, rollback switch, and monitored false-negative rate | Block only the narrow, deterministic condition that has proved reliable |
 | **Expand to incident intelligence** | PR Guardian outcome retained over a meaningful window and a demonstrated need for operational correlation | Start L1/L2 incident intelligence; do not inherit mutation authority |

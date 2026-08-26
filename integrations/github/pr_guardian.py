@@ -155,6 +155,24 @@ class GitHubRestPRClient:
             body=body,
         )
 
+    def latest_comment_with_marker(
+        self,
+        *,
+        repository: str,
+        pr_number: int,
+        marker: str,
+    ) -> str | None:
+        if not marker.startswith("<!-- eip-") or not marker.endswith(" -->"):
+            raise ValueError("comment marker must be an EIP HTML marker")
+        comments = self._request("GET", f"/repos/{repository}/issues/{pr_number}/comments?per_page=100")
+        if not isinstance(comments, list):
+            raise RuntimeError("GitHub comments response was not a list")
+        for comment in reversed(comments):
+            body = str(comment.get("body", ""))
+            if marker in body:
+                return body
+        return None
+
     def ensure_maintenance_issue(
         self,
         *,

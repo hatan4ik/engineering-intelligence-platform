@@ -69,7 +69,9 @@ def test_pr_guardian_maps_services_scores_persists_and_publishes(tmp_path):
     assert store.get_workflow("pr:acme/platform:7") is not None
     assert audit.verify_chain() is True
     assert github.checks[0]["head_sha"] == "deadbeef"
-    assert github.checks[0]["name"] == "Engineering Intelligence / PR Guardian"
+    assert github.checks[0]["name"] == "Engineering Intelligence / PR Guardian (shadow)"
+    assert github.checks[0]["conclusion"] == "neutral"
+    assert result.would_block is False
     assert github.comments and "Risk score" in github.comments[0]["body"]
 
 
@@ -94,7 +96,7 @@ def test_unmapped_delivery_change_is_not_false_low(tmp_path):
     assert result.assessment.score >= 25
 
 
-def test_low_risk_docs_only_pr_publishes_success(tmp_path):
+def test_low_risk_docs_only_pr_publishes_neutral_shadow_check(tmp_path):
     github = FakeGitHub([
         ChangedFile("docs/README.md", "modified", 2, 1),
     ])
@@ -108,5 +110,5 @@ def test_low_risk_docs_only_pr_publishes_success(tmp_path):
     )
     result = service.evaluate(PullRequestEvent("acme/platform", 8, "cafebabe", "opened"))
     assert result.assessment.score == 0
-    assert result.conclusion == "success"
-    assert github.checks[0]["conclusion"] == "success"
+    assert result.conclusion == "neutral"
+    assert github.checks[0]["conclusion"] == "neutral"
