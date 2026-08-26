@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ingestion.documents import KnowledgeDocument, KnowledgeSourceType
-from ingestion.models import FileChange
+from ingestion.models import ChangeType, FileChange
 
 from .model import (
     BrainEntity,
@@ -37,6 +37,7 @@ class ProjectionResult:
     entity_ids: tuple[str, ...]
     evidence_id: str
     unresolved_relationships: tuple[str, ...] = ()
+    deleted_entity_ids: tuple[str, ...] = ()
 
 
 class CompanyBrainProjector:
@@ -53,6 +54,9 @@ class CompanyBrainProjector:
             f"{source.commit_sha}:{source.path}"
         )
         evidence_id = f"evidence:{source.provider}:{source.repository}:{source.branch}:{source.commit_sha}:{source.path}"
+        if change.change_type is ChangeType.DELETE:
+            removed = self._remove_file_change_projection(change)
+            return ProjectionResult((), evidence_id, deleted_entity_ids=removed)
         self.brain.upsert_entity(
             BrainEntity(
                 entity_id=repo,
@@ -147,6 +151,39 @@ class CompanyBrainProjector:
                 )
                 entity_ids.append(owner)
         return ProjectionResult(tuple(sorted(entity_ids)), evidence_id)
+
+    def _remove_file_change_projection(self, change: FileChange) -> tuple[str, ...]:
+        """Remove every revision of one file from the non-durable projection.
+
+        A deletion event carries the deleting commit, not necessarily the commit
+        that created the prior evidence pointer. Match the stable source scope
+        and path rather than relying on that revision.
+        """
+        source = change.source
+        change_prefix = f"change:{source.provider}:{source.repository}:{source.branch}:"
+        evidence_prefix = f"evidence:{source.provider}:{source.repository}:{source.branch}:"
+        suffix = f":{source.path}"
+        evidence_ids = tuple(
+            sorted(
+                entity_id
+                for entity_id in self.brain.evidence
+                if entity_id.startswith(evidence_prefix) and entity_id.endswith(suffix)
+            )
+        )
+        change_ids = tuple(
+            sorted(
+                entity_id
+                for entity_id, entity in self.brain.entities.items()
+                if entity.kind is EntityKind.CHANGE
+                and entity_id.startswith(change_prefix)
+                and entity_id.endswith(suffix)
+            )
+        )
+        for evidence_id in evidence_ids:
+            self.brain.remove_evidence(evidence_id)
+        for change_id in change_ids:
+            self.brain.remove_entity(change_id)
+        return tuple(sorted((*evidence_ids, *change_ids)))
 
     def project_knowledge_document(self, document: KnowledgeDocument) -> ProjectionResult:
         document_kind = _entity_kind(document.identity.source_type)
