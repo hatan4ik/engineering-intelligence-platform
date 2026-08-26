@@ -5,7 +5,9 @@ client = TestClient(app)
 
 
 def test_healthz():
-    assert client.get('/healthz').json() == {'status': 'ok'}
+    body = client.get('/healthz').json()
+    assert body['status'] == 'ok'
+    assert set(body['capabilities']) == {'query', 'pr_guardian_webhook', 'feedback_recorder', 'portal'}
 
 
 def test_query_returns_citations():

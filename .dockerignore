@@ -1,0 +1,7 @@
+# Release image = API runtime closure for the PR Guardian wedge (see Dockerfile,
+# app/import_closure.py). Deferred verticals that import the execution plane
+# (remediation/, topology/) stay out of the image until they have a product
+# decision. tests/test_image_import_closure.py keeps this list honest.
+product/durable_self_healing.py
+product/incident_service.py
+product/self_healing_service.py
