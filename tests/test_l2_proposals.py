@@ -158,3 +158,53 @@ def test_every_proposal_requires_a_human_and_the_flag_cannot_be_overridden():
             evidence_refs=(),
             requires_human=False,
         )
+
+
+def test_revert_range_anchors_on_the_failing_deployment_not_a_later_hotfix():
+    """A hotfix deployed during the incident is inside the evidence window too.
+
+    The analysis is anchored on the incoming deployment id; the revert range must
+    be anchored on the same event, or the operator is told to revert the fix.
+    """
+    events = [
+        event("d0", EvidenceKind.DEPLOYMENT, -60, "release v1", 1, (("commit", "aaa1111"),)),
+        event("ado:Platform:7:42", EvidenceKind.DEPLOYMENT, 0, "release v2", 1, (("commit", "bbb2222"),)),
+        event("a1", EvidenceKind.ALERT, 4, "readiness probe failed"),
+        event("d2-hotfix", EvidenceKind.DEPLOYMENT, 10, "hotfix release", 1, (("commit", "ccc3333"),)),
+    ]
+    analysis = investigate_deployment_failure(
+        events, deployment_id="ado:Platform:7:42", service="payments"
+    )
+
+    revert = next(
+        p
+        for p in build_proposals(
+            analysis, service="payments", environment="prod", evidence=events
+        )
+        if p.kind == "corrective-pr"
+    )
+
+    assert "aaa1111..bbb2222" in revert.exact_action
+    assert "ccc3333" not in revert.exact_action
+    assert "ccc3333" not in revert.rollback_path
+    assert "d2-hotfix" not in revert.evidence_refs
+    assert "ado:Platform:7:42" in revert.evidence_refs
+
+
+def test_incident_analysis_without_a_deployment_id_still_uses_the_newest_deployment():
+    """The incident path carries no deployment id; the newest release is the anchor."""
+    analysis = analyze_incident(
+        [
+            event("d0", EvidenceKind.DEPLOYMENT, -60, "release v1", 1, (("commit", "aaa1111"),)),
+            event("d1", EvidenceKind.DEPLOYMENT, 0, "release v2", 1, (("commit", "bbb2222"),)),
+            event("a1", EvidenceKind.ALERT, 3, "error rate spiked"),
+        ],
+        service="payments",
+    )
+
+    revert = next(
+        p for p in build_proposals(analysis, service="payments", environment="prod")
+        if p.kind == "corrective-pr"
+    )
+
+    assert "aaa1111..bbb2222" in revert.exact_action

@@ -63,6 +63,18 @@ EVIDENCE_FIXTURE = {
             "severity": 1,
             "attributes": {"commit": "bbb2222"},
         },
+        # A hotfix deployed while the incident was open. It is inside the evidence
+        # window but it is not what failed, so no proposal may name its commit.
+        {
+            "id": "deploy-hotfix",
+            "kind": "deployment",
+            "service": "${service}",
+            "timestamp": "2026-08-22T10:10:00Z",
+            "summary": "hotfix release",
+            "source": "azure-devops",
+            "severity": 1,
+            "attributes": {"commit": "ccc3333"},
+        },
     ],
     "incident_events": [
         {

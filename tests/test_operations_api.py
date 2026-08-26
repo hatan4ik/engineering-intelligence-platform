@@ -1,4 +1,6 @@
 """The operational-intelligence triggers: a real webhook path into L1 analysis and L2 proposals."""
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -78,7 +80,10 @@ def test_deployment_route_returns_analysis_and_l2_proposals(configured_env):
     kinds = {p["kind"] for p in body["proposals"]}
     assert kinds & {"corrective-pr", "runbook", "ticket"}
     assert all(p["requires_human"] is True for p in body["proposals"])
+    # The revert range is anchored on the deployment the hook reported, not on the
+    # hotfix that was deployed afterwards and is also inside the evidence window.
     assert any("aaa1111..bbb2222" in p["exact_action"] for p in body["proposals"])
+    assert all("ccc3333" not in json.dumps(p) for p in body["proposals"])
 
 
 def test_incident_route_returns_analysis_blast_radius_and_l2_proposals(configured_env):

@@ -236,6 +236,14 @@ Failure-class precedence mirrors `remediation/planner.py`: CrashLoopBackOff,
 readiness regression, and OOM/memory pressure each beat the generic
 deployment-correlation class.
 
+**The revert range is anchored on the deployment the trigger reported**, not on the
+newest deployment in the evidence window. The window (120 minutes by default) will
+often contain deployments made *after* the failure — a hotfix, an attempted
+rollback — and anchoring on the newest one would hand the operator a range that
+reverts the fix. On the incident path there is no deployment id to anchor on, so
+the newest deployment is used. If the analysis names a deployment that is not in
+the evidence at all, no `corrective-pr` is proposed rather than a guessed range.
+
 The allow-listed runbook ids in `ALLOW_LISTED_RUNBOOKS` are **copied** from
 `remediation/catalog.py`. The `remediation` package is intentionally not in the API
 image closure (see `.dockerignore` and `app/import_closure.py`), so `l2_proposals`

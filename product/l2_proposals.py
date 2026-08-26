@@ -116,7 +116,13 @@ def build_proposals(
 
     proposals: list[L2Proposal] = []
 
-    revert = _corrective_pr(timeline, service=service, environment=environment, subject=subject)
+    revert = _corrective_pr(
+        timeline,
+        service=service,
+        environment=environment,
+        subject=subject,
+        anchor_id=_anchor_deployment_id(analysis),
+    )
     if revert is not None:
         proposals.append(revert)
 
@@ -134,8 +140,22 @@ def _analysis_timeline(analysis: IncidentAnalysis | DeploymentFailureAnalysis) -
     return tuple(getattr(analysis, "timeline", ()))
 
 
-def _subject(analysis: IncidentAnalysis | DeploymentFailureAnalysis) -> str:
+def _anchor_deployment_id(analysis: IncidentAnalysis | DeploymentFailureAnalysis) -> str | None:
+    """The deployment the analysis is about, when it is about one.
+
+    ``investigate_deployment_failure`` anchors the whole analysis on the incoming
+    deployment id. A revert proposal must be anchored on the same event: the
+    evidence window also contains deployments made *after* the failure (a hotfix,
+    an attempted rollback), and reverting to the newest one would tell the
+    operator to revert the fix. ``IncidentAnalysis`` has no such anchor.
+    """
+
     deployment_id = getattr(analysis, "deployment_id", None)
+    return str(deployment_id) if deployment_id else None
+
+
+def _subject(analysis: IncidentAnalysis | DeploymentFailureAnalysis) -> str:
+    deployment_id = _anchor_deployment_id(analysis)
     return f"deployment {deployment_id}" if deployment_id else "the incident"
 
 
@@ -149,9 +169,19 @@ def _attribute(event: EvidenceEvent, keys: Iterable[str]) -> str | None:
 
 
 def _corrective_pr(
-    timeline: Sequence[EvidenceEvent], *, service: str, environment: str, subject: str
+    timeline: Sequence[EvidenceEvent],
+    *,
+    service: str,
+    environment: str,
+    subject: str,
+    anchor_id: str | None = None,
 ) -> L2Proposal | None:
-    """Propose a revert only when the evidence names an exact commit range."""
+    """Propose a revert only when the evidence names an exact commit range.
+
+    ``anchor_id`` is the deployment the analysis is about. When it matches an event
+    in the timeline that event is the one to revert, whatever was deployed after it.
+    Only the incident path, which has no anchor, falls back to the newest deployment.
+    """
 
     deployments = sorted(
         (e for e in timeline if e.kind is EvidenceKind.DEPLOYMENT and e.service == service),
@@ -159,7 +189,18 @@ def _corrective_pr(
     )
     if not deployments:
         return None
-    current = deployments[-1]
+
+    index = len(deployments) - 1
+    if anchor_id:
+        index = next(
+            (i for i, e in enumerate(deployments) if e.id == anchor_id),
+            None,
+        )
+        if index is None:
+            # The anchor is not in the evidence. Guessing from a later deployment
+            # would name the wrong commit range, so propose no revert at all.
+            return None
+    current = deployments[index]
     current_commit = _attribute(current, _COMMIT_KEYS)
     if not current_commit:
         return None
@@ -167,7 +208,8 @@ def _corrective_pr(
     last_good_commit = _attribute(current, _LAST_GOOD_KEYS)
     last_good_event = None
     if last_good_commit is None:
-        for candidate in reversed(deployments[:-1]):
+        # Only deployments that preceded the anchor can be "last known good".
+        for candidate in reversed(deployments[:index]):
             commit = _attribute(candidate, _COMMIT_KEYS)
             if commit and commit != current_commit:
                 last_good_commit, last_good_event = commit, candidate
