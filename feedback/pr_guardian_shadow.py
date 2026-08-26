@@ -1,16 +1,37 @@
 """Metrics for reviewable PR Guardian shadow-pilot exports.
 
-The report is deliberately conservative: it can show whether a promotion review
-has enough inputs, but always leaves the capability in shadow mode.  A human
+The report is deliberately conservative.  Its ``decision`` says only whether a
+promotion *review* has enough inputs (``advisory-candidate``) or not
+(``shadow-only``); ``blocking_authorized`` is always ``False``.  A human
 evidence review and the controls in ``PRODUCTION-EVIDENCE.md`` are still needed
-before any blocking rule can be proposed.
+before any blocking rule can be proposed, and the ``calibration`` section is a
+recommendation that nothing in this codebase applies.
 """
 
 from __future__ import annotations
 
 from typing import Mapping, Sequence
 
+from intelligence.risk_calibration import (
+    DEFAULT_HIGH_THRESHOLD,
+    RiskCalibration,
+    ScoredOutcome,
+    calibrate_high_risk_threshold,
+)
 from product.pr_guardian_shadow import validate_outcome
+
+CALIBRATION_NOTE = (
+    "Threshold changes are reviewed product decisions; this section is a recommendation only."
+)
+
+# ``calibrate_high_risk_threshold`` tunes a threshold to catch the *failed*
+# class, so a reviewer-confirmed risk is a failed sample and a false positive is
+# not.  The report publishes this mapping so a suggested threshold cannot be
+# read in the wrong direction.
+_DISPOSITION_FAILED = {"confirmed-risk": True, "false-positive": False}
+_FAILURE_DISPOSITION = next(
+    disposition for disposition, failed in _DISPOSITION_FAILED.items() if failed
+)
 
 
 def build_shadow_report(outcomes: Sequence[Mapping[str, object]]) -> dict[str, object]:
@@ -77,17 +98,95 @@ def build_shadow_report(outcomes: Sequence[Mapping[str, object]]) -> dict[str, o
             "recall": recall,
         },
         "utility": {"useful": useful, "not_useful": not_useful, "useful_rate": utility},
+        "calibration": _calibration(reviewed),
         "promotion_readiness": {
             "requirements": promotion_requirements,
             "unmet_requirements": failures,
+            # No measured result may authorize merge blocking; only a reviewed
+            # evidence record under PRODUCTION-EVIDENCE.md can, and that is a
+            # human decision made outside this report.
             "blocking_authorized": False,
-            "decision": "shadow-only",
+            "decision": "shadow-only" if failures else "advisory-candidate",
+            "next_review": _next_review(records, failures),
         },
         "limitations": [
             "Closure and reviewer labels do not establish post-merge incident or rollback outcomes.",
             "This report is an input to an approved evidence record; it is not production evidence by itself.",
             "No report output can authorize PR Guardian merge blocking.",
         ],
+    }
+
+
+def _next_review(records: Sequence[Mapping[str, object]], failures: Sequence[str]) -> str:
+    if not records:
+        return "no closure records yet"
+    if failures:
+        return f"awaiting {failures[0]}"
+    return "human evidence review of the promotion packet"
+
+
+def _calibration(reviewed: Sequence[Mapping[str, object]]) -> dict[str, object]:
+    """Recommend high-risk thresholds from reviewer dispositions.
+
+    Nothing reads this section: it is a suggestion for a reviewed product
+    decision.  Records without a reviewer disposition or without a joined
+    observation carry no score and are excluded.
+    """
+    outcomes = _scored_outcomes(reviewed)
+    global_calibration = calibrate_high_risk_threshold(outcomes)
+    per_service: dict[str, object] = {}
+    for service in sorted({outcome.service for outcome in outcomes if outcome.service}):
+        per_service[service] = _calibration_view(
+            calibrate_high_risk_threshold(
+                [outcome for outcome in outcomes if outcome.service == service]
+            )
+        )
+    return {
+        "applied": False,
+        "note": CALIBRATION_NOTE,
+        # A closure record identifies its scope only by repository; that is the
+        # finest service granularity available to this report.
+        "service_key": "subject.repository",
+        "disposition_mapping": {
+            disposition: "failed" if failed else "not-failed"
+            for disposition, failed in _DISPOSITION_FAILED.items()
+        },
+        "failure_samples_from": _FAILURE_DISPOSITION,
+        "default_high_threshold": DEFAULT_HIGH_THRESHOLD,
+        "global": _calibration_view(global_calibration),
+        "per_service": per_service,
+    }
+
+
+def _scored_outcomes(reviewed: Sequence[Mapping[str, object]]) -> list[ScoredOutcome]:
+    outcomes: list[ScoredOutcome] = []
+    for record in reviewed:
+        source = record["source_observation"]
+        if not isinstance(source, Mapping):
+            continue
+        disposition = str(record["reviewer_signal"]["risk"])  # type: ignore[index]
+        if disposition not in _DISPOSITION_FAILED:
+            continue
+        subject = record["subject"]
+        assert isinstance(subject, Mapping)
+        outcomes.append(
+            ScoredOutcome(
+                score=int(source["score"]),  # type: ignore[arg-type]
+                failed=_DISPOSITION_FAILED[disposition],
+                service=str(subject["repository"]),
+            )
+        )
+    return outcomes
+
+
+def _calibration_view(calibration: RiskCalibration) -> dict[str, object]:
+    return {
+        "suggested_high_threshold": calibration.high_threshold,
+        "sample_size": calibration.sample_size,
+        "failed_samples": calibration.failed_samples,
+        "changed_from_default": calibration.changed_from_default,
+        "confidence": round(calibration.confidence, 4),
+        "evidence": list(calibration.evidence),
     }
 
 

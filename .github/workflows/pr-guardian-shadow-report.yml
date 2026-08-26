@@ -1,0 +1,81 @@
+name: PR Guardian Shadow Report
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly, Mondays 06:17 UTC. The pilot window is measured in weeks, so a
+    # weekly report is the shortest useful cadence.
+    - cron: '17 6 * * 1'
+
+# Read-only. This job summarizes retained closure artifacts; it cannot publish a
+# check, comment on a pull request, or change any repository setting.
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Install runtime dependencies
+        run: pip install -r app/requirements.txt
+      - name: Download retained shadow closure artifacts
+        id: download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Writes count=<n> to $GITHUB_OUTPUT, and when the count is zero says so
+        # in the job summary. A gh failure that is not "this run's export has
+        # expired" fails the step instead of reporting an empty pilot.
+        run: bash scripts/download_pr_guardian_shadow_outcomes.sh shadow-outcomes
+      - name: Summarize the shadow pilot
+        if: steps.download.outputs.count != '0'
+        env:
+          PYTHONPATH: .
+        run: |
+          set -euo pipefail
+          python scripts/summarize_pr_guardian_shadow.py shadow-outcomes \
+            --output pr-guardian-shadow-report.json
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("pr-guardian-shadow-report.json").read_text(encoding="utf-8"))
+          sample = report["sample"]
+          readiness = report["promotion_readiness"]
+          print("## PR Guardian shadow report")
+          print()
+          print(f"- decision: `{readiness['decision']}`")
+          print(f"- blocking_authorized: `{readiness['blocking_authorized']}`")
+          print(f"- next review: {readiness['next_review']}")
+          print()
+          print("| sample | count |")
+          print("| --- | --- |")
+          for key, value in sample.items():
+              print(f"| {key} | {value} |")
+          print()
+          unmet = readiness["unmet_requirements"]
+          if unmet:
+              print("Unmet promotion requirements:")
+              print()
+              for name in unmet:
+                  print(f"- `{name}`")
+          else:
+              print("All promotion requirements are met. This authorizes a human evidence")
+              print("review only; it does not enable merge blocking.")
+          PY
+      - name: Retain the report
+        if: steps.download.outputs.count != '0'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr-guardian-shadow-report
+          path: pr-guardian-shadow-report.json
+          if-no-files-found: error
+          retention-days: 90
