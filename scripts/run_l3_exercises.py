@@ -290,6 +290,15 @@ def run_exercise(
                 # exercises that must be denied are denied by policy, not by a
                 # missing token.
                 approval_verified=True,
+                # The promotion rule in architecture/l4-certification.md is
+                # "L3 production approval -> repeated supervised exercises ->
+                # certification evidence -> L4". An exercise is one of those
+                # supervised runs, so it executes at L3 and is not itself an
+                # autonomous L4 mutation -- otherwise the L4 certification gate
+                # would require the certification these exercises exist to earn.
+                # The service policy level stays whatever the scenario sets, so
+                # the L4-only error-budget control is still exercised.
+                autonomy_level=AutonomyLevel.APPROVE_AND_EXECUTE,
                 control=PolicyControlState(audit_available=scenario.audit_available),
             )
         finally:
