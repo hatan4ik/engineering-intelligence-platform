@@ -54,6 +54,12 @@ explicit tenant, journals that source's graph memberships, rejects conflicting e
 propagates ACL changes and source deletion as durable evidence/relationship tombstones. The source
 catalog advances only after this projection succeeds, leaving failed projection work replayable.
 
+[`CompanyBrainWorldModel`](COMPANY-BRAIN-WORLD-MODEL.md) is the next read-only layer over durable
+records. It qualifies entities and relationships with source trust, freshness, and requesting-user
+authorization before calculating repository scope, blast radius, or ownership. Stale,
+low-confidence, unauthorized, or directly conflicting links become explicit limitations rather
+than hidden decision inputs.
+
 ## Safe product use
 
 [`PRGuardianCompanyBrainAdapter`](../product/pr_guardian/company_brain.py) converts the core into

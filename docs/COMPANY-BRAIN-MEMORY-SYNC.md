@@ -66,3 +66,7 @@ provenance, and relationship-membership semantics.
 - No flattening of source authorization into the Company Brain.
 - No action authority: a synchronized fact, edge, or document cannot approve a PR or execute a
   runbook.
+
+The synchronized record is then consumed through the [qualified world-model query layer](COMPANY-BRAIN-WORLD-MODEL.md),
+which applies source trust, freshness, conflict, and request-principal checks before a graph edge
+can influence a product workflow.
