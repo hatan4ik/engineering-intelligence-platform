@@ -24,6 +24,7 @@ from scripts.publish_pr_guardian_shadow import (
     publish_untrusted_evaluation,
     trusted_observation,
 )
+import scripts.run_pr_guardian as run_pr_guardian
 from scripts.run_pr_guardian import evaluate_pull_request
 from state.audit import SqliteAuditLog
 from state.store import SqliteStateStore
@@ -664,3 +665,75 @@ def test_a_lapsed_owner_approval_publishes_neutral_rather_than_failing_the_run(t
 
     assert conclusion == "neutral"
     assert "approval for enforcement has expired" in client.comments[0]["body"]
+
+
+# --- the CLI entry point drives the async service ----------------------------
+
+
+def test_main_runs_the_async_evaluation_and_writes_the_observation(tmp_path, monkeypatch):
+    """``main()`` is synchronous; the service it drives is a coroutine.
+
+    ``PRGuardianService.evaluate`` became a coroutine when the control plane
+    gained a Temporal client, so the CLI has to own the event loop. Without
+    ``asyncio.run`` this job would write a coroutine object and still exit 0,
+    losing the observation silently.
+    """
+    checkout = tmp_path / "checkout"
+    (checkout / ".eip").mkdir(parents=True)
+    (checkout / ".eip" / "pr-guardian.json").write_text(
+        json.dumps(
+            {
+                "repository": "acme/platform",
+                "mode": "advisory",
+                "service_ids": ["payments"],
+                "service_owners": ["octocat"],
+                "policy_version": "pr-policy-2026-08",
+            }
+        ),
+        encoding="utf-8",
+    )
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "action": "opened",
+                "number": 42,
+                "repository": {"full_name": "acme/platform"},
+                "pull_request": {"head": {"sha": "deadbeef"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    result_path = tmp_path / "observation.json"
+
+    github = FakeGitHub(HIGH_RISK_FILES)
+    monkeypatch.setattr(
+        run_pr_guardian, "GitHubRestPRClient", lambda token, *a, **k: github
+    )
+    monkeypatch.setattr(
+        run_pr_guardian,
+        "GitHubFileContents",
+        lambda **kwargs: FakeContents(
+            {"infra/payments/main.tf": "public_network_access_enabled = true\n"}
+        ),
+    )
+    monkeypatch.setattr(
+        run_pr_guardian, "build_service_graph_from_checkout", lambda root: graph()
+    )
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "t0ken")
+    monkeypatch.setenv("EIP_PR_GUARDIAN_CONFIG_ROOT", str(checkout))
+    monkeypatch.setenv("EIP_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("EIP_PR_GUARDIAN_RESULT_PATH", str(result_path))
+
+    # The evaluation job is never the gate.
+    assert run_pr_guardian.main() == 0
+
+    observation = json.loads(result_path.read_text(encoding="utf-8"))
+    assert validate_observation(observation) == observation
+    assert observation["mode"] == "advisory"
+    assert observation["subject"]["pr_number"] == 42
+    assert observation["enforcement"]["would_block"] is False
+    assert [item["path"] for item in observation["architecture"]["violations"]] == [
+        "infra/payments/main.tf"
+    ]
