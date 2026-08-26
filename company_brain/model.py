@@ -29,6 +29,8 @@ class EntityKind(StrEnum):
     WORK_ITEM = "work_item"
     DOCUMENT = "document"
     CONVERSATION = "conversation"
+    FINDING = "finding"
+    OUTCOME = "outcome"
     EVIDENCE = "evidence"
 
 
@@ -41,6 +43,8 @@ class RelationshipKind(StrEnum):
     GOVERNED_BY = "governed_by"
     BELONGS_TO = "belongs_to"
     HAS_EVIDENCE = "has_evidence"
+    ASSESSED_BY = "assessed_by"
+    HAS_OUTCOME = "has_outcome"
 
 
 def _required(value: str, label: str, *, maximum: int = 500) -> str:

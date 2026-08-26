@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from .catalog import SourceCatalog
 from .chunkers import chunk_change
@@ -8,11 +9,15 @@ from .index import Index
 from .models import ChangeType, FileChange
 from .events import NormalizedEvent
 
+if TYPE_CHECKING:
+    from company_brain.projector import CompanyBrainProjector
+
 
 @dataclass
 class IngestionPipeline:
     index: Index
     catalog: SourceCatalog | None = None
+    brain_projector: CompanyBrainProjector | None = None
     # Backward-compatible local convenience only. Durable workers must use the
     # event ledger; this set cannot survive a process restart.
     processed_events: set[str] = field(default_factory=set)
@@ -37,12 +42,16 @@ class IngestionPipeline:
                 self.index.delete_document(document_id)
                 if self.catalog is not None:
                     self.catalog.record_delete(change, event_id=event_id)
+                if self.brain_projector is not None:
+                    self.brain_projector.project_file_change(change)
                 deleted += 1
                 continue
             chunks = chunk_change(change)
             self.index.replace_document(document_id, chunks)
             if self.catalog is not None:
                 self.catalog.record_upsert(change, event_id=event_id)
+            if self.brain_projector is not None:
+                self.brain_projector.project_file_change(change)
             upserted += 1
             chunks_written += len(chunks)
         return {"upserted": upserted, "deleted": deleted, "chunks": chunks_written}
