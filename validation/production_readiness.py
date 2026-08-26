@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Mapping
 
 from resilience.certification import CertificationReport
@@ -114,4 +116,124 @@ def evaluate_production_readiness(
         passed=tuple(sorted(set(passed))),
         missing=tuple(sorted(set(missing))),
         evidence_refs=tuple(sorted(set(refs))),
+    )
+
+
+# Each required key belongs to exactly one readiness area. Deriving the area
+# from the key means an evidence record only has to name the claim it proves.
+READINESS_AREAS: Mapping[str, ReadinessArea] = {
+    "real-source-integration": ReadinessArea.INTEGRATIONS,
+    "entra-production-auth": ReadinessArea.IDENTITY,
+    "private-network-path": ReadinessArea.SECURITY,
+    "ha-state-backend": ReadinessArea.DATA,
+    "backup-restore-drill": ReadinessArea.DATA,
+    "audit-export": ReadinessArea.SECURITY,
+    "security-adversarial-suite": ReadinessArea.SECURITY,
+    "control-plane-slo": ReadinessArea.OBSERVABILITY,
+    "production-like-soak": ReadinessArea.RELIABILITY,
+    "rollback-drill": ReadinessArea.RELIABILITY,
+    "kill-switch-drill": ReadinessArea.RELIABILITY,
+    "independent-verification": ReadinessArea.L3,
+}
+
+_PASSING_RESULTS = frozenset({"pass", "passed", "success", "succeeded"})
+
+
+@dataclass(frozen=True)
+class ReadinessEvidenceLoad:
+    """What a registry directory yielded, including what it could not use."""
+
+    evidence: tuple[ReadinessEvidence, ...]
+    files_read: int
+    ignored: tuple[str, ...]
+
+
+def _record_key(record: Mapping[str, object]) -> str | None:
+    for field in ("readiness_key", "key", "claim"):
+        value = record.get(field)
+        if isinstance(value, str) and value in REQUIRED_KEYS:
+            return value
+    return None
+
+
+def _record_passed(record: Mapping[str, object]) -> bool:
+    if isinstance(record.get("passed"), bool):
+        return bool(record["passed"])
+    result = record.get("result")
+    if isinstance(result, Mapping) and isinstance(result.get("passed"), bool):
+        return bool(result["passed"])
+    if isinstance(result, str):
+        return result.strip().lower() in _PASSING_RESULTS
+    return False
+
+
+def _record_reference(record: Mapping[str, object]) -> str:
+    """The retained artifact this record points at.
+
+    ``evidence_id`` is deliberately not a fallback: it identifies the record,
+    not anything a reviewer can go and read. A record that lists no artifact has
+    nothing retained behind it.
+    """
+    value = record.get("evidence_ref")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    artifacts = record.get("artifacts")
+    if isinstance(artifacts, str):
+        return artifacts.strip()
+    if isinstance(artifacts, (list, tuple)):
+        for item in artifacts:
+            if isinstance(item, str) and item.strip():
+                return item.strip()
+    return ""
+
+
+def readiness_evidence_from_record(record: Mapping[str, object]) -> ReadinessEvidence | None:
+    """Map one evidence record onto a readiness key, or None if it names none.
+
+    The registry record schema is defined by ``docs/PRODUCTION-EVIDENCE.md``.
+    This reader is deliberately tolerant about *where* the claim and artifact
+    live in the record and strict about what counts as passing: a record with no
+    retained artifact reference is not evidence, whatever its result says.
+    """
+    key = _record_key(record)
+    if key is None:
+        return None
+    note_parts = [str(record[field]) for field in ("method", "basis") if record.get(field)]
+    return ReadinessEvidence(
+        key=key,
+        area=READINESS_AREAS[key],
+        passed=_record_passed(record),
+        evidence_ref=_record_reference(record),
+        note="; ".join(note_parts),
+    )
+
+
+def load_readiness_evidence(directory: str | Path) -> ReadinessEvidenceLoad:
+    """Read every ``*.json`` file in an evidence registry directory.
+
+    A missing directory is not an error: it means no evidence exists, which is
+    the same as nothing being proven.
+    """
+    root = Path(directory)
+    evidence: list[ReadinessEvidence] = []
+    ignored: list[str] = []
+    files = sorted(root.glob("*.json")) if root.is_dir() else []
+    for path in files:
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            ignored.append(f"{path.name}: unreadable ({exc})")
+            continue
+        records = loaded if isinstance(loaded, list) else [loaded]
+        for index, record in enumerate(records):
+            if not isinstance(record, Mapping):
+                ignored.append(f"{path.name}[{index}]: not a JSON object")
+                continue
+            item = readiness_evidence_from_record(record)
+            if item is None:
+                ignored.append(f"{path.name}[{index}]: names no required readiness key")
+                continue
+            evidence.append(item)
+    return ReadinessEvidenceLoad(
+        evidence=tuple(evidence), files_read=len(files), ignored=tuple(ignored)
     )
