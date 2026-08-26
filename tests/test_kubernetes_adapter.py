@@ -49,7 +49,7 @@ def test_restart_preflights_then_uses_fixed_argv_and_independent_verification():
     runner = FakeRunner()
     adapter = KubernetesActionAdapter(runner, namespace="prod")
     request = ActionRequest("payments", "prod", "aks.restart.workload", 2, approval_token="approved")
-    result = execute_control_loop(catalog=default_catalog(), policy=policy(), request=request, adapter=adapter)
+    result = execute_control_loop(catalog=default_catalog(), policy=policy(), request=request, adapter=adapter, approval_verified=True)
     assert result.status == "succeeded"
     assert runner.calls[0] == ("kubectl", "-n", "prod", "get", "deployment/payments", "-o", "json")
     assert runner.calls[1] == ("kubectl", "-n", "prod", "rollout", "restart", "deployment/payments")
@@ -70,6 +70,7 @@ def test_preflight_blocks_unsafe_names_before_mutation():
         ),
         request=request,
         adapter=adapter,
+        approval_verified=True,
     )
     assert result.status == "denied"
     assert "invalid Kubernetes name" in result.error
@@ -78,7 +79,7 @@ def test_preflight_blocks_unsafe_names_before_mutation():
 def test_failed_verification_without_safe_redo_escalates_instead_of_crashing():
     adapter = KubernetesActionAdapter(FakeRunner(final_ready=False), namespace="prod")
     request = ActionRequest("payments", "prod", "aks.rollout.undo", 2, approval_token="x")
-    result = execute_control_loop(catalog=default_catalog(), policy=policy(), request=request, adapter=adapter)
+    result = execute_control_loop(catalog=default_catalog(), policy=policy(), request=request, adapter=adapter, approval_verified=True)
     assert result.status == "escalate"
     assert "automatic redo is not safely defined" in result.error
 
@@ -88,7 +89,8 @@ def test_crashloop_runbook_requires_live_crashloop_evidence():
     adapter = KubernetesActionAdapter(runner, namespace="prod")
     request = ActionRequest("payments", "prod", "aks.restart.crashloop", 2, approval_token="x")
     result = execute_control_loop(
-        catalog=default_catalog(), policy=policy(("aks.restart.crashloop",)), request=request, adapter=adapter
+        catalog=default_catalog(), policy=policy(("aks.restart.crashloop",)), request=request, adapter=adapter,
+        approval_verified=True,
     )
     assert result.status == "denied"
     assert "crashloop_present" in result.error

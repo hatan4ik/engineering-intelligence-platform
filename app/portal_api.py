@@ -6,6 +6,7 @@ from typing import Protocol
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
+from app.auth_mode import header_identity_permitted
 from app.gateway import ApiKeyPrincipalStore, GatewayAuthError, GatewayPrincipal
 from portal.intelligence_view import ServiceIntelligenceView, to_dict as service_to_dict
 from portal.portfolio_view import PortfolioIntelligenceView, to_dict as portfolio_to_dict
@@ -40,8 +41,8 @@ def _principal(
     fallback_user: str | None,
     fallback_groups: str | None,
 ) -> PortalPrincipal:
-    require_auth = os.getenv("EIP_REQUIRE_AUTH", "false").lower() == "true"
-    if not require_auth:
+    header_ok, _ = header_identity_permitted()
+    if header_ok:
         groups = tuple(sorted(g.strip() for g in (fallback_groups or "engineering").split(",") if g.strip()))
         return PortalPrincipal(fallback_user or "local-demo", groups)
 

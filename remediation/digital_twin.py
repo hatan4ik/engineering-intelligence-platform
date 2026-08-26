@@ -120,6 +120,7 @@ class KubernetesDigitalTwin:
         catalog: RunbookCatalog,
         policy: ServiceAutonomy,
         request: ActionRequest,
+        approval_verified: bool = False,
     ) -> SimulationResult:
         runbook = catalog.get(request.runbook_id)
         source_adapter = KubernetesActionAdapter(self.runner, namespace=source_namespace)
@@ -153,6 +154,7 @@ class KubernetesDigitalTwin:
                 policy=policy,
                 request=request,
                 sandbox_adapter=adapter,
+                approval_verified=approval_verified,
             )
         finally:
             self.destroy(env.namespace)

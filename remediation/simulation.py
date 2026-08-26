@@ -20,12 +20,17 @@ def simulate(
     policy: ServiceAutonomy,
     request: ActionRequest,
     sandbox_adapter: ActionAdapter,
+    approval_verified: bool = False,
 ) -> SimulationResult:
+    # The sandbox dry-run passes through the same policy gate as production, so
+    # the verified-approval flag must be forwarded; an unverified plan is denied
+    # here just as it would be in production.
     result = execute_control_loop(
         catalog=catalog,
         policy=policy,
         request=request,
         adapter=sandbox_adapter,
+        approval_verified=approval_verified,
     )
     notes = []
     if result.status == "succeeded":
