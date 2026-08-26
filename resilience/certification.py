@@ -30,7 +30,7 @@ from remediation.catalog import AutonomyLevel, Runbook
 from remediation.policy import ActionRequest, ServiceAutonomy
 from resilience.exercises import ExerciseKind, ExerciseResult, certification_from_exercises
 from resilience.policy import AutonomyCertification
-from resilience.scope import CertificationScope
+from resilience.scope import CertificationScope, parse_instant
 
 if TYPE_CHECKING:  # pragma: no cover - typing only; ``validation`` is not shipped.
     from validation.evidence_records import EvidenceRecord
@@ -335,14 +335,6 @@ def evaluate_l4_eligibility(
     )
 
 
-def _parse_instant(value: str) -> datetime | None:
-    try:
-        parsed = datetime.fromisoformat(str(value))
-    except (TypeError, ValueError):
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
-
-
 def certification_refusal(
     record: L4CertificationRecord | None,
     *,
@@ -358,7 +350,7 @@ def certification_refusal(
 
     if record is None:
         return f"{CERTIFICATION_CHECK}: no certification record for this L4 scope"
-    expires = _parse_instant(record.expires_on)
+    expires = parse_instant(record.expires_on)
     if expires is None:
         return f"{CERTIFICATION_CHECK}: record expires_on is not a readable timestamp"
     if expires <= now:

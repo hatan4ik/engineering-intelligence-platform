@@ -16,17 +16,17 @@ from .catalog import AutonomyLevel, Runbook, RunbookCatalog
 from .opa_policy import (
     AutonomyContext,
     CertificationClaim,
-    certification_denial,
     LocalReferenceEvaluator,
     PolicyControlState,
     PolicyEvaluator,
     as_policy_decision,
+    certification_denial,
 )
 from .policy import ActionRequest, PolicyDecision, ServiceAutonomy
 
 
-#: Platform-wide autonomy kill switch. When it is exactly ``true`` no L3 or L4
-#: execution runs, whatever the policy, the approval, or the certification says.
+#: Platform-wide autonomy kill switch. When it is engaged no L3 or L4 execution
+#: runs, whatever the policy, the approval, or the certification says.
 KILL_SWITCH_ENV = "EIP_AUTONOMY_KILL_SWITCH"
 
 #: The refusal reason the kill switch produces. It is a fixed token so an
@@ -35,7 +35,11 @@ KILL_SWITCH_REASON = "kill-switch"
 
 
 def autonomy_kill_switch_engaged(environ: Mapping[str, str] | None = None) -> bool:
-    """True only when the kill switch is set to exactly ``true`` (case-insensitive)."""
+    """True when the switch reads ``true``, ignoring case and surrounding whitespace.
+
+    A kill switch errs towards engaged: it must not miss an operator's intent
+    because they typed ``TRUE``.
+    """
 
     source = os.environ if environ is None else environ
     return str(source.get(KILL_SWITCH_ENV, "false")).strip().lower() == "true"
@@ -154,10 +158,14 @@ def execute_control_loop(
     nothing is still gated at the level its policy actually grants; a caller may
     pass a lower level explicitly, never a higher one than it operates at.
 
-    ``certification`` is the only authority an L4 execution accepts. It is
-    checked *after* the policy decision because a certification is bound to the
-    policy bundle revision that authorised the request; a request the policy
-    denies is already refused and never reaches the gate.
+    ``certification`` is the only authority an L4 execution accepts. Its
+    presence, expiry and scope are decided before the policy service is
+    contacted; its material-inputs hash is compared afterwards, because that
+    hash binds the policy bundle revision that authorised the request and the
+    revision is only known once the decision comes back.
+
+    ``now`` and ``environ`` exist so expiry and the kill switch are testable
+    without touching the clock or the process environment.
     """
 
     runbook = catalog.get(request.runbook_id)
@@ -176,9 +184,6 @@ def execute_control_loop(
         decision = PolicyDecision(False, "OPA policy evaluator is required but not configured")
         return ExecutionResult(status="denied", policy=decision)
     evaluator = evaluator or LocalReferenceEvaluator()
-    # approval_verified must be produced by verify_approval() upstream and passed
-    # in explicitly. The presence of an approval_token string is NOT proof of a
-    # verified approval and must never satisfy the human-approval gate.
     autonomy = _autonomy_context(
         level=level, policy=policy, request=request, runbook=runbook,
         certification=certification, now=moment,
@@ -193,6 +198,9 @@ def execute_control_loop(
                 status="blocked", policy=PolicyDecision(False, denial), error=denial
             )
 
+    # approval_verified must be produced by verify_approval() upstream and passed
+    # in explicitly. The presence of an approval_token string is NOT proof of a
+    # verified approval and must never satisfy the human-approval gate.
     evaluated = evaluator.evaluate(
         runbook=runbook,
         policy=policy,

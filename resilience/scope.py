@@ -27,16 +27,23 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, is_dataclass, asdict
+from dataclasses import asdict, dataclass, is_dataclass
+from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
-#: The material inputs named by ``architecture/l4-certification.md``.
-MATERIAL_INPUT_FIELDS: tuple[str, ...] = (
-    "runbook_definition",
-    "policy_bundle_version",
-    "verification_signal",
-    "dependencies",
-)
+
+def parse_instant(value: str) -> datetime | None:
+    """Parse an ISO-8601 instant, or ``None`` if it is unreadable.
+
+    A naive timestamp is read as UTC. ``None`` is a refusal, never "now": every
+    caller treats an unreadable expiry as a reason to fail closed.
+    """
+
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def _canonical(payload: Any) -> str:

@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
+from resilience.scope import parse_instant
+
 from .catalog import Runbook
 from .policy import ActionRequest, PolicyDecision, ServiceAutonomy
 
@@ -65,14 +67,6 @@ class AutonomyContext:
         )
 
 
-def _parse_instant(value: str) -> datetime | None:
-    try:
-        parsed = datetime.fromisoformat(str(value))
-    except (TypeError, ValueError):
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
-
-
 def certification_denial(autonomy: AutonomyContext) -> str | None:
     """Deny an L4 request whose certification is absent, stale or for another scope.
 
@@ -88,10 +82,10 @@ def certification_denial(autonomy: AutonomyContext) -> str | None:
     claim = autonomy.certification
     if claim is None:
         return "l4-certification: no certification record for this L4 scope"
-    now = _parse_instant(autonomy.now)
+    now = parse_instant(autonomy.now)
     if now is None:
         return "l4-certification: request carries no readable evaluation time"
-    expires = _parse_instant(claim.expires_on)
+    expires = parse_instant(claim.expires_on)
     if expires is None:
         return "l4-certification: certification expires_on is not a readable timestamp"
     if expires <= now:
