@@ -209,6 +209,8 @@ async def github_webhook(
                 pr_number=int(terminal["pr_number"]),
                 service=None,
                 merged=bool(terminal["merged"]),
+                risk_signal=str(terminal.get("risk_signal", "not-reviewed")),
+                utility_signal=str(terminal.get("utility_signal", "not-reviewed")),
             )
         return {"status": "outcome-recorded", "merged": bool(terminal["merged"])}
 
@@ -221,7 +223,7 @@ async def github_webhook(
         span.set_attribute("eip.repo", event.repository)
         span.set_attribute("eip.pr", event.number)
         span.set_attribute("eip.delivery_id", x_github_delivery or "")
-        result = guardian.evaluate(event)
+        result = await guardian.evaluate(event)
         span.set_attribute("eip.risk_score", result.assessment.score)
     return {
         "status": "reviewed",

@@ -27,14 +27,14 @@ class DriftDetectorService:
         self.workflows = workflows
         self.publisher = publisher
 
-    def run(self, *, service: str, environment: str) -> DriftResult:
+    async def run(self, *, service: str, environment: str) -> DriftResult:
         snapshots = self.provider.desired(service=service, environment=environment)
         all_findings: list[DriftFinding] = []
         workflow_ids: list[str] = []
         for snapshot in snapshots:
             findings = detect_drift(snapshot)
             all_findings.extend(findings)
-            workflow = self.workflows.start_drift_review(
+            workflow = await self.workflows.start_drift_review(
                 resource_id=snapshot.resource_id,
                 service_id=service,
                 environment=environment,

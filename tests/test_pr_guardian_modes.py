@@ -4,6 +4,7 @@ The evaluation job is never the gate: it always exits 0.  Only the trusted
 publisher may turn a repository-owned enforcement decision into a failing check.
 """
 
+import asyncio
 import json
 from datetime import date
 
@@ -111,10 +112,21 @@ def event():
     return PullRequestEvent("acme/platform", 42, "deadbeef", "opened")
 
 
+# ``PRGuardianService.evaluate`` and ``evaluate_pull_request`` are coroutines:
+# the control plane starts the durable workflow through an async client. These
+# synchronous tests drive them the way the CLI entry points do.
+def run_evaluate(service, *args, **kwargs):
+    return asyncio.run(service.evaluate(*args, **kwargs))
+
+
+def run_observation(*args, **kwargs):
+    return asyncio.run(evaluate_pull_request(*args, **kwargs))
+
+
 def test_shadow_mode_publishing_is_unchanged(tmp_path):
     service, github, _ = build_service(tmp_path, default_shadow_config("acme/platform"))
 
-    result = service.evaluate(event(), now=NOW)
+    result = run_evaluate(service, event(), now=NOW)
 
     assert result.mode == "shadow"
     assert github.checks[0]["name"] == "Engineering Intelligence / PR Guardian (shadow)"
@@ -126,7 +138,7 @@ def test_shadow_mode_publishing_is_unchanged(tmp_path):
 def test_advisory_mode_publishes_a_neutral_check_with_an_advisory_title(tmp_path):
     service, github, _ = build_service(tmp_path, repository_config("advisory"))
 
-    result = service.evaluate(event(), now=NOW)
+    result = run_evaluate(service, event(), now=NOW)
 
     assert result.mode == "advisory"
     assert github.checks[0]["conclusion"] == "neutral"
@@ -137,7 +149,7 @@ def test_advisory_mode_publishes_a_neutral_check_with_an_advisory_title(tmp_path
 def test_enforce_mode_fails_the_check_only_when_the_rule_fires(tmp_path):
     service, github, _ = build_service(tmp_path, repository_config("enforce"))
 
-    result = service.evaluate(event(), now=NOW)
+    result = run_evaluate(service, event(), now=NOW)
 
     assert result.enforcement.would_block is True
     assert result.conclusion == "failure"
@@ -147,7 +159,7 @@ def test_enforce_mode_fails_the_check_only_when_the_rule_fires(tmp_path):
 def test_enforce_mode_stays_neutral_when_the_rule_does_not_fire(tmp_path):
     service, github, _ = build_service(tmp_path, repository_config("enforce", threshold=99))
 
-    result = service.evaluate(event(), now=NOW)
+    result = run_evaluate(service, event(), now=NOW)
 
     assert result.enforcement.would_block is False
     assert github.checks[0]["conclusion"] == "neutral"
@@ -158,7 +170,7 @@ def test_kill_switch_downgrades_an_enforcing_repository_to_neutral(tmp_path):
         tmp_path, repository_config("enforce"), environ={KILL_SWITCH_ENV: "true"}
     )
 
-    result = service.evaluate(event(), now=NOW)
+    result = run_evaluate(service, event(), now=NOW)
 
     assert result.enforcement.reason == "kill-switch"
     assert github.checks[0]["conclusion"] == "neutral"
@@ -168,7 +180,7 @@ def test_a_config_for_another_repository_is_refused(tmp_path):
     service, _, _ = build_service(tmp_path, repository_config("enforce"))
 
     with pytest.raises(ValueError, match="repository"):
-        service.evaluate(PullRequestEvent("acme/other", 1, "abcd", "opened"))
+        run_evaluate(service, PullRequestEvent("acme/other", 1, "abcd", "opened"))
 
 
 def test_a_non_shadow_mode_cannot_come_from_a_flag_without_a_config(tmp_path):
@@ -192,7 +204,7 @@ def test_observation_carries_mode_enforcement_and_architecture(tmp_path):
         "infra/payments/main.tf": "public_network_access_enabled = true\n",
     })
 
-    observation = evaluate_pull_request(
+    observation = run_observation(
         event(),
         service=service,
         audit=audit,
@@ -216,7 +228,7 @@ def test_architecture_findings_never_change_the_check_conclusion(tmp_path):
         "infra/payments/main.tf": "public_network_access_enabled = true\n",
     })
 
-    observation = evaluate_pull_request(
+    observation = run_observation(
         event(), service=service, audit=audit, contents=contents, now=NOW
     )
 
@@ -275,7 +287,7 @@ class FakePublisherClient:
 
 def enforcing_observation(tmp_path, contents=None):
     service, _, audit = build_service(tmp_path, repository_config("enforce"))
-    return evaluate_pull_request(
+    return run_observation(
         event(),
         service=service,
         audit=audit,
@@ -376,7 +388,7 @@ def test_published_check_identity_follows_the_trusted_config_not_the_artifact(tm
 
 def comment_body(tmp_path, config, **kwargs):
     service, github, _ = build_service(tmp_path, config, **kwargs)
-    service.evaluate(event(), now=NOW)
+    run_evaluate(service, event(), now=NOW)
     return github.comments[0]["body"]
 
 
@@ -458,7 +470,7 @@ def test_architecture_section_carries_reviewed_and_skipped_counts(tmp_path):
         skips={"services/payments/identity_auth.py": "too-large"},
     )
 
-    observation = evaluate_pull_request(
+    observation = run_observation(
         event(), service=service, audit=audit, contents=contents, now=NOW
     )
 
@@ -473,7 +485,7 @@ def test_architecture_section_carries_reviewed_and_skipped_counts(tmp_path):
 def test_architecture_summary_says_it_did_not_run_when_nothing_was_reviewed(tmp_path):
     service, _, audit = build_service(tmp_path, repository_config("advisory"))
 
-    observation = evaluate_pull_request(
+    observation = run_observation(
         event(), service=service, audit=audit, contents=FakeContents({}), now=NOW
     )
 
@@ -490,7 +502,7 @@ def test_architecture_says_nothing_was_in_scope_when_no_rule_matched(tmp_path):
         tmp_path, repository_config("advisory"), files=[ChangedFile("README.md", "modified", 1, 1)]
     )
 
-    observation = evaluate_pull_request(
+    observation = run_observation(
         event(), service=service, audit=audit, contents=FakeContents({}), now=NOW
     )
 

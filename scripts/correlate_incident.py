@@ -14,6 +14,8 @@ it requires ``GITHUB_TOKEN`` and ``--repository owner/name``.
 """
 from __future__ import annotations
 
+import asyncio
+
 import argparse
 import json
 import os
@@ -87,10 +89,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    result = capability.incident.investigate(
-        incident_id=trigger.incident_id,
-        service=trigger.service,
-        environment=trigger.environment,
+    result = asyncio.run(
+        capability.incident.investigate(
+            incident_id=trigger.incident_id,
+            service=trigger.service,
+            environment=trigger.environment,
+        )
     )
     print(json.dumps(incident_report(trigger, result), indent=2, sort_keys=True))
     return 0

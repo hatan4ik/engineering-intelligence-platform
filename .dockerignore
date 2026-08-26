@@ -8,3 +8,8 @@
 # EIP_TEMPORAL_REMEDIATION_WORKFLOWS=enabled. tests/test_image_import_closure.py
 # keeps this file honest: any shipped module importing an unshipped package
 # must be listed here.
+#
+# The Company Brain adapter is reachable only from tests: no shipped module
+# imports product/pr_guardian/company_brain.py, so company_brain/ stays out of
+# the release image and the adapter is excluded with it.
+product/pr_guardian/company_brain.py

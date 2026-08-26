@@ -38,7 +38,7 @@ class DriftCorrectionService:
         self.workflows = workflows
         self.publisher = publisher
 
-    def run(self, *, service: str, environment: str) -> DriftCorrectionResult:
+    async def run(self, *, service: str, environment: str) -> DriftCorrectionResult:
         workflow_ids: list[str] = []
         plans: list[DriftCorrectionPlan] = []
         for snapshot in self.provider.desired(service=service, environment=environment):
@@ -53,7 +53,7 @@ class DriftCorrectionService:
             )
             if plan is None:
                 continue
-            workflow = self.workflows.start_drift_review(
+            workflow = await self.workflows.start_drift_review(
                 resource_id=snapshot.resource_id,
                 service_id=service,
                 environment=environment,

@@ -13,6 +13,8 @@ it requires ``GITHUB_TOKEN`` and ``--repository owner/name``.
 """
 from __future__ import annotations
 
+import asyncio
+
 import argparse
 import json
 import os
@@ -70,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     capability = build_operations_capability(
         environ, deployment_publisher=publisher, require_webhook_secret=False
     )
-    result = capability.deployment.investigate(event)
+    result = asyncio.run(capability.deployment.investigate(event))
     print(json.dumps(deployment_report(event, result), indent=2, sort_keys=True))
     return 0
 

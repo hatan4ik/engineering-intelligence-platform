@@ -47,7 +47,7 @@ repository assessment; production claims require retained evidence under
 </p>
 
 Full design with per-plane diagrams, data model, failure modes, and alternatives considered:
-**[`architecture/DESIGN.md`](architecture/DESIGN.md)**.
+**[`architecture/design.md`](architecture/design.md)**.
 
 ## Quick start
 

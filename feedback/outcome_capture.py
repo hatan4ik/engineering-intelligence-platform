@@ -29,6 +29,8 @@ class OutcomeFeedbackRecorder:
         merged: bool,
         reverted: bool = False,
         risk_score: int | None = None,
+        risk_signal: str = "not-reviewed",
+        utility_signal: str = "not-reviewed",
     ) -> CapturedOutcome:
         outcome = FeedbackOutcome.REVERTED if reverted else (
             FeedbackOutcome.ACCEPTED if merged else FeedbackOutcome.REJECTED
@@ -42,6 +44,8 @@ class OutcomeFeedbackRecorder:
             metadata={
                 "repository": repository,
                 "pr_number": str(pr_number),
+                "risk_signal": risk_signal,
+                "utility_signal": utility_signal,
                 **({"risk_score": str(risk_score)} if risk_score is not None else {}),
             },
         )
@@ -95,7 +99,7 @@ class OutcomeFeedbackRecorder:
 
 
 def normalize_github_pr_outcome(payload: Mapping[str, object]) -> dict[str, object] | None:
-    """Extract only terminal PR outcomes; non-terminal webhook deliveries are ignored."""
+    """Extract terminal PR outcomes along with explicit reviewer labels (shadow pilot)."""
     if str(payload.get("action", "")) != "closed":
         return None
     repository = payload.get("repository")
@@ -106,8 +110,20 @@ def normalize_github_pr_outcome(payload: Mapping[str, object]) -> dict[str, obje
     number = int(payload.get("number", 0))
     if not full_name or number <= 0:
         raise ValueError("missing GitHub repository or PR number")
+        
+    raw_labels = pull_request.get("labels", [])
+    labels = [str(l.get("name", "")).lower() for l in raw_labels if isinstance(l, dict)]
+    
+    risk_labels = [l for l in labels if l in {"eip-pr-guardian/confirmed-risk", "eip-pr-guardian/false-positive"}]
+    utility_labels = [l for l in labels if l in {"eip-pr-guardian/useful", "eip-pr-guardian/not-useful"}]
+    
+    risk_signal = risk_labels[0].replace("eip-pr-guardian/", "") if risk_labels else "not-reviewed"
+    utility_signal = utility_labels[0].replace("eip-pr-guardian/", "") if utility_labels else "not-reviewed"
+
     return {
         "repository": full_name,
         "pr_number": number,
         "merged": bool(pull_request.get("merged", False)),
+        "risk_signal": risk_signal,
+        "utility_signal": utility_signal,
     }

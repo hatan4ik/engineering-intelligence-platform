@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from control_plane.workflows import ControlPlaneWorkflows
@@ -66,7 +67,9 @@ def test_incident_workflow_includes_topology_blast_radius(tmp_path):
         publisher=publisher,
     )
 
-    result = service.investigate(incident_id="INC-42", service="payments", environment="prod")
+    result = asyncio.run(
+        service.investigate(incident_id="INC-42", service="payments", environment="prod")
+    )
     assert result.workflow_id == "incident:INC-42"
     assert result.impacted_services == ("checkout", "payments")
     assert len(result.analysis.hypotheses) >= 2

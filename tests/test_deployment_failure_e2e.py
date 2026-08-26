@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from control_plane.workflows import ControlPlaneWorkflows
@@ -78,7 +79,7 @@ def test_investigator_persists_analysis_and_publishes(tmp_path):
         environment="prod",
         commit_sha="abc123",
     )
-    result = service.investigate(event)
+    result = asyncio.run(service.investigate(event))
     assert result.workflow_id == "deployment-failure:ado:Platform:7:42"
     assert result.analysis.hypotheses
     assert result.analysis.hypotheses[0].confidence >= 0.8

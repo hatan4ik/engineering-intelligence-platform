@@ -1,3 +1,5 @@
+import asyncio
+
 from intelligence.risk import RiskAssessment, RiskFactor
 from orchestration.approvals import issue_approval
 from state.audit import SqliteAuditLog
@@ -16,11 +18,13 @@ def test_pr_workflow_persists_policy_and_rejects_stale_approval(tmp_path):
         blast_radius=("payments", "ledger"),
         factors=(RiskFactor("security-boundary-change", 20, "identity controls changed"),),
     )
-    workflow, policy = workflows.start_pr_review(
-        service_id="payments",
-        repository="acme/payments",
-        pr_number=42,
-        assessment=assessment,
+    workflow, policy = asyncio.run(
+        workflows.start_pr_review(
+            service_id="payments",
+            repository="acme/payments",
+            pr_number=42,
+            assessment=assessment,
+        )
     )
 
     assert policy.require_additional_approval

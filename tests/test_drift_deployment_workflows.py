@@ -1,3 +1,5 @@
+import asyncio
+
 from datetime import datetime, timezone
 
 from control_plane.workflows import ControlPlaneWorkflows
@@ -24,11 +26,13 @@ def test_drift_detector_records_evidence_and_workflow(tmp_path):
 
     store = SqliteStateStore(tmp_path / "state.db")
     audit = SqliteAuditLog(tmp_path / "audit.db")
-    workflow = ControlPlaneWorkflows(store, audit).start_drift_review(
-        resource_id=snapshot.resource_id,
-        service_id=snapshot.service,
-        environment=snapshot.environment,
-        findings=findings,
+    workflow = asyncio.run(
+        ControlPlaneWorkflows(store, audit).start_drift_review(
+            resource_id=snapshot.resource_id,
+            service_id=snapshot.service,
+            environment=snapshot.environment,
+            findings=findings,
+        )
     )
     assert workflow.status is WorkflowStatus.PLANNED
     assert workflow.plan_hash.startswith("sha256:")
@@ -46,11 +50,13 @@ def test_no_drift_closes_review_without_mutation(tmp_path):
     )
     store = SqliteStateStore(tmp_path / "state.db")
     audit = SqliteAuditLog(tmp_path / "audit.db")
-    workflow = ControlPlaneWorkflows(store, audit).start_drift_review(
-        resource_id=snapshot.resource_id,
-        service_id=snapshot.service,
-        environment=snapshot.environment,
-        findings=detect_drift(snapshot),
+    workflow = asyncio.run(
+        ControlPlaneWorkflows(store, audit).start_drift_review(
+            resource_id=snapshot.resource_id,
+            service_id=snapshot.service,
+            environment=snapshot.environment,
+            findings=detect_drift(snapshot),
+        )
     )
     assert workflow.status is WorkflowStatus.SUCCEEDED
     assert audit.verify_chain()
@@ -81,9 +87,11 @@ def test_deployment_failure_investigator_becomes_durable_workflow(tmp_path):
 
     store = SqliteStateStore(tmp_path / "state.db")
     audit = SqliteAuditLog(tmp_path / "audit.db")
-    workflow = ControlPlaneWorkflows(store, audit).start_deployment_failure(
-        environment="prod",
-        analysis=analysis,
+    workflow = asyncio.run(
+        ControlPlaneWorkflows(store, audit).start_deployment_failure(
+            environment="prod",
+            analysis=analysis,
+        )
     )
     assert workflow.kind == "deployment-failure-investigation"
     assert workflow.status is WorkflowStatus.PLANNED

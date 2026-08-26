@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Current implementation state — repository/reference evidence, not production certification |
 | **Owner** | Platform Engineering |
-| **Current design** | [`DESIGN.md`](DESIGN.md) |
+| **Current design** | [`design.md`](design.md) |
 | **Production evidence contract** | [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 
 This file is the current-state reconciliation for the **original Engineering Intelligence

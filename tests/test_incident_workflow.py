@@ -1,3 +1,5 @@
+import asyncio
+
 from datetime import datetime, timezone
 
 from control_plane.workflows import ControlPlaneWorkflows
@@ -39,11 +41,13 @@ def test_incident_analysis_becomes_durable_audited_workflow(tmp_path):
     store = SqliteStateStore(tmp_path / "state.db")
     audit = SqliteAuditLog(tmp_path / "audit.db")
 
-    workflow = ControlPlaneWorkflows(store, audit).start_incident(
-        service_id="payments",
-        environment="prod",
-        incident_id="inc-123",
-        analysis=analysis,
+    workflow = asyncio.run(
+        ControlPlaneWorkflows(store, audit).start_incident(
+            service_id="payments",
+            environment="prod",
+            incident_id="inc-123",
+            analysis=analysis,
+        )
     )
 
     assert workflow.workflow_id == "incident:inc-123"

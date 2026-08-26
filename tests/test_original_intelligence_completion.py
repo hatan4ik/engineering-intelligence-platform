@@ -1,3 +1,5 @@
+import asyncio
+
 from datetime import datetime, timedelta, timezone
 
 from control_plane.workflows import ControlPlaneWorkflows
@@ -31,7 +33,13 @@ def test_drift_e2e_persists_and_audits(tmp_path):
     pub = Publisher()
     store = SqliteStateStore(tmp_path / "state.db")
     audit = SqliteAuditLog(tmp_path / "audit.db")
-    result = DriftDetectorService(provider=DriftProvider(), workflows=ControlPlaneWorkflows(store, audit), publisher=pub).run(service="payments", environment="prod")
+    result = asyncio.run(
+        DriftDetectorService(
+            provider=DriftProvider(),
+            workflows=ControlPlaneWorkflows(store, audit),
+            publisher=pub,
+        ).run(service="payments", environment="prod")
+    )
     assert result.findings[0].field == "image"
     assert result.findings[0].severity == 4
     assert store.get_workflow(result.workflow_ids[0]) is not None

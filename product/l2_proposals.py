@@ -1,6 +1,6 @@
 """L2 proposals: an exact proposed action plus its rollback path, for a human to execute.
 
-The autonomy ladder in ``architecture/DESIGN.md`` puts this module at L2. L1
+The autonomy ladder in ``architecture/design.md`` puts this module at L2. L1
 recommends with evidence; L2 turns that recommendation into something a human can
 act on directly -- a revert PR with a named commit range, an allow-listed runbook
 with its rollback runbook, or a ticket. Nothing here executes, schedules, or

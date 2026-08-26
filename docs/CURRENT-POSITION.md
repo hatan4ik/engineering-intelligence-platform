@@ -41,7 +41,7 @@ request and the first observation record is retained.
 Only the roadmap stages sequence work. The other schemes describe *what kind* of thing a stage
 produces, not *when*.
 
-| Roadmap stage | Product trust stage ([strategy](PRODUCT-STRATEGY.md)) | Autonomy level ([design](../architecture/DESIGN.md)) | Scorecard target for rows it advances |
+| Roadmap stage | Product trust stage ([strategy](PRODUCT-STRATEGY.md)) | Autonomy level ([design](../architecture/design.md)) | Scorecard target for rows it advances |
 |---|---|---|---|
 | Stage 0 | pre-shadow | L0 | 3.0 reference |
 | Stage 1 | Shadow | L1 | 3.0 → 3.5 |

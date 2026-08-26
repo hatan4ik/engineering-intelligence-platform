@@ -83,7 +83,7 @@ class PRGuardianService:
         self.environ = environ
         self.mode = resolved
 
-    def evaluate(
+    async def evaluate(
         self,
         event: PullRequestEvent,
         *,
@@ -134,7 +134,7 @@ class PRGuardianService:
         )
 
         primary_service = changed_services[0] if changed_services else "unknown"
-        workflow, policy = self.workflows.start_pr_review(
+        workflow, policy = await self.workflows.start_pr_review(
             service_id=primary_service,
             repository=event.repository,
             pr_number=event.number,

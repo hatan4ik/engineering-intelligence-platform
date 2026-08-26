@@ -13,6 +13,7 @@ still suppress a block on itself by editing this workflow's definition, which
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import os
@@ -91,7 +92,7 @@ class GitHubFileContents:
             return FileContent.unavailable("not decodable as UTF-8 text")
 
 
-def evaluate_pull_request(
+async def evaluate_pull_request(
     event,
     *,
     service: PRGuardianService,
@@ -101,7 +102,7 @@ def evaluate_pull_request(
     now: date | datetime | None = None,
 ) -> dict[str, object]:
     """Assess risk, run Architecture Guard, and return the observation record."""
-    result = service.evaluate(event, publish=False, now=now)
+    result = await service.evaluate(event, publish=False, now=now)
     review = review_changed_paths(
         result.changed_files[:MAX_REVIEWED_FILES], provider=contents, rules=rules
     )
@@ -164,11 +165,15 @@ def main() -> int:
         workflows=workflows,
         config=config,
     )
-    observation = evaluate_pull_request(
-        event,
-        service=service,
-        audit=audit,
-        contents=GitHubFileContents(token=token, repository=event.repository, ref=event.head_sha),
+    observation = asyncio.run(
+        evaluate_pull_request(
+            event,
+            service=service,
+            audit=audit,
+            contents=GitHubFileContents(
+                token=token, repository=event.repository, ref=event.head_sha
+            ),
+        )
     )
     result_path = Path(os.environ.get("EIP_PR_GUARDIAN_RESULT_PATH", "pr-guardian-shadow-result.json"))
     result_path.write_text(json.dumps(observation, indent=2, sort_keys=True) + "\n", encoding="utf-8")

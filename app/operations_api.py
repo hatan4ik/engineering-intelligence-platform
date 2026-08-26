@@ -579,7 +579,7 @@ async def deployment_event(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
-        result = capability.deployment.investigate(event)
+        result = await capability.deployment.investigate(event)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return deployment_report(event, result)
@@ -599,7 +599,7 @@ async def incident_event(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not trigger.fired:
         return {"status": "ignored", "reason": "monitorCondition is not Fired"}
-    result = capability.incident.investigate(
+    result = await capability.incident.investigate(
         incident_id=trigger.incident_id,
         service=trigger.service,
         environment=trigger.environment,
