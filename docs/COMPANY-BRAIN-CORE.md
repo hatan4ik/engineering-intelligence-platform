@@ -41,6 +41,10 @@ content, execute a runbook, or authorize a merge/deployment.
 The initial store is in-memory and tested. A durable adapter is a later implementation stage and
 must preserve the core’s ID, provenance, ACL, idempotency, and relationship-validation rules.
 
+`IngestionPipeline` now accepts an optional `CompanyBrainProjector`. This keeps existing ingestion
+callers backward compatible while allowing a governed file change to update the retrieval index,
+source catalog, and Company Brain projection only after the index write succeeds.
+
 ## Safe product use
 
 [`PRGuardianCompanyBrainAdapter`](../product/pr_guardian/company_brain.py) converts the core into
@@ -54,6 +58,11 @@ the existing PR Guardian service graph and evidence contract. It is read-only:
 This is the integration pattern for subsequent Company Brain products: consume a constrained,
 authorized context; emit a reviewable outcome; then return explicit feedback and independently
 correlated outcomes to governed organizational memory.
+
+[`CompanyBrainFeedbackProjector`](../company_brain/feedback.py) now records typed PR findings and
+explicit reviewer outcomes as `finding` and `outcome` entities. It does **not** copy product
+evidence references into the Brain because those references do not carry the original source ACL;
+the source evidence must first enter through a governed projector.
 
 ## Explicit non-goals
 
