@@ -73,11 +73,14 @@ product decision applied deliberately by a human, never an automatic consequence
 schedule. It has read-only permissions (`actions: read`, `contents: read`) and:
 
 1. checks out the default branch;
-2. lists successful `pr-guardian-shadow-outcome.yml` runs on the default branch and downloads each
-   run's retained `pr-guardian-shadow-outcome*` artifact with `gh run download` — a run whose
-   artifact has passed its 14-day retention window is skipped, not an error;
-3. if **zero** artifacts were downloaded, writes to the job summary that no retained artifacts were
-   found and that this is not a result, and produces no report. The job succeeds;
+2. runs `scripts/download_pr_guardian_shadow_outcomes.sh`, which lists completed
+   `pull_request_target` runs of `pr-guardian-shadow-outcome.yml` and downloads each run's retained
+   `pr-guardian-shadow-outcome*` artifact with `gh run download`. A run whose artifact has passed
+   its 14-day retention window is skipped; **any other** `gh` failure — a token without
+   `actions: read`, a rate limit, a network fault — fails the step, because an empty result and a
+   broken download must not look alike. The script writes `count=<n>` to `$GITHUB_OUTPUT`;
+3. if **zero** artifacts were downloaded, the script writes to the job summary that no retained
+   artifacts were found and that this is not a result, and no report is produced. The job succeeds;
 4. otherwise runs the summarizer, uploads `pr-guardian-shadow-report.json` as an artifact with
    90-day retention, and prints the decision, sample counts, and unmet requirements to the job
    summary.

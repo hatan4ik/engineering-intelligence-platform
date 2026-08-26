@@ -31,36 +31,10 @@ jobs:
         id: download
         env:
           GH_TOKEN: ${{ github.token }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          set -euo pipefail
-          mkdir -p shadow-outcomes
-          runs="$(gh run list \
-            --workflow pr-guardian-shadow-outcome.yml \
-            --branch "$DEFAULT_BRANCH" \
-            --status success \
-            --limit 100 \
-            --json databaseId \
-            --jq '.[].databaseId')"
-          for run_id in $runs; do
-            # Artifacts expire after their retention window; a run whose export
-            # is gone is skipped rather than failing the report.
-            gh run download "$run_id" \
-              --pattern 'pr-guardian-shadow-outcome*' \
-              --dir "shadow-outcomes/$run_id" || true
-          done
-          count="$(find shadow-outcomes -type f -name '*.json' | wc -l | tr -d ' ')"
-          echo "count=$count" >> "$GITHUB_STEP_OUTPUT"
-      - name: Report that no closure artifacts are retained
-        if: steps.download.outputs.count == '0'
-        run: |
-          {
-            echo "## PR Guardian shadow report"
-            echo
-            echo "No retained \`pr-guardian-shadow-outcome\` artifacts were found on the default"
-            echo "branch, so no report was produced. This is not a result: the shadow pilot has"
-            echo "either not run, or every closure export has passed its retention window."
-          } >> "$GITHUB_STEP_SUMMARY"
+        # Writes count=<n> to $GITHUB_OUTPUT, and when the count is zero says so
+        # in the job summary. A gh failure that is not "this run's export has
+        # expired" fails the step instead of reporting an empty pilot.
+        run: bash scripts/download_pr_guardian_shadow_outcomes.sh shadow-outcomes
       - name: Summarize the shadow pilot
         if: steps.download.outputs.count != '0'
         env:
