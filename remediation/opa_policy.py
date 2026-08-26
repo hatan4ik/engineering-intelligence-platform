@@ -71,12 +71,20 @@ class AutonomyContext:
 
         Mirrors ``is_l4`` in ``infra/policy/remediation-policy.rego``. A declared
         ``L4`` always counts. The single sanctioned downgrade (``L3``) does not.
-        Anything else -- including an absent or understated declaration -- falls
-        back to the reviewed policy level, so the field can never be used to
-        talk the gate out of firing.
+        Anything else -- an absent or understated declaration, and anything that
+        is not a string at all -- falls back to the reviewed policy level, so the
+        field can never be used to talk the gate out of firing.
+
+        Only a real string may carry a claim. ``None`` and a bare ``4`` are not
+        declarations; coercing them with ``str()`` would be a coincidence, not a
+        contract.
         """
 
-        declared = str(self.autonomy_level).strip().upper()
+        declared = (
+            self.autonomy_level.strip().upper()
+            if isinstance(self.autonomy_level, str)
+            else ""
+        )
         if declared == "L4":
             return True
         if declared == SUPERVISED_DOWNGRADE:

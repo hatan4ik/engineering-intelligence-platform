@@ -143,7 +143,7 @@ no override flag. Recertify: rerun the exercises, retain the evidence, rerun
 
 | Order | Condition | Result | Reason |
 |---|---|---|---|
-| 1 | `EIP_AUTONOMY_KILL_SWITCH=true` and `max(policy.level, declared)` ≥ L3 | `blocked` | `kill-switch` |
+| 1 | `EIP_AUTONOMY_KILL_SWITCH=true` and `max(policy.level, raw declared)` ≥ L3 | `blocked` | `kill-switch` |
 | 2 | the declared `autonomy_level` diverges from the policy other than by the one sanctioned downgrade | `blocked` | `autonomy-level: …` (names both levels) |
 | 3 | L4 with no record / unreadable or past `expires_on` / wrong `scope_hash` / no scope hash | `blocked` | `l4-certification: …` |
 | 4 | policy (OPA or the reference evaluator) denies | `denied` | the policy reason |
@@ -166,8 +166,10 @@ reviewed `ServiceAutonomy` is what actually grants the level, so:
   exception: `APPROVE_AND_EXECUTE` (L3) under an L4 policy, the supervised
   exercise path. The promotion rule makes supervised runs the *input* to
   certification, so they must not require the certification they exist to earn;
-* the kill switch keys off `max(policy.level, declared)`, so no downgrade —
-  sanctioned or not — steps around it.
+* the kill switch keys off `max(policy.level, raw declared)` — the claim as it
+  arrived, before clamping — so neither a downgrade nor an over-declaration steps
+  around it, and an operator with the switch engaged is told `kill-switch` rather
+  than a level quibble.
 
 Without this clamp a caller could declare L2 against an L4 policy and execute an
 uncertified production mutation with the kill switch engaged. The refusal reason
@@ -187,7 +189,23 @@ a declared `L4` always counts, the sanctioned `L3` downgrade does not, and
 anything else — an absent field, an understated level — falls back to
 `input.policy.level >= 4`. A request with `policy.level: 4` and no
 `autonomy_level` at all is therefore denied without a certification, rather than
-falling through the rule chain. OPA cannot recompute the material-inputs hash — it would
+falling through the rule chain.
+
+Two coercions in that rule are deliberately total, because in a non-strict OPA an
+undefined value silently skips a rule rather than failing it:
+
+* **only a string can carry a claim.** `trim_space()` on a `null`, a number, or
+  an object is a builtin type error, which resolves to *undefined* — and an
+  undefined `declared_level` would skip the whole `l4-certification` chain. The
+  string path is gated on `is_string`, and a third `is_l4` body covers everything
+  that is not a string, so `autonomy_level: null` and `autonomy_level: 4` under a
+  level-4 policy are denied. `AutonomyContext.is_l4` gates on `isinstance(str)`
+  for the same reason: coercing `None` to `"NONE"` with `str()` would give the
+  right answer by coincidence, not by contract.
+* **a policy must carry a reviewed level.** Every level-dependent rule reads
+  `input.policy.level`; a missing or non-numeric one made each of them undefined
+  and fell through to `allowed`. The bundle now denies once, immediately after
+  the kill switch, with `service autonomy policy carries no reviewed level`. OPA cannot recompute the material-inputs hash — it would
 have to reproduce the executor's canonical JSON of the runbook definition — so it
 checks that one is present and bound to the right scope, and the executor
 compares the value. `LocalReferenceEvaluator` mirrors the same rules so the

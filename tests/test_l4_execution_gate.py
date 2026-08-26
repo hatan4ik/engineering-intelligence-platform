@@ -414,3 +414,43 @@ def test_a_declared_level_that_is_not_a_level_at_all_is_refused():
     assert result.status == "blocked"
     assert result.policy.reason.startswith("autonomy-level:")
     assert adapter.executed == []
+
+
+def test_an_over_declaration_with_the_switch_engaged_reports_the_kill_switch(monkeypatch):
+    """The switch keys off the raw claim, so it outranks the level refusal."""
+
+    monkeypatch.setenv("EIP_AUTONOMY_KILL_SWITCH", "true")
+    result, adapter = diverge(
+        policy_level=AutonomyLevel.HUMAN_EXECUTE,
+        declared=AutonomyLevel.BOUNDED_AUTONOMOUS,
+        certification=record(),
+    )
+    assert result.status == "blocked"
+    assert result.policy.reason == "kill-switch"
+    assert adapter.executed == []
+
+
+def test_an_uninterpretable_over_declaration_still_hits_the_kill_switch(monkeypatch):
+    monkeypatch.setenv("EIP_AUTONOMY_KILL_SWITCH", "true")
+    result, adapter = diverge(policy_level=AutonomyLevel.HUMAN_EXECUTE, declared=42)
+    assert result.status == "blocked"
+    assert result.policy.reason == "kill-switch"
+    assert adapter.executed == []
+
+
+def test_an_l2_policy_with_an_l2_claim_is_untouched_by_the_switch(monkeypatch):
+    """max() must not lift an honest L2 request into the switch's reach."""
+
+    monkeypatch.setenv("EIP_AUTONOMY_KILL_SWITCH", "true")
+    adapter = Adapter()
+    result = execute_control_loop(
+        catalog=l2_catalog(),
+        policy=policy(AutonomyLevel.HUMAN_EXECUTE, runbook_id="ops.collect.diagnostics"),
+        request=request("ops.collect.diagnostics"),
+        adapter=adapter,
+        evaluator=LocalReferenceEvaluator(),
+        autonomy_level=AutonomyLevel.HUMAN_EXECUTE,
+        now=NOW,
+    )
+    assert result.status == "succeeded"
+    assert adapter.executed == ["ops.collect.diagnostics"]

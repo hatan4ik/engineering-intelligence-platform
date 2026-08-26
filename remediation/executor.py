@@ -14,7 +14,6 @@ from resilience.certification import (
 
 from .catalog import AutonomyLevel, Runbook, RunbookCatalog
 from .opa_policy import (
-    SUPERVISED_DOWNGRADE,
     AutonomyContext,
     CertificationClaim,
     LocalReferenceEvaluator,
@@ -77,6 +76,20 @@ def _preflight(adapter: ActionAdapter, runbook: Runbook, request: ActionRequest)
         allowed, reason = result
         return bool(allowed), str(reason)
     return bool(result), "runbook preconditions satisfied" if result else "runbook preconditions failed"
+
+
+def _claimed_level_value(declared: AutonomyLevel | int | None) -> int:
+    """The declared level as a plain int, or 0 when it is not a number at all.
+
+    Used only by the kill switch, which must see the *raw* claim: an
+    over-declaration is refused a moment later, but with the switch engaged the
+    operator is owed ``kill-switch`` as the reason rather than a level quibble.
+    """
+
+    try:
+        return int(declared)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
 
 
 def _effective_level(
@@ -225,10 +238,11 @@ def execute_control_loop(
     moment = now or datetime.now(timezone.utc)
 
     # Fail closed first: the kill switch outranks every other control, including
-    # a complete and valid certification. It keys off the *higher* of the granted
-    # and declared levels so no downgrade -- sanctioned or not -- escapes it.
-    switch_level = max(policy.level, level)
-    if switch_level >= AutonomyLevel.APPROVE_AND_EXECUTE and autonomy_kill_switch_engaged(environ):
+    # a complete and valid certification and a refused level claim. It keys off
+    # the higher of the granted level and the *raw* declared one, so neither a
+    # downgrade nor an over-declaration escapes it.
+    switch_level = max(int(policy.level), _claimed_level_value(autonomy_level))
+    if switch_level >= int(AutonomyLevel.APPROVE_AND_EXECUTE) and autonomy_kill_switch_engaged(environ):
         return ExecutionResult(
             status="blocked",
             policy=PolicyDecision(False, KILL_SWITCH_REASON),

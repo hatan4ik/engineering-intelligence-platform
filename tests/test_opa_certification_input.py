@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from remediation.catalog import AutonomyLevel, default_catalog
 from remediation.executor import execute_control_loop
 from remediation.opa_policy import (
@@ -258,3 +260,36 @@ def test_the_sanctioned_supervised_downgrade_is_not_asked_for_a_certification():
         autonomy=context(autonomy_level="L3", certification=None),
     )
     assert decision.allowed
+
+
+@pytest.mark.parametrize("declared", [None, 4, 3, {"level": "L3"}, ["L3"], True])
+def test_a_non_string_declared_level_never_talks_the_gate_out_of_firing(declared):
+    """Mirrors the rego: only a real string can carry the sanctioned downgrade."""
+
+    context = AutonomyContext(
+        autonomy_level=declared, scope_hash="a" * 64,
+        now="2026-08-26T00:00:00+00:00", policy_level=4,
+    )
+    assert context.is_l4 is True
+    decision = LocalReferenceEvaluator().evaluate(
+        runbook=default_catalog().get("aks.rollout.undo"),
+        policy=policy(),
+        request=request(),
+        approval_verified=True,
+        control=PolicyControlState(),
+        autonomy=context,
+    )
+    assert not decision.allowed
+    assert decision.reason.startswith("l4-certification:")
+
+
+@pytest.mark.parametrize("declared", [None, 4, {"level": "L3"}])
+def test_a_non_string_declared_level_is_not_l4_under_a_low_policy(declared):
+    context = AutonomyContext(autonomy_level=declared, policy_level=2)
+    assert context.is_l4 is False
+
+
+def test_only_a_string_l3_carries_the_sanctioned_downgrade():
+    assert AutonomyContext(autonomy_level="L3", policy_level=4).is_l4 is False
+    assert AutonomyContext(autonomy_level=" l3 ", policy_level=4).is_l4 is False
+    assert AutonomyContext(autonomy_level=3, policy_level=4).is_l4 is True

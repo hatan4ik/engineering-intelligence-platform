@@ -16,6 +16,11 @@ decision := {"allowed": true, "reason": "authorized by OPA remediation policy", 
 # several controls fail simultaneously.
 deny_reason := "service kill switch is enabled" if {
   input.policy.kill_switch == true
+} else := "service autonomy policy carries no reviewed level" if {
+  # Every level-dependent rule below reads input.policy.level. A missing or
+  # non-numeric level makes each of them undefined, which would fall through the
+  # whole chain to "allowed". Deny once, here, so they can rely on the value.
+  not is_number(object.get(input, ["policy", "level"], null))
 } else := "request is outside service/environment policy scope" if {
   input.request.service != input.policy.service
 } else := "request is outside service/environment policy scope" if {
@@ -81,11 +86,20 @@ deny_reason := "service kill switch is enabled" if {
 
 # The declared autonomy_level is a claim, not an authority. A declared "L4"
 # always counts; the one sanctioned downgrade ("L3", a supervised exercise of an
-# L4 scope) does not; anything else -- an absent field, an understated level --
-# falls back to the reviewed service policy level, so the bundle can never be
-# talked out of asking for a certification. Mirrors AutonomyContext.is_l4 in
-# remediation/opa_policy.py.
-declared_level := upper(trim_space(object.get(input, "autonomy_level", "")))
+# L4 scope) does not; anything else -- an absent field, an understated level, a
+# null, a number -- falls back to the reviewed service policy level, so the
+# bundle can never be talked out of asking for a certification. Mirrors
+# AutonomyContext.is_l4 in remediation/opa_policy.py.
+#
+# The coercion must be total. trim_space() on a non-string is a builtin type
+# error, which a non-strict OPA resolves to *undefined*, and an undefined
+# declared_level would make every is_l4 body undefined and skip the entire
+# certification chain. So the string path is gated on is_string and a third body
+# covers everything that is not a string.
+declared_level := upper(trim_space(raw)) if {
+  raw := object.get(input, "autonomy_level", "")
+  is_string(raw)
+}
 
 is_l4 if {
   declared_level == "L4"
@@ -94,6 +108,11 @@ is_l4 if {
 is_l4 if {
   declared_level != "L4"
   declared_level != "L3"
+  input.policy.level >= 4
+}
+
+is_l4 if {
+  not is_string(object.get(input, "autonomy_level", ""))
   input.policy.level >= 4
 }
 

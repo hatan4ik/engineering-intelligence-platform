@@ -211,3 +211,80 @@ test_a_level_three_policy_with_no_declared_level_is_not_asked_for_a_certificatio
   result := decision with input as base_input
   result.allowed == true
 }
+
+# --- a declared level that is not a string at all ----------------------------
+#
+# trim_space() on a non-string is a builtin type error, which a non-strict OPA
+# resolves to undefined. Without a total coercion that undefined value skips the
+# whole certification chain and the request is allowed.
+
+valid_certification := {
+  "scope_hash": "scope-aaa",
+  "inputs_hash": "inputs-bbb",
+  "expires_on": "2026-11-01T00:00:00Z"
+}
+
+test_deny_a_null_declared_level_on_a_level_four_policy if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": null})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_allow_a_null_declared_level_with_a_valid_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "autonomy_level": null,
+    "certification": valid_certification
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_deny_a_numeric_declared_level_on_a_level_four_policy if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": 4})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_allow_a_numeric_declared_level_with_a_valid_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "autonomy_level": 4,
+    "certification": valid_certification
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_deny_an_object_declared_level_on_a_level_four_policy if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": {"level": "L3"}})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+# --- a policy with no reviewed level -----------------------------------------
+
+test_deny_a_policy_with_no_level if {
+  candidate := object.remove(base_input, {"policy"})
+  with_policy := object.union(candidate, {"policy": object.remove(base_input.policy, {"level"})})
+  result := decision with input as with_policy
+  result.allowed == false
+  result.reason == "service autonomy policy carries no reviewed level"
+}
+
+test_deny_a_policy_whose_level_is_not_a_number if {
+  candidate := object.union(base_input, {"policy": object.union(base_input.policy, {"level": "4"})})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "service autonomy policy carries no reviewed level"
+}
+
+test_the_kill_switch_still_outranks_a_missing_level if {
+  candidate := object.union(base_input, {
+    "policy": object.remove(object.union(base_input.policy, {"kill_switch": true}), {"level"})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "service kill switch is enabled"
+}
