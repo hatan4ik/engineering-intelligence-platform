@@ -55,7 +55,7 @@ class PRGuardianService:
         self.telemetry = telemetry or NullTelemetrySink()
         self.mode = mode
 
-    def evaluate(self, event: PullRequestEvent, *, publish: bool = True) -> PRGuardianResult:
+    async def evaluate(self, event: PullRequestEvent, *, publish: bool = True) -> PRGuardianResult:
         started = time.monotonic()
         files = self.github.list_changed_files(event.repository, event.number)
         filenames = tuple(item.filename for item in files)
@@ -94,7 +94,7 @@ class PRGuardianService:
         )
 
         primary_service = changed_services[0] if changed_services else "unknown"
-        workflow, policy = self.workflows.start_pr_review(
+        workflow, policy = await self.workflows.start_pr_review(
             service_id=primary_service,
             repository=event.repository,
             pr_number=event.number,

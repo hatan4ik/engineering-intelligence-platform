@@ -12,7 +12,7 @@ Welcome to the documentation for the Engineering Intelligence Platform. To preve
 
 ## 🏗️ Part 2: Core Architecture
 *Start here if you are a Staff/Principal Engineer evaluating the system design.*
-- **[The Master System Design](../architecture/DESIGN.md)** - The most important technical document. Covers the 5 planes, LLMOps, Temporal, and Semantic Caching.
+- **[The Master System Design](../architecture/design.md)** - The most important technical document. Covers the 5 planes, LLMOps, Temporal, and Semantic Caching.
 - [Security Threat Model](../governance/security-threat-model.md) - Trust boundaries and the L0–L5 autonomy tiers.
 - [Multi-Cloud & On-Prem Kubernetes Self-Healing Reference](../architecture/azure-devops-self-healing-reference.md)
 - [FAANG Multi-Cloud & On-Prem Extensions](../architecture/faang-multi-cloud-and-on-prem-extensions.md) - Air-gapped AI operations and deep K8s troubleshooting.

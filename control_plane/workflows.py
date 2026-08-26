@@ -15,6 +15,14 @@ from state.audit import AuditLog
 from state.models import AuditEvent, WorkflowRecord, WorkflowStatus
 from state.store import StateStore
 
+try:
+    from temporalio.client import Client
+except ImportError:
+    Client = None
+    
+from orchestration.temporal_workflow import PRGuardianRequest
+
+
 
 def _hash(value: object) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
@@ -22,11 +30,12 @@ def _hash(value: object) -> str:
 
 
 class ControlPlaneWorkflows:
-    def __init__(self, store: StateStore, audit: AuditLog) -> None:
+    def __init__(self, store: StateStore, audit: AuditLog, temporal_client=None) -> None:
         self.store = store
         self.audit = audit
+        self.temporal_client = temporal_client
 
-    def start_pr_review(
+    async def start_pr_review(
         self,
         *,
         service_id: str,
@@ -66,6 +75,21 @@ class ControlPlaneWorkflows:
                 },
             )
         )
+        
+        if self.temporal_client:
+            await self.temporal_client.start_workflow(
+                "eip.pr-review.v1",
+                PRGuardianRequest(
+                    service_id=service_id,
+                    repository=repository,
+                    pr_number=pr_number,
+                    assessment=assessment,
+                    correlation_id=correlation_id
+                ),
+                id=workflow_id,
+                task_queue="eip-control-plane"
+            )
+            
         return workflow, policy
 
     def start_incident(

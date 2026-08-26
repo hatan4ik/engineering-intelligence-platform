@@ -33,7 +33,7 @@ production-certified.
 
 | Document | Classification | Authority |
 |---|---|---|
-| [`../architecture/DESIGN.md`](../architecture/DESIGN.md) | Current design | System invariants and target architecture |
+| [`../architecture/design.md`](../architecture/design.md) | Current design | System invariants and target architecture |
 | [`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md) | Current implementation state | Reference implementation capability status and queue |
 | [`../architecture/non-functional-requirements.md`](../architecture/non-functional-requirements.md) | Current design | Operational, data, and safety requirements |
 | [`PRODUCT-STRATEGY.md`](PRODUCT-STRATEGY.md) | Current product decision | First product wedge and expansion gates |
