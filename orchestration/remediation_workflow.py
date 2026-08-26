@@ -30,7 +30,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Mapping
+from typing import Mapping, Protocol
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -68,6 +68,12 @@ def require_remediation_workflows(step: str, environ: Mapping[str, str] | None =
             f"{step} is a consequential remediation activity; set "
             f"{REMEDIATION_WORKFLOWS_FLAG}=enabled to register it"
         )
+
+
+class RemediationActivityProvider(Protocol):
+    """Anything that can supply this workflow's registered activity functions."""
+
+    def activity_functions(self) -> list[object]: ...
 
 
 @dataclass(frozen=True)
@@ -385,7 +391,7 @@ class RemediationWorkflow:
 
         verification: ApprovalVerification = await workflow.execute_activity(
             VERIFY_APPROVAL_ACTIVITY,
-            args=[request, plan, signal, self._now()],
+            args=[request, plan, signal],
             result_type=ApprovalVerification,
             start_to_close_timeout=_STEP_TIMEOUT,
             retry_policy=_STEP_RETRY,
@@ -398,7 +404,7 @@ class RemediationWorkflow:
 
         verdict: PolicyVerdict = await workflow.execute_activity(
             EVALUATE_POLICY_ACTIVITY,
-            args=[request, plan, True, self._now()],
+            args=[request, plan, True],
             result_type=PolicyVerdict,
             start_to_close_timeout=_STEP_TIMEOUT,
             retry_policy=_STEP_RETRY,
@@ -416,7 +422,7 @@ class RemediationWorkflow:
 
         rehearsal: RehearsalVerdict = await workflow.execute_activity(
             REHEARSE_ACTIVITY,
-            args=[request, plan, True, self._now()],
+            args=[request, plan, True],
             result_type=RehearsalVerdict,
             start_to_close_timeout=_ACTION_TIMEOUT,
             retry_policy=_STEP_RETRY,

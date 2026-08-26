@@ -11,6 +11,7 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from collections.abc import Mapping as AbcMapping
 from pathlib import Path
 from typing import Mapping, Protocol
 
@@ -48,6 +49,7 @@ from remediation.kubernetes_adapter import KubernetesActionAdapter
 from remediation.opa_policy import OpaPolicyClient, PolicyControlState, PolicyEvaluator
 from remediation.planner import plan_from_incident
 from remediation.policy import ActionRequest, ServiceAutonomy
+from remediation.simulation import SimulationResult
 from state.audit import AuditLog
 from state.lifecycle import WorkflowLifecycleEvent
 from state.models import AuditEvent, WorkflowRecord, WorkflowStatus
@@ -184,6 +186,21 @@ def evidence_from_mapping(raw: Mapping[str, object]) -> EvidenceEvent:
     )
 
 
+class RehearsalTwin(Protocol):
+    """The digital-twin sandbox a remediation plan is rehearsed in."""
+
+    def simulate(
+        self,
+        *,
+        simulation_id: str,
+        source_namespace: str,
+        catalog: RunbookCatalog,
+        policy: ServiceAutonomy,
+        request: ActionRequest,
+        approval_verified: bool = False,
+    ) -> SimulationResult: ...
+
+
 class IncidentEvidenceProvider(Protocol):
     """Where a remediation workflow reads its incident evidence from."""
 
@@ -208,7 +225,7 @@ class JsonFixtureEvidenceProvider:
         self, *, incident_id: str, service: str, environment: str
     ) -> tuple[EvidenceEvent, ...]:
         raw = json.loads(self.path.read_text(encoding="utf-8"))
-        records = raw.get(incident_id) if isinstance(raw, Mapping) else raw
+        records = raw.get(incident_id) if isinstance(raw, AbcMapping) else raw
         if records is None:
             return ()
         return tuple(evidence_from_mapping(item) for item in records)
@@ -271,7 +288,7 @@ class RemediationActivities:
         evidence_provider: IncidentEvidenceProvider,
         approval_secret: str,
         evaluator: PolicyEvaluator | None = None,
-        twin: object | None = None,
+        twin: RehearsalTwin | None = None,
         twin_source_namespace: str | None = None,
         environ: Mapping[str, str] | None = None,
         actor: str = "agent:remediation-workflow",
@@ -462,7 +479,6 @@ class RemediationActivities:
         request: RemediationRequest,
         plan: RemediationPlanResult,
         signal: RemediationApprovalSignal,
-        occurred_at: str = "",
     ) -> ApprovalVerification:
         require_remediation_workflows("verify_approval", self.environ)
         if not plan.plan_hash:
@@ -491,7 +507,6 @@ class RemediationActivities:
         request: RemediationRequest,
         plan: RemediationPlanResult,
         approval_verified: bool,
-        occurred_at: str = "",
     ) -> PolicyVerdict:
         require_remediation_workflows("evaluate_policy", self.environ)
         if self.evaluator is None:
@@ -517,7 +532,6 @@ class RemediationActivities:
         request: RemediationRequest,
         plan: RemediationPlanResult,
         approval_verified: bool,
-        occurred_at: str = "",
     ) -> RehearsalVerdict:
         require_remediation_workflows("rehearse_in_twin", self.environ)
         if self.twin is None or not self.twin_source_namespace:

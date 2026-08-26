@@ -19,6 +19,7 @@ from temporalio.worker import Worker
 
 from control_plane.runtime import TemporalWorkerSettings
 from orchestration.remediation_workflow import (
+    RemediationActivityProvider,
     RemediationRegistration,
     RemediationWorkflow,
     remediation_registration,
@@ -69,7 +70,7 @@ def build_worker(
     client: Client,
     settings: TemporalWorkerSettings,
     *,
-    remediation: object | None = None,
+    remediation: RemediationActivityProvider | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> Worker:
     plan = worker_registration_plan(environ)
@@ -109,7 +110,7 @@ async def run_worker() -> None:
     await worker.run()
 
 
-def _build_remediation_activities() -> object:
+def _build_remediation_activities() -> RemediationActivityProvider:
     """Construct the remediation activity bridge from environment configuration.
 
     Imported here rather than at module scope so the default evidence worker

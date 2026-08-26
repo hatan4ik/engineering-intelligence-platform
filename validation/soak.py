@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from collections.abc import Mapping as AbcMapping
 from pathlib import Path
 from typing import Mapping
 
@@ -144,7 +145,7 @@ def load_samples(path: str | Path) -> tuple[SoakSample, ...]:
             record = json.loads(line)
         except json.JSONDecodeError as exc:
             raise SoakExportError(f"line {number} is not valid JSON: {exc}") from exc
-        if not isinstance(record, Mapping):
+        if not isinstance(record, AbcMapping):
             raise SoakExportError(f"line {number} must be a JSON object")
         try:
             samples.append(parse_sample(record))

@@ -23,8 +23,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import shutil
 import os
+import shutil
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,7 +40,7 @@ from remediation.opa_policy import (
     OpaPolicyClient,
     PolicyControlState,
 )
-from remediation.policy import ActionRequest, ServiceAutonomy
+from remediation.policy import ActionRequest, PolicyDecision, ServiceAutonomy
 from resilience.certification import build_certification_report
 from resilience.exercises import ExerciseKind, ExerciseResult
 
@@ -254,36 +254,46 @@ def run_exercise(
         blast_radius=blast_radius,
         error_budget_remaining=scenario.error_budget_remaining,
     )
-    env = twin.provision(
-        simulation_id=f"{scope_hash(service, environment, runbook_id)}-{scenario.kind.value}",
+    policy = _policy(
+        scenario,
         service=service,
-        source_namespace=namespace,
+        environment=environment,
+        runbook=runbook,
+        blast_radius=blast_radius,
     )
-    try:
-        adapter = KubernetesActionAdapter(
-            runner,
-            namespace=env.namespace,
-            trusted_preconditions=(),
+    # Same order as KubernetesDigitalTwin.simulate: mutable runtime preconditions
+    # are checked against the real source namespace before anything is cloned,
+    # and only then are they trusted inside the sandbox. Checking them against a
+    # fresh clone instead would test the clone, not the workload.
+    allowed, reason = KubernetesActionAdapter(runner, namespace=namespace).preflight(runbook, request)
+    if not allowed:
+        result = ExecutionResult(status="denied", policy=PolicyDecision(False, reason), error=reason)
+    else:
+        env = twin.provision(
+            simulation_id=f"{scope_hash(service, environment, runbook_id)}-{scenario.kind.value}",
+            service=service,
+            source_namespace=namespace,
         )
-        result = execute_control_loop(
-            catalog=catalog,
-            policy=_policy(
-                scenario,
-                service=service,
-                environment=environment,
-                runbook=runbook,
-                blast_radius=blast_radius,
-            ),
-            request=request,
-            adapter=adapter,
-            evaluator=_evaluator(scenario, opa_endpoint),
-            # The approval is issued out of band for an exercise; the exercises
-            # that must be denied are denied by policy, not by a missing token.
-            approval_verified=True,
-            control=PolicyControlState(audit_available=scenario.audit_available),
-        )
-    finally:
-        twin.destroy(env.namespace)
+        try:
+            adapter = KubernetesActionAdapter(
+                runner,
+                namespace=env.namespace,
+                trusted_preconditions=runbook.preconditions,
+            )
+            result = execute_control_loop(
+                catalog=catalog,
+                policy=policy,
+                request=request,
+                adapter=adapter,
+                evaluator=_evaluator(scenario, opa_endpoint),
+                # The approval is issued out of band for an exercise; the
+                # exercises that must be denied are denied by policy, not by a
+                # missing token.
+                approval_verified=True,
+                control=PolicyControlState(audit_available=scenario.audit_available),
+            )
+        finally:
+            twin.destroy(env.namespace)
 
     passed, detail = _passed(scenario, result)
     return (

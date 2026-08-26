@@ -35,7 +35,7 @@ from control_plane.runtime import (
     control_plane_mode,
 )
 from state.audit import AuditLog, SqliteAuditLog
-from state.cosmos_audit import CosmosAuditLog
+from state.cosmos_audit import AUDIT_PARTITION_KEY, CosmosAuditLog
 from state.cosmos_store import ContainerLike, CosmosStateStore
 from state.store import SqliteStateStore, StateStore
 
@@ -127,6 +127,6 @@ def build_audit_log(
     if cosmos_container is not None:
         return CosmosAuditLog(
             cosmos_container,
-            partition_key=str(source.get("EIP_COSMOS_AUDIT_PARTITION") or "eip-audit-chain"),
+            partition_key=str(source.get("EIP_COSMOS_AUDIT_PARTITION") or AUDIT_PARTITION_KEY),
         )
     return CosmosAuditLog.from_environment(source)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from enum import StrEnum
+from collections.abc import Mapping as AbcMapping
 from pathlib import Path
 from typing import Mapping
 
@@ -160,7 +161,7 @@ def _record_passed(record: Mapping[str, object]) -> bool:
     if isinstance(record.get("passed"), bool):
         return bool(record["passed"])
     result = record.get("result")
-    if isinstance(result, Mapping) and isinstance(result.get("passed"), bool):
+    if isinstance(result, AbcMapping) and isinstance(result.get("passed"), bool):
         return bool(result["passed"])
     if isinstance(result, str):
         return result.strip().lower() in _PASSING_RESULTS
@@ -226,7 +227,7 @@ def load_readiness_evidence(directory: str | Path) -> ReadinessEvidenceLoad:
             continue
         records = loaded if isinstance(loaded, list) else [loaded]
         for index, record in enumerate(records):
-            if not isinstance(record, Mapping):
+            if not isinstance(record, AbcMapping):
                 ignored.append(f"{path.name}[{index}]: not a JSON object")
                 continue
             item = readiness_evidence_from_record(record)
