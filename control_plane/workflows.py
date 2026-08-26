@@ -20,7 +20,7 @@ try:
 except ImportError:
     Client = None
     
-from orchestration.temporal_workflow import PRGuardianRequest
+from orchestration.temporal_workflow import PRGuardianRequest, IncidentRequest, DeploymentFailureRequest, DriftReviewRequest
 
 
 
@@ -92,7 +92,7 @@ class ControlPlaneWorkflows:
             
         return workflow, policy
 
-    def start_incident(
+    async def start_incident(
         self,
         *,
         service_id: str,
@@ -142,9 +142,22 @@ class ControlPlaneWorkflows:
                 },
             )
         )
+        if self.temporal_client:
+            await self.temporal_client.start_workflow(
+                "eip.incident.v1",
+                IncidentRequest(
+                    service_id=service_id,
+                    environment=environment,
+                    incident_id=incident_id,
+                    analysis=analysis,
+                    correlation_id=correlation_id
+                ),
+                id=workflow_id,
+                task_queue="eip-control-plane"
+            )
         return workflow
 
-    def start_deployment_failure(
+    async def start_deployment_failure(
         self,
         *,
         environment: str,
@@ -180,9 +193,22 @@ class ControlPlaneWorkflows:
                 },
             )
         )
+        if self.temporal_client:
+            await self.temporal_client.start_workflow(
+                "eip.deployment-failure.v1",
+                DeploymentFailureRequest(
+                    service_id=analysis.service,
+                    environment=environment,
+                    deployment_id=analysis.deployment_id,
+                    analysis=analysis,
+                    correlation_id=correlation_id
+                ),
+                id=workflow_id,
+                task_queue="eip-control-plane"
+            )
         return workflow
 
-    def start_drift_review(
+    async def start_drift_review(
         self,
         *,
         resource_id: str,
@@ -221,6 +247,19 @@ class ControlPlaneWorkflows:
                 },
             )
         )
+        if self.temporal_client:
+            await self.temporal_client.start_workflow(
+                "eip.drift-review.v1",
+                DriftReviewRequest(
+                    resource_id=resource_id,
+                    service_id=service_id,
+                    environment=environment,
+                    findings=findings,
+                    correlation_id=correlation_id
+                ),
+                id=workflow_id,
+                task_queue="eip-control-plane"
+            )
         return workflow
 
     def approve_plan(

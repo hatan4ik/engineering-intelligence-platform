@@ -105,3 +105,61 @@ class RemediationWorkflow:
             "correlation_id": request.correlation_id,
             "workflow_id": workflow.info().workflow_id
         }
+
+from intelligence.incidents import IncidentAnalysis
+from intelligence.deployment_failures import DeploymentFailureAnalysis
+from intelligence.drift import DriftFinding
+
+@dataclass(frozen=True)
+class IncidentRequest:
+    service_id: str
+    environment: str
+    incident_id: str
+    analysis: IncidentAnalysis
+    correlation_id: str
+
+@dataclass(frozen=True)
+class DeploymentFailureRequest:
+    service_id: str
+    environment: str
+    deployment_id: str
+    analysis: DeploymentFailureAnalysis
+    correlation_id: str
+
+@dataclass(frozen=True)
+class DriftReviewRequest:
+    resource_id: str
+    service_id: str
+    environment: str
+    findings: tuple[DriftFinding, ...]
+    correlation_id: str
+
+@workflow.defn(name="eip.incident.v1")
+class IncidentInvestigationWorkflow:
+    @workflow.run
+    async def run(self, request: IncidentRequest) -> dict[str, str]:
+        return {
+            "status": "completed",
+            "correlation_id": request.correlation_id,
+            "workflow_id": workflow.info().workflow_id
+        }
+
+@workflow.defn(name="eip.deployment-failure.v1")
+class DeploymentFailureWorkflow:
+    @workflow.run
+    async def run(self, request: DeploymentFailureRequest) -> dict[str, str]:
+        return {
+            "status": "completed",
+            "correlation_id": request.correlation_id,
+            "workflow_id": workflow.info().workflow_id
+        }
+
+@workflow.defn(name="eip.drift-review.v1")
+class DriftReviewWorkflow:
+    @workflow.run
+    async def run(self, request: DriftReviewRequest) -> dict[str, str]:
+        return {
+            "status": "completed",
+            "correlation_id": request.correlation_id,
+            "workflow_id": workflow.info().workflow_id
+        }
