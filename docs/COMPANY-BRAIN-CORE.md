@@ -38,8 +38,11 @@ content, execute a runbook, or authorize a merge/deployment.
    Causal and resolution edges are added only from explicit source metadata; they are never
    inferred from prose.
 
-The initial store is in-memory and tested. A durable adapter is a later implementation stage and
-must preserve the core’s ID, provenance, ACL, idempotency, and relationship-validation rules.
+The core’s in-memory model remains the deterministic projection target. A tenant-isolated
+[`SqliteCompanyBrainStore`](COMPANY-BRAIN-STORE.md) now provides the local/reference durable
+system-of-record contract: versioned facts, source provenance, retention metadata, legal-hold
+protection, tombstone deletion, and an append-only lifecycle trail. A managed implementation must
+preserve those semantics; a retrieval or vector index cannot become the authoritative record.
 
 `IngestionPipeline` now accepts an optional `CompanyBrainProjector`. This keeps existing ingestion
 callers backward compatible while allowing a governed file change to update the retrieval index,

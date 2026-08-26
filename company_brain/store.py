@@ -214,6 +214,25 @@ class CompanyBrainStore(Protocol):
         expected_version: int | None = None,
     ) -> StoredRelationship: ...
 
+    def delete_entity(
+        self, tenant_id: str, entity_id: str, *, expected_version: int, reason: str
+    ) -> StoredEntity: ...
+
+    def delete_evidence(
+        self, tenant_id: str, evidence_id: str, *, expected_version: int, reason: str
+    ) -> StoredEvidence: ...
+
+    def delete_relationship(
+        self,
+        tenant_id: str,
+        *,
+        source_id: str,
+        target_id: str,
+        kind: RelationshipKind,
+        expected_version: int,
+        reason: str,
+    ) -> StoredRelationship: ...
+
 
 class SqliteCompanyBrainStore:
     """SQLite reference backend with tenant-scoped CAS and tombstone semantics.
@@ -477,6 +496,8 @@ class SqliteCompanyBrainStore:
             self._assert_expected(current.version, expected_version)
             if current.deleted_at is not None:
                 raise CompanyBrainStoreError("entity is already deleted")
+            if current.entity.kind is EntityKind.EVIDENCE:
+                raise CompanyBrainStoreError("evidence entities must be deleted through delete_evidence")
             if current.retention.legal_hold:
                 raise CompanyBrainRetentionError("entity is under legal hold and cannot be tombstoned")
             stored = StoredEntity(
@@ -493,6 +514,141 @@ class SqliteCompanyBrainStore:
             self._write_entity(db, stored)
             self._append_event(
                 db, tenant, "entity", key, "tombstoned", stored.version, when, current.provenance, delete_reason
+            )
+        return stored
+
+    def delete_evidence(
+        self,
+        tenant_id: str,
+        evidence_id: str,
+        *,
+        expected_version: int,
+        reason: str,
+        deleted_at: datetime | None = None,
+    ) -> StoredEvidence:
+        """Tombstone evidence and its structural evidence entity atomically."""
+        tenant = _required(tenant_id, "tenant_id", maximum=200)
+        key = _required(evidence_id, "evidence_id")
+        delete_reason = _required(reason, "deletion reason", maximum=500)
+        when = _timestamp(deleted_at or datetime.now(timezone.utc), "deleted_at")
+        with self._connect() as db, self._immediate(db):
+            evidence_row = db.execute(
+                "SELECT * FROM company_brain_evidence WHERE tenant_id=? AND evidence_id=?", (tenant, key)
+            ).fetchone()
+            if evidence_row is None:
+                raise CompanyBrainStoreError("evidence does not exist")
+            current = self._evidence_from_row(evidence_row)
+            self._assert_expected(current.version, expected_version)
+            if current.deleted_at is not None:
+                raise CompanyBrainStoreError("evidence is already deleted")
+            if current.retention.legal_hold:
+                raise CompanyBrainRetentionError("evidence is under legal hold and cannot be tombstoned")
+
+            entity_row = db.execute(
+                "SELECT * FROM company_brain_entities WHERE tenant_id=? AND entity_id=?", (tenant, key)
+            ).fetchone()
+            if entity_row is None:
+                raise CompanyBrainStoreError("evidence is missing its structural entity")
+            structural_entity = self._entity_from_row(entity_row)
+            if structural_entity.entity.kind is not EntityKind.EVIDENCE:
+                raise CompanyBrainStoreError("evidence structural entity has an invalid kind")
+            if structural_entity.deleted_at is not None:
+                raise CompanyBrainStoreError("evidence structural entity is already deleted")
+            if structural_entity.retention.legal_hold:
+                raise CompanyBrainRetentionError("evidence entity is under legal hold and cannot be tombstoned")
+
+            stored = StoredEvidence(
+                tenant_id=tenant,
+                evidence=current.evidence,
+                version=current.version + 1,
+                provenance=current.provenance,
+                retention=current.retention,
+                created_at=current.created_at,
+                updated_at=when,
+                deleted_at=when,
+                deletion_reason=delete_reason,
+            )
+            self._write_evidence(db, stored)
+            self._append_event(
+                db, tenant, "evidence", key, "tombstoned", stored.version, when, current.provenance, delete_reason
+            )
+            tombstoned_entity = StoredEntity(
+                tenant_id=tenant,
+                entity=structural_entity.entity,
+                version=structural_entity.version + 1,
+                provenance=structural_entity.provenance,
+                retention=structural_entity.retention,
+                created_at=structural_entity.created_at,
+                updated_at=when,
+                deleted_at=when,
+                deletion_reason=delete_reason,
+            )
+            self._write_entity(db, tombstoned_entity)
+            self._append_event(
+                db,
+                tenant,
+                "entity",
+                key,
+                "tombstoned",
+                tombstoned_entity.version,
+                when,
+                structural_entity.provenance,
+                delete_reason,
+            )
+        return stored
+
+    def delete_relationship(
+        self,
+        tenant_id: str,
+        *,
+        source_id: str,
+        target_id: str,
+        kind: RelationshipKind,
+        expected_version: int,
+        reason: str,
+        deleted_at: datetime | None = None,
+    ) -> StoredRelationship:
+        tenant = _required(tenant_id, "tenant_id", maximum=200)
+        source = _required(source_id, "relationship source_id")
+        target = _required(target_id, "relationship target_id")
+        delete_reason = _required(reason, "deletion reason", maximum=500)
+        when = _timestamp(deleted_at or datetime.now(timezone.utc), "deleted_at")
+        with self._connect() as db, self._immediate(db):
+            row = db.execute(
+                """SELECT * FROM company_brain_relationships
+                   WHERE tenant_id=? AND source_id=? AND target_id=? AND relationship_kind=?""",
+                (tenant, source, target, kind.value),
+            ).fetchone()
+            if row is None:
+                raise CompanyBrainStoreError("relationship does not exist")
+            current = self._relationship_from_row(row)
+            self._assert_expected(current.version, expected_version)
+            if current.deleted_at is not None:
+                raise CompanyBrainStoreError("relationship is already deleted")
+            if current.retention.legal_hold:
+                raise CompanyBrainRetentionError("relationship is under legal hold and cannot be tombstoned")
+            stored = StoredRelationship(
+                tenant_id=tenant,
+                relationship=current.relationship,
+                version=current.version + 1,
+                provenance=current.provenance,
+                retention=current.retention,
+                created_at=current.created_at,
+                updated_at=when,
+                deleted_at=when,
+                deletion_reason=delete_reason,
+            )
+            self._write_relationship(db, stored)
+            self._append_event(
+                db,
+                tenant,
+                "relationship",
+                self._relationship_key(current.relationship),
+                "tombstoned",
+                stored.version,
+                when,
+                current.provenance,
+                delete_reason,
             )
         return stored
 
