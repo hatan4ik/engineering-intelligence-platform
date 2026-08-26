@@ -43,21 +43,24 @@ empty, `"awaiting <first unmet requirement>"` while requirements are outstanding
 
 ## Calibration
 
-The `calibration` section feeds reviewer dispositions through
-`intelligence.service_risk_profile.calibrate_service_profile` and reports what a high-risk
-threshold *could* be:
+The `calibration` section turns reviewer dispositions into
+`intelligence.risk_calibration.ScoredOutcome` samples, runs them through
+`calibrate_high_risk_threshold`, and reports what a high-risk threshold *could* be:
 
-- Dispositions map `confirmed-risk` → `correct` and `false-positive` → `incorrect`; records with
-  no reviewer disposition, and records that never joined a shadow observation (so carry no risk
-  score), are excluded from every count in the section.
-- `failure_samples_from` names the dispositions the calibrator counts as *failed* samples — the
-  class a suggested threshold is tuned to catch. Read a suggested threshold only together with
-  that field; the direction of the recommendation depends on it.
+- A reviewer-confirmed risk is a **failed** sample and a false positive is **not failed**, because
+  the calibrator tunes a threshold to catch the failed class. The section publishes this as
+  `disposition_mapping` (`confirmed-risk` → `failed`, `false-positive` → `not-failed`) and
+  `failure_samples_from: "confirmed-risk"`, so a suggested threshold cannot be read in the wrong
+  direction.
+- Records with no reviewer disposition, and records that never joined a shadow observation (so
+  carry no risk score), are excluded from every count in the section.
 - `service_key` is `subject.repository`: a closure record identifies its scope only by repository,
   so "per service" here means per repository.
-- `global` and each `per_service` entry report the suggested threshold, sample size, failed
-  samples, whether it differs from the default, a confidence value, and the calibrator's evidence
-  strings.
+- `global` covers every reviewed record; each `per_service` entry re-runs the calibrator over that
+  repository's samples alone. Both report the suggested threshold, sample size, failed samples,
+  whether it differs from the default, a confidence value, and the calibrator's evidence strings.
+  Below the calibrator's safety minimums (30 samples, 5 failures) the default threshold is
+  retained and `changed_from_default` is `false`.
 - `applied` is always `false`, alongside the sentence *"Threshold changes are reviewed product
   decisions; this section is a recommendation only."*
 

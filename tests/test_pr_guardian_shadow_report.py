@@ -136,13 +136,36 @@ def test_calibration_section_is_a_recommendation_only():
     assert calibration["per_service"]["acme/checkout"]["suggested_high_threshold"] == 50
     assert calibration["per_service"]["acme/checkout"]["changed_from_default"] is False
     assert calibration["disposition_mapping"] == {
-        "confirmed-risk": "correct",
-        "false-positive": "incorrect",
+        "confirmed-risk": "failed",
+        "false-positive": "not-failed",
     }
     # The section states which disposition the calibrator counts as a failure
     # sample, so a suggested threshold cannot be read in the wrong direction.
-    assert calibration["failure_samples_from"] == ["false-positive"]
-    assert calibration["global"]["failed_samples"] == 2
+    assert calibration["failure_samples_from"] == "confirmed-risk"
+    # pr 1, 2 and 6 are the confirmed risks; pr 5 is unreviewed and excluded.
+    assert calibration["global"]["failed_samples"] == 3
+
+
+def test_calibration_threshold_tracks_confirmed_risk_scores():
+    """A confirmed risk is a failed sample: the threshold must land above the false positives.
+
+    Twenty confirmed risks score 60 and ten false positives score 55, so the only
+    threshold with both full recall and full precision is 60. Under the inverted
+    mapping no threshold clears the precision floor and the calibrator would fall
+    back to the default 50 with zero confirmed risks counted as failures.
+    """
+    records = []
+    for number in range(1, 21):
+        records.append(_record(pr_number=number, score=60, would_block=True, label="confirmed-risk"))
+    for number in range(21, 31):
+        records.append(_record(pr_number=number, score=55, would_block=True, label="false-positive"))
+    calibration = build_shadow_report(records)["calibration"]
+    assert calibration["global"]["sample_size"] == 30
+    assert calibration["global"]["failed_samples"] == 20
+    assert calibration["global"]["suggested_high_threshold"] == 60
+    assert calibration["global"]["changed_from_default"] is True
+    assert calibration["per_service"]["acme/platform"]["suggested_high_threshold"] == 60
+    assert calibration["applied"] is False
 
 
 def test_calibration_section_is_empty_without_reviewed_records():

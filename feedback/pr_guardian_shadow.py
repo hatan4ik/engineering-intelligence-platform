@@ -12,15 +12,11 @@ from __future__ import annotations
 
 from typing import Mapping, Sequence
 
-from feedback.store import FeedbackEvent, FeedbackOutcome
 from intelligence.risk_calibration import (
     DEFAULT_HIGH_THRESHOLD,
     RiskCalibration,
+    ScoredOutcome,
     calibrate_high_risk_threshold,
-)
-from intelligence.service_risk_profile import (
-    calibrate_service_profile,
-    scored_outcomes_from_feedback,
 )
 from product.pr_guardian_shadow import validate_outcome
 
@@ -28,21 +24,13 @@ CALIBRATION_NOTE = (
     "Threshold changes are reviewed product decisions; this section is a recommendation only."
 )
 
-# A reviewer disposition describes whether PR Guardian was *right*, so a
-# confirmed risk is a correct capability outcome and a false positive is an
-# incorrect one.
-_DISPOSITION_OUTCOMES = {
-    "confirmed-risk": FeedbackOutcome.CORRECT,
-    "false-positive": FeedbackOutcome.INCORRECT,
-}
-# ``scored_outcomes_from_feedback`` treats an INCORRECT outcome as a failed
-# sample — the class a calibrated threshold is tuned to catch.  The report
-# states that plainly so a suggested threshold cannot be read in the wrong
-# direction.
-_FAILURE_DISPOSITIONS = sorted(
-    disposition
-    for disposition, outcome in _DISPOSITION_OUTCOMES.items()
-    if outcome is FeedbackOutcome.INCORRECT
+# ``calibrate_high_risk_threshold`` tunes a threshold to catch the *failed*
+# class, so a reviewer-confirmed risk is a failed sample and a false positive is
+# not.  The report publishes this mapping so a suggested threshold cannot be
+# read in the wrong direction.
+_DISPOSITION_FAILED = {"confirmed-risk": True, "false-positive": False}
+_FAILURE_DISPOSITION = next(
+    disposition for disposition, failed in _DISPOSITION_FAILED.items() if failed
 )
 
 
@@ -144,12 +132,15 @@ def _calibration(reviewed: Sequence[Mapping[str, object]]) -> dict[str, object]:
     decision.  Records without a reviewer disposition or without a joined
     observation carry no score and are excluded.
     """
-    events = _feedback_events(reviewed)
-    global_calibration = calibrate_high_risk_threshold(scored_outcomes_from_feedback(events))
+    outcomes = _scored_outcomes(reviewed)
+    global_calibration = calibrate_high_risk_threshold(outcomes)
     per_service: dict[str, object] = {}
-    for service in sorted({event.service for event in events if event.service}):
-        profile = calibrate_service_profile(service=service, events=events)
-        per_service[service] = _calibration_view(profile.calibration) | {"source": profile.source}
+    for service in sorted({outcome.service for outcome in outcomes if outcome.service}):
+        per_service[service] = _calibration_view(
+            calibrate_high_risk_threshold(
+                [outcome for outcome in outcomes if outcome.service == service]
+            )
+        )
     return {
         "applied": False,
         "note": CALIBRATION_NOTE,
@@ -157,39 +148,35 @@ def _calibration(reviewed: Sequence[Mapping[str, object]]) -> dict[str, object]:
         # finest service granularity available to this report.
         "service_key": "subject.repository",
         "disposition_mapping": {
-            disposition: outcome.value for disposition, outcome in _DISPOSITION_OUTCOMES.items()
+            disposition: "failed" if failed else "not-failed"
+            for disposition, failed in _DISPOSITION_FAILED.items()
         },
-        "failure_samples_from": list(_FAILURE_DISPOSITIONS),
+        "failure_samples_from": _FAILURE_DISPOSITION,
         "default_high_threshold": DEFAULT_HIGH_THRESHOLD,
         "global": _calibration_view(global_calibration),
         "per_service": per_service,
     }
 
 
-def _feedback_events(reviewed: Sequence[Mapping[str, object]]) -> tuple[FeedbackEvent, ...]:
-    events: list[FeedbackEvent] = []
+def _scored_outcomes(reviewed: Sequence[Mapping[str, object]]) -> list[ScoredOutcome]:
+    outcomes: list[ScoredOutcome] = []
     for record in reviewed:
         source = record["source_observation"]
         if not isinstance(source, Mapping):
             continue
-        disposition = record["reviewer_signal"]["risk"]  # type: ignore[index]
-        outcome = _DISPOSITION_OUTCOMES.get(str(disposition))
-        if outcome is None:
+        disposition = str(record["reviewer_signal"]["risk"])  # type: ignore[index]
+        if disposition not in _DISPOSITION_FAILED:
             continue
         subject = record["subject"]
         assert isinstance(subject, Mapping)
-        events.append(
-            FeedbackEvent(
-                event_id=f"{subject['repository']}#{subject['pr_number']}@{subject['head_sha']}",
-                capability="predictive-risk",
-                subject_id=str(subject["head_sha"]),
-                outcome=outcome,
+        outcomes.append(
+            ScoredOutcome(
+                score=int(source["score"]),  # type: ignore[arg-type]
+                failed=_DISPOSITION_FAILED[disposition],
                 service=str(subject["repository"]),
-                metadata={"risk_score": str(source["score"])},
-                occurred_at=str(record["recorded_at"]),
             )
         )
-    return tuple(events)
+    return outcomes
 
 
 def _calibration_view(calibration: RiskCalibration) -> dict[str, object]:
