@@ -20,7 +20,7 @@ def main() -> int:
     print(
         f"PR Guardian shadow report: records={report['sample']['closure_records']} "
         f"decision={readiness['decision']} blocking_authorized={readiness['blocking_authorized']} "
-        f"output={args.output}"
+        f"next_review={readiness['next_review']} output={args.output}"
     )
     return 0
 

@@ -5,9 +5,14 @@ on:
     workflows: [PR Guardian Shadow (non-blocking)]
     types: [completed]
 
-# This is the only shadow workflow with write scope. It runs trusted code from
-# the default branch and reads a strictly validated JSON result; it never checks
-# out or executes the pull-request head revision.
+# This is the only PR Guardian workflow with write scope. It runs trusted code
+# from the default branch and reads a strictly validated JSON result; it never
+# checks out or executes the pull-request head revision.
+#
+# It also re-reads `.eip/pr-guardian.json` from that trusted default-branch
+# checkout and re-derives the conclusion. The untrusted evaluation job can only
+# lower what is published: a `failure` requires the default-branch config to
+# name the same enforcing rule, unexpired, with the kill switch off.
 permissions:
   actions: read
   checks: write
@@ -22,11 +27,25 @@ jobs:
       github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Check out the trusted default branch (code and .eip/pr-guardian.json)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 1
           persist-credentials: false
+      - name: Report the repository configuration this run will trust
+        run: |
+          if [ -f .eip/pr-guardian.json ]; then
+            {
+              echo "### PR Guardian repository configuration (default branch)"
+              echo '```json'
+              cat .eip/pr-guardian.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No .eip/pr-guardian.json on the default branch; publishing in shadow mode." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: pr-guardian-shadow-result
@@ -37,9 +56,13 @@ jobs:
           python-version: '3.12'
       - name: Install runtime dependencies
         run: pip install -r app/requirements.txt
-      - name: Publish neutral shadow observation
+      - name: Publish the observation under the trusted configuration
         env:
           PYTHONPATH: .
           GITHUB_TOKEN: ${{ github.token }}
+          EIP_PR_GUARDIAN_CONFIG_ROOT: .
+          # Set the repository variable EIP_PR_GUARDIAN_KILL_SWITCH to "true"
+          # to force every published conclusion to neutral.
+          EIP_PR_GUARDIAN_KILL_SWITCH: ${{ vars.EIP_PR_GUARDIAN_KILL_SWITCH }}
           EIP_PR_GUARDIAN_RESULT_PATH: shadow-input/pr-guardian-shadow-result.json
         run: python scripts/publish_pr_guardian_shadow.py

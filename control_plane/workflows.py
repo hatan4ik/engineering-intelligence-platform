@@ -15,14 +15,6 @@ from state.audit import AuditLog
 from state.models import AuditEvent, WorkflowRecord, WorkflowStatus
 from state.store import StateStore
 
-try:
-    from temporalio.client import Client
-except ImportError:
-    Client = None
-    
-from orchestration.temporal_workflow import PRGuardianRequest, IncidentRequest, DeploymentFailureRequest, DriftReviewRequest
-
-
 
 def _hash(value: object) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
@@ -30,10 +22,16 @@ def _hash(value: object) -> str:
 
 
 class ControlPlaneWorkflows:
-    def __init__(self, store: StateStore, audit: AuditLog, temporal_client=None) -> None:
+    """Records product workflows in authoritative state and the audit log.
+
+    The methods are coroutines so callers already integrate with an async
+    control plane; durable orchestration of *consequential* work is the gated
+    ``eip.remediation.v1`` workflow (ADR-001), not something started here.
+    """
+
+    def __init__(self, store: StateStore, audit: AuditLog) -> None:
         self.store = store
         self.audit = audit
-        self.temporal_client = temporal_client
 
     async def start_pr_review(
         self,
@@ -82,21 +80,6 @@ class ControlPlaneWorkflows:
                 },
             )
         )
-        
-        if self.temporal_client:
-            await self.temporal_client.start_workflow(
-                "eip.pr-review.v1",
-                PRGuardianRequest(
-                    service_id=service_id,
-                    repository=repository,
-                    pr_number=pr_number,
-                    assessment=assessment,
-                    correlation_id=correlation_id
-                ),
-                id=workflow_id,
-                task_queue="eip-control-plane"
-            )
-            
         return workflow, policy
 
     async def start_incident(
@@ -149,19 +132,6 @@ class ControlPlaneWorkflows:
                 },
             )
         )
-        if self.temporal_client:
-            await self.temporal_client.start_workflow(
-                "eip.incident.v1",
-                IncidentRequest(
-                    service_id=service_id,
-                    environment=environment,
-                    incident_id=incident_id,
-                    analysis=analysis,
-                    correlation_id=correlation_id
-                ),
-                id=workflow_id,
-                task_queue="eip-control-plane"
-            )
         return workflow
 
     async def start_deployment_failure(
@@ -200,19 +170,6 @@ class ControlPlaneWorkflows:
                 },
             )
         )
-        if self.temporal_client:
-            await self.temporal_client.start_workflow(
-                "eip.deployment-failure.v1",
-                DeploymentFailureRequest(
-                    service_id=analysis.service,
-                    environment=environment,
-                    deployment_id=analysis.deployment_id,
-                    analysis=analysis,
-                    correlation_id=correlation_id
-                ),
-                id=workflow_id,
-                task_queue="eip-control-plane"
-            )
         return workflow
 
     async def start_drift_review(
@@ -254,19 +211,6 @@ class ControlPlaneWorkflows:
                 },
             )
         )
-        if self.temporal_client:
-            await self.temporal_client.start_workflow(
-                "eip.drift-review.v1",
-                DriftReviewRequest(
-                    resource_id=resource_id,
-                    service_id=service_id,
-                    environment=environment,
-                    findings=findings,
-                    correlation_id=correlation_id
-                ),
-                id=workflow_id,
-                task_queue="eip-control-plane"
-            )
         return workflow
 
     def approve_plan(

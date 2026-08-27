@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date
 from enum import StrEnum
 
 
@@ -18,8 +19,29 @@ class ProductContractError(ValueError):
 
 
 class ProductMode(StrEnum):
+    """The publishing authority a repository has granted this product.
+
+    ``ENFORCE`` exists only because a service owner recorded an approval in
+    their own repository configuration.  The platform cannot set it.
+    """
+
     SHADOW = "shadow"
     ADVISORY = "advisory"
+    ENFORCE = "enforce"
+
+
+class EnforcementRule(StrEnum):
+    """The complete set of conditions that may ever fail a merge check.
+
+    Each rule is deterministic and narrow: it names an artifact class, the
+    absence of test evidence, and a risk threshold.  A repository selects
+    exactly one; nothing else can block.
+    """
+
+    IAC_CHANGE_WITHOUT_TEST_EVIDENCE = "iac-change-without-test-evidence-at-high-risk"
+    SECURITY_CHANGE_WITHOUT_TEST_EVIDENCE = (
+        "security-boundary-change-without-test-evidence-at-high-risk"
+    )
 
 
 class EvidenceBasis(StrEnum):
@@ -64,9 +86,79 @@ def _sorted_unique(values: tuple[str, ...], label: str) -> tuple[str, ...]:
     return tuple(_required(value, label, 160) for value in values)
 
 
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _iso_date(value: str, label: str) -> date:
+    """Parse a calendar date, refusing anything a human might mistype."""
+    _required(value, label, 10)
+    if not _ISO_DATE.fullmatch(value):
+        raise ProductContractError(f"{label} must be an ISO date (YYYY-MM-DD)")
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:  # e.g. 2026-13-01
+        raise ProductContractError(f"{label} must be an ISO date (YYYY-MM-DD)") from exc
+
+
+@dataclass(frozen=True)
+class EnforcementWaiver:
+    """A named owner's time-boxed exemption for one path glob."""
+
+    path_glob: str
+    reason: str
+    owner: str
+    expires_on: str
+
+    def __post_init__(self) -> None:
+        _required(self.path_glob, "waivers path_glob", 200)
+        _required(self.reason, "waivers reason", 500)
+        _required(self.owner, "waivers owner", 200)
+        _iso_date(self.expires_on, "waivers expires_on")
+
+    def is_active_on(self, day: date) -> bool:
+        return date.fromisoformat(self.expires_on) >= day
+
+
+@dataclass(frozen=True)
+class EnforcementPolicy:
+    """One rule, one owner approval, one expiry, and its waiver list.
+
+    The expiry is deliberately mandatory: an enforcement decision has to be
+    re-taken by a human on a schedule rather than persisting by inertia.
+    """
+
+    rule: EnforcementRule
+    threshold: int
+    approved_by: str
+    approved_on: str
+    expires_on: str
+    waivers: tuple[EnforcementWaiver, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.rule not in set(EnforcementRule):
+            raise ProductContractError("enforcement.rule is invalid")
+        if type(self.threshold) is not int or not 0 <= self.threshold <= 100:
+            raise ProductContractError("enforcement.threshold is invalid")
+        _required(self.approved_by, "enforcement.approved_by", 200)
+        approved_on = _iso_date(self.approved_on, "enforcement.approved_on")
+        expires_on = _iso_date(self.expires_on, "enforcement.expires_on")
+        if expires_on < approved_on:
+            raise ProductContractError("enforcement.expires_on precedes enforcement.approved_on")
+        if len(self.waivers) > 64:
+            raise ProductContractError("enforcement.waivers is too large")
+
+    def is_active_on(self, day: date) -> bool:
+        return date.fromisoformat(self.expires_on) >= day
+
+
 @dataclass(frozen=True)
 class RepositoryConfig:
-    """Named owner and scope for one non-enforcing product installation."""
+    """Named owner and scope for one product installation in one repository.
+
+    Enforcement is opt-in and owner-signed: the platform can construct this
+    record but only a repository's own configuration file supplies
+    ``ProductMode.ENFORCE`` together with a complete, unexpired approval.
+    """
 
     repository: str
     service_ids: tuple[str, ...]
@@ -74,6 +166,7 @@ class RepositoryConfig:
     evidence_sources: tuple[str, ...]
     policy_version: str
     mode: ProductMode = ProductMode.SHADOW
+    enforcement: EnforcementPolicy | None = None
 
     def __post_init__(self) -> None:
         if not _REPOSITORY.fullmatch(_required(self.repository, "repository", 200)):
@@ -82,8 +175,20 @@ class RepositoryConfig:
         _sorted_unique(self.owner_ids, "owner_ids")
         _sorted_unique(self.evidence_sources, "evidence_sources")
         _required(self.policy_version, "policy_version", 120)
-        if self.mode not in {ProductMode.SHADOW, ProductMode.ADVISORY}:
+        if self.mode not in set(ProductMode):
             raise ProductContractError("mode is invalid")
+        if self.mode is ProductMode.ENFORCE:
+            if self.enforcement is None:
+                raise ProductContractError("enforcement is required when mode is enforce")
+            if self.enforcement.approved_by not in self.owner_ids:
+                raise ProductContractError(
+                    "enforcement.approved_by must name a declared service owner"
+                )
+            for waiver in self.enforcement.waivers:
+                if waiver.owner not in self.owner_ids:
+                    raise ProductContractError("waivers owner must name a declared service owner")
+        elif self.enforcement is not None:
+            raise ProductContractError("enforcement is allowed only when mode is enforce")
 
 
 @dataclass(frozen=True)

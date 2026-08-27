@@ -4,6 +4,13 @@ This worker proves durable Temporal scheduling and mTLS client configuration
 without mutating Cosmos, audit evidence, or infrastructure.  Consequential
 control-plane activities remain unavailable until their authoritative-state and
 immutable-audit adapters are implemented and independently exercised.
+
+This module deliberately defines only the evidence workflow. The gated
+remediation workflow lives in ``orchestration.remediation_workflow`` under the
+name ``eip.remediation.v1``; no other module may declare a workflow with that
+name (``tests/test_temporal_workflow_names.py`` enforces uniqueness), because a
+second definition that returned success without running the control loop would
+be indistinguishable from the real one at registration time.
 """
 
 from __future__ import annotations
@@ -58,108 +65,3 @@ class ControlPlaneEvidenceWorkflow:
             request_id=request.request_id,
             correlation_id=request.correlation_id,
         )
-
-from datetime import timedelta
-from intelligence.risk import RiskAssessment
-from intelligence.pr_guardian import PRPolicyDecision
-
-@dataclass(frozen=True)
-class PRGuardianRequest:
-    service_id: str
-    repository: str
-    pr_number: int
-    assessment: RiskAssessment
-    correlation_id: str
-
-@dataclass(frozen=True)
-class RemediationRequest:
-    incident_id: str
-    service_id: str
-    runbook_id: str
-    correlation_id: str
-
-@workflow.defn(name="eip.pr-review.v1")
-class PRGuardianWorkflow:
-    """Orchestrates the PR Guardian review cycle via Temporal."""
-
-    @workflow.run
-    async def run(self, request: PRGuardianRequest) -> dict[str, str]:
-        # In the future, this will schedule activities like 'RecordAssessmentActivity'
-        # and 'AuditActivity'.
-        # For now, it represents the durable workflow shell.
-        return {
-            "status": "completed",
-            "correlation_id": request.correlation_id,
-            "workflow_id": workflow.info().workflow_id
-        }
-
-@workflow.defn(name="eip.remediation.v1")
-class RemediationWorkflow:
-    """Orchestrates L3/L4 self-healing via Temporal."""
-
-    @workflow.run
-    async def run(self, request: RemediationRequest) -> dict[str, str]:
-        # Would wait for approval signal here if L3
-        return {
-            "status": "completed",
-            "correlation_id": request.correlation_id,
-            "workflow_id": workflow.info().workflow_id
-        }
-
-from intelligence.incidents import IncidentAnalysis
-from intelligence.deployment_failures import DeploymentFailureAnalysis
-from intelligence.drift import DriftFinding
-
-@dataclass(frozen=True)
-class IncidentRequest:
-    service_id: str
-    environment: str
-    incident_id: str
-    analysis: IncidentAnalysis
-    correlation_id: str
-
-@dataclass(frozen=True)
-class DeploymentFailureRequest:
-    service_id: str
-    environment: str
-    deployment_id: str
-    analysis: DeploymentFailureAnalysis
-    correlation_id: str
-
-@dataclass(frozen=True)
-class DriftReviewRequest:
-    resource_id: str
-    service_id: str
-    environment: str
-    findings: tuple[DriftFinding, ...]
-    correlation_id: str
-
-@workflow.defn(name="eip.incident.v1")
-class IncidentInvestigationWorkflow:
-    @workflow.run
-    async def run(self, request: IncidentRequest) -> dict[str, str]:
-        return {
-            "status": "completed",
-            "correlation_id": request.correlation_id,
-            "workflow_id": workflow.info().workflow_id
-        }
-
-@workflow.defn(name="eip.deployment-failure.v1")
-class DeploymentFailureWorkflow:
-    @workflow.run
-    async def run(self, request: DeploymentFailureRequest) -> dict[str, str]:
-        return {
-            "status": "completed",
-            "correlation_id": request.correlation_id,
-            "workflow_id": workflow.info().workflow_id
-        }
-
-@workflow.defn(name="eip.drift-review.v1")
-class DriftReviewWorkflow:
-    @workflow.run
-    async def run(self, request: DriftReviewRequest) -> dict[str, str]:
-        return {
-            "status": "completed",
-            "correlation_id": request.correlation_id,
-            "workflow_id": workflow.info().workflow_id
-        }

@@ -1,13 +1,15 @@
 name: Integration Proof
 
+# The probe is read-only. It never applies Terraform, Helm, schema, or source
+# changes, and it refuses to run at all unless every documented variable in
+# docs/INTEGRATION-PROOF-RUNBOOK.md is present.
+
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: GitHub Environment containing integration credentials/configuration
-        required: true
-        default: integration
-        type: string
+  schedule:
+    # Weekly, so a configuration or private-path regression surfaces without
+    # waiting for someone to remember to dispatch the run.
+    - cron: '17 4 * * 1'
 
 permissions:
   contents: read
@@ -17,11 +19,13 @@ jobs:
   evidence:
     name: Real Environment Evidence
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    # Gated by the GitHub environment that holds the integration credentials and
+    # configuration; without it the job cannot read any of the values below.
+    environment: integration
     steps:
       - uses: actions/checkout@v4
 
-      - uses: azure/login@v2
+      - uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -38,18 +42,56 @@ jobs:
 
       - name: Collect integration evidence
         env:
+          # Required contract — validation/integration_probe.REQUIRED_ENVIRONMENT.
           EIP_BASE_URL: ${{ vars.EIP_BASE_URL }}
+          EIP_INTEGRATION_ALLOWED_BEARER_FILE: ${{ vars.EIP_INTEGRATION_ALLOWED_BEARER_FILE }}
+          EIP_INTEGRATION_DENIED_BEARER_FILE: ${{ vars.EIP_INTEGRATION_DENIED_BEARER_FILE }}
+          EIP_INTEGRATION_ALLOWED_QUERY: ${{ secrets.EIP_INTEGRATION_ALLOWED_QUERY }}
+          EIP_INTEGRATION_DENIED_QUERY: ${{ secrets.EIP_INTEGRATION_DENIED_QUERY }}
+          EIP_INTEGRATION_ALLOWED_SOURCE: ${{ secrets.EIP_INTEGRATION_ALLOWED_SOURCE }}
           AZURE_SEARCH_HOST: ${{ vars.AZURE_SEARCH_HOST }}
           AZURE_OPENAI_HOST: ${{ vars.AZURE_OPENAI_HOST }}
           AZURE_KEYVAULT_HOST: ${{ vars.AZURE_KEYVAULT_HOST }}
-          EIP_INTEGRATION_EVIDENCE: integration-evidence.json
+          EIP_COSMOS_HOST: ${{ vars.EIP_COSMOS_HOST }}
+          AZURE_POSTGRESQL_HOST: ${{ vars.AZURE_POSTGRESQL_HOST }}
+          EIP_TEMPORAL_HOST: ${{ vars.EIP_TEMPORAL_HOST }}
+          EIP_INTEGRATION_SCOPE: ${{ vars.EIP_INTEGRATION_SCOPE }}
+          # The runbook requires the evidence path to be outside the source
+          # checkout, so the record cannot be confused with a tracked file.
+          EIP_INTEGRATION_EVIDENCE: ${{ runner.temp }}/integration-evidence.json
+          # Optional contract — validation/integration_probe.OPTIONAL_ENVIRONMENT.
+          EIP_INTEGRATION_ALLOWED_REPOSITORY: ${{ secrets.EIP_INTEGRATION_ALLOWED_REPOSITORY }}
+          EIP_INTEGRATION_DENIED_REPOSITORY: ${{ secrets.EIP_INTEGRATION_DENIED_REPOSITORY }}
         run: python validation/integration_probe.py
+
+      - name: Report incomplete configuration
+        if: failure()
+        shell: bash
+        run: |
+          evidence="${RUNNER_TEMP}/integration-evidence.json"
+          if [ ! -f "$evidence" ]; then
+            exit 0
+          fi
+          missing=$(jq -r '.results[]? | select(.probe == "configuration") | .missing[]?' "$evidence")
+          if [ -z "$missing" ]; then
+            exit 0
+          fi
+          {
+            echo "### Integration proof did not run"
+            echo ""
+            echo "The probe failed closed: the integration environment is missing required configuration."
+            echo "No probe was executed, so this run is not evidence of anything."
+            echo ""
+            echo "Missing variables (see \`docs/INTEGRATION-PROOF-RUNBOOK.md\`):"
+            echo ""
+            printf '%s\n' "$missing" | sed 's/^/- `/; s/$/`/'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: integration-evidence-${{ github.run_id }}
-          path: integration-evidence.json
+          path: ${{ runner.temp }}/integration-evidence.json
           if-no-files-found: error
           retention-days: 90

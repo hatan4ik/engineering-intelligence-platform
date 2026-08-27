@@ -54,11 +54,14 @@ with PR Guardian for the first pilot's scope.
 
 | Area | Repository state | Maturity implication |
 |---|---|---|
-| PR Guardian | Secure read-only/shadow workflow split, deterministic risk, neutral check/comment, strict observation and closure schemas | A safe **Shadow Engine v0**, not yet a durable pilot product |
-| Feedback | Explicit reviewer labels and a conservative closure report; closure is not treated as proof of correctness | Add retained outcomes and independent post-merge correlation before calibration claims |
-| Knowledge | Source lifecycle, ACL reconciliation/deletion/repair, and retrieval regression reference paths | Connect governed evidence to PR findings; do not depend only on a runner checkout |
-| Control plane | Reference lifecycle/audit bridge and evidence-only Temporal worker | Keep PR Guardian synchronous initially; use durable orchestration only for genuine multi-step workflows |
-| Other verticals | Incident, deployment, drift, and remediation reference paths exist | Do not market or operate them as a coherent product portfolio yet |
+| PR Guardian | Read-only/shadow workflow split; repository-owned `shadow` / `advisory` / `enforce` modes with owner approval, expiry, waivers, and a kill switch; trusted publisher is the only writer; Architecture Guard on the PR path | A **mode-capable shadow product** — advisory or enforce is a repository owner's decision, and no repository has made it |
+| Feedback | Reviewer labels, a closure report that computes a real decision, calibration as a recommendation, a scheduled report workflow | Calibration numbers are recommendations until a named repository accumulates ≥30 classified observations |
+| Knowledge | Runtime ingestion trigger (CLI + workflow) over the governed pipeline; evidence registry; fail-closed integration proof | Still unproven against a real Azure index; the registry is empty by design |
+| Control plane | `temporal` mode constructible over Cosmos; opt-in remediation workflow with plan-hash approval; L1/L2 operations routes | The worker remains evidence-only by default; consequential activities stay behind the flag and are unproven |
+| Rehearsal and certification | Soak, readiness, and L3 exercise runners; scoped L4 eligibility and an executor/OPA gate that refuses uncertified L4 | Simulated exercises are `rehearsal` grade and never count; nothing is certified |
+
+The engineering half of every stage below now exists; the evidence half of none has been earned.
+[`../docs/CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) carries the per-stage table.
 
 ## Delivery timeline and gates
 

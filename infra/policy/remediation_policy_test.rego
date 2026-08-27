@@ -69,3 +69,258 @@ test_deny_when_audit_unavailable if {
   result.allowed == false
   result.reason == "audit control unavailable"
 }
+
+# --- scoped L4 certification -------------------------------------------------
+
+l4_input := object.union(base_input, {
+  "policy": object.union(base_input.policy, {"level": 4}),
+  "autonomy_level": "L4",
+  "now": "2026-08-26T00:00:00Z",
+  "scope": {"scope_hash": "scope-aaa"},
+  "certification": {
+    "scope_hash": "scope-aaa",
+    "inputs_hash": "inputs-bbb",
+    "expires_on": "2026-11-01T00:00:00Z"
+  }
+})
+
+test_allow_l4_with_a_matching_unexpired_certification if {
+  result := decision with input as l4_input
+  result.allowed == true
+}
+
+test_deny_l4_without_a_certification if {
+  candidate := object.remove(l4_input, {"certification"})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_deny_l4_with_a_null_certification if {
+  candidate := object.union(l4_input, {"certification": null})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_deny_l4_with_an_expired_certification if {
+  candidate := object.union(l4_input, {
+    "certification": object.union(l4_input.certification, {"expires_on": "2026-08-25T00:00:00Z"})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: certification has expired"
+}
+
+test_deny_l4_when_the_expiry_is_unreadable if {
+  candidate := object.union(l4_input, {
+    "certification": object.union(l4_input.certification, {"expires_on": "whenever"})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: certification expires_on is not a readable timestamp"
+}
+
+test_deny_l4_when_the_evaluation_time_is_unreadable if {
+  candidate := object.union(l4_input, {"now": ""})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: request carries no readable evaluation time"
+}
+
+test_deny_l4_when_the_certification_is_for_another_scope if {
+  candidate := object.union(l4_input, {
+    "certification": object.union(l4_input.certification, {"scope_hash": "scope-zzz"})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: record scope_hash does not match the requested scope"
+}
+
+test_deny_l4_when_the_request_carries_no_scope_hash if {
+  candidate := object.union(l4_input, {"scope": {"scope_hash": "  "}})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: request carries no scope hash"
+}
+
+test_deny_l4_without_a_material_inputs_hash if {
+  candidate := object.union(l4_input, {
+    "certification": object.union(l4_input.certification, {"inputs_hash": ""})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: certification carries no material-inputs hash"
+}
+
+test_l3_is_never_asked_for_a_certification if {
+  candidate := object.union(base_input, {"autonomy_level": "L3"})
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_the_error_budget_control_outranks_the_certification_check if {
+  candidate := object.union(l4_input, {
+    "request": object.union(l4_input.request, {"error_budget_remaining": 0})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "error budget exhausted; autonomous mutation disabled"
+}
+
+# --- the declared autonomy_level is a claim, not an authority ----------------
+
+l4_policy_no_declared_level := object.union(base_input, {
+  "policy": object.union(base_input.policy, {"level": 4}),
+  "now": "2026-08-26T00:00:00Z",
+  "scope": {"scope_hash": "scope-aaa"}
+})
+
+test_deny_a_level_four_policy_with_no_declared_level_and_no_certification if {
+  result := decision with input as l4_policy_no_declared_level
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_allow_a_level_four_policy_with_no_declared_level_and_a_valid_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "certification": {
+      "scope_hash": "scope-aaa",
+      "inputs_hash": "inputs-bbb",
+      "expires_on": "2026-11-01T00:00:00Z"
+    }
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_deny_a_level_four_policy_that_understates_its_level if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": "L2"})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_the_sanctioned_supervised_downgrade_is_not_asked_for_a_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": "L3"})
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_a_level_three_policy_with_no_declared_level_is_not_asked_for_a_certification if {
+  result := decision with input as base_input
+  result.allowed == true
+}
+
+# --- the sanctioned downgrade is still a supervised L3 ------------------------
+#
+# Running an L4 scope as "L3" skips the L4 certification because supervised
+# exercises are the *input* to certification -- but L3 means approve-and-execute,
+# so the human-approval rule must still fire on that path.
+
+test_deny_the_supervised_downgrade_without_a_verified_approval if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "autonomy_level": "L3",
+    "request": object.union(base_input.request, {"approval_verified": false})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "verified human approval is required"
+}
+
+test_allow_the_supervised_downgrade_with_a_verified_approval_and_no_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "autonomy_level": "L3",
+    "request": object.union(base_input.request, {"approval_verified": true})
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_an_undeclared_level_four_policy_is_not_asked_for_an_approval if {
+  # No downgrade was claimed, so the run is L4: certification, not approval, is
+  # the control that applies.
+  candidate := object.union(l4_policy_no_declared_level, {
+    "request": object.union(base_input.request, {"approval_verified": false}),
+    "certification": valid_certification
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+# --- a declared level that is not a string at all ----------------------------
+#
+# trim_space() on a non-string is a builtin type error, which a non-strict OPA
+# resolves to undefined. Without a total coercion that undefined value skips the
+# whole certification chain and the request is allowed.
+
+valid_certification := {
+  "scope_hash": "scope-aaa",
+  "inputs_hash": "inputs-bbb",
+  "expires_on": "2026-11-01T00:00:00Z"
+}
+
+test_deny_a_null_declared_level_on_a_level_four_policy if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": null})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_allow_a_null_declared_level_with_a_valid_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "autonomy_level": null,
+    "certification": valid_certification
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_deny_a_numeric_declared_level_on_a_level_four_policy if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": 4})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+test_allow_a_numeric_declared_level_with_a_valid_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "autonomy_level": 4,
+    "certification": valid_certification
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_deny_an_object_declared_level_on_a_level_four_policy if {
+  candidate := object.union(l4_policy_no_declared_level, {"autonomy_level": {"level": "L3"}})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "l4-certification: no certification record for this L4 scope"
+}
+
+# --- a policy with no reviewed level -----------------------------------------
+
+test_deny_a_policy_with_no_level if {
+  candidate := object.remove(base_input, {"policy"})
+  with_policy := object.union(candidate, {"policy": object.remove(base_input.policy, {"level"})})
+  result := decision with input as with_policy
+  result.allowed == false
+  result.reason == "service autonomy policy carries no reviewed level"
+}
+
+test_deny_a_policy_whose_level_is_not_a_number if {
+  candidate := object.union(base_input, {"policy": object.union(base_input.policy, {"level": "4"})})
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "service autonomy policy carries no reviewed level"
+}
+
+test_the_kill_switch_still_outranks_a_missing_level if {
+  candidate := object.union(base_input, {
+    "policy": object.remove(object.union(base_input.policy, {"kill_switch": true}), {"level"})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "service kill switch is enabled"
+}

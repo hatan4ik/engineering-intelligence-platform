@@ -1,3 +1,5 @@
+import asyncio
+
 from intelligence.drift import DriftFinding, ResourceSnapshot
 from intelligence.drift_correction import build_correction_plan, render_correction_markdown
 from product.drift_correction_service import DriftCorrectionService
@@ -62,7 +64,7 @@ class Workflow:
 
 
 class Workflows:
-    def start_drift_review(self, **kwargs):
+    async def start_drift_review(self, **kwargs):
         assert kwargs["resource_id"] == "deploy/payments"
         assert kwargs["findings"]
         return Workflow()
@@ -79,7 +81,7 @@ class Publisher:
 def test_service_publishes_plan_but_does_not_execute_mutation():
     publisher = Publisher()
     service = DriftCorrectionService(provider=Provider(), workflows=Workflows(), publisher=publisher)
-    result = service.run(service="payments", environment="prod")
+    result = asyncio.run(service.run(service="payments", environment="prod"))
     assert result.workflow_ids == ("wf-drift-1",)
     assert len(result.plans) == 1
     assert publisher.calls[0][1] == "wf-drift-1"

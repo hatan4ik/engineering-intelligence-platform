@@ -1,6 +1,9 @@
 """Stable domain contracts for the PR Guardian product vertical."""
 
 from .contracts import (
+    EnforcementPolicy,
+    EnforcementRule,
+    EnforcementWaiver,
     EvidenceBasis,
     EvidenceBundle,
     EvidenceReference,
@@ -17,6 +20,9 @@ from .contracts import (
 from .store import PRGuardianFindingStore, PRGuardianStoreError, SqlitePRGuardianStore
 
 __all__ = [
+    "EnforcementPolicy",
+    "EnforcementRule",
+    "EnforcementWaiver",
     "EvidenceBasis",
     "EvidenceBundle",
     "EvidenceReference",

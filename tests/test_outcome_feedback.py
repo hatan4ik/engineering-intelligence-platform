@@ -54,5 +54,9 @@ def test_github_terminal_outcome_normalization():
         "repository": "acme/platform",
         "pr_number": 7,
         "merged": True,
+        # Reviewer dispositions now travel with the terminal outcome; an
+        # unlabelled pull request is explicitly "not-reviewed", never assumed.
+        "risk_signal": "not-reviewed",
+        "utility_signal": "not-reviewed",
     }
     assert normalize_github_pr_outcome({"action": "synchronize"}) is None

@@ -7,7 +7,14 @@ Welcome to the documentation for the Engineering Intelligence Platform. To preve
 - [The Executive Memo](executive-memo.md) - The core problem, scaling tax, and high-level platform vision.
 - [Board Deck Narrative](board-deck-narrative.md) - The 12-slide pitch for VP-level stakeholders.
 - [Product Strategy (Initial Wedge)](PRODUCT-STRATEGY.md) - Why we start with PR Guardian before attempting self-healing.
-- [Current Position](CURRENT-POSITION.md) - Where the platform stands today, on both yardsticks.
+- [Current Position](CURRENT-POSITION.md) - Where the platform stands today, on both yardsticks, with the per-stage engineering-vs-evidence table.
+
+## 🛠 Runbooks (Stages 1–6 engineering)
+*What each runner does, what it needs, and what it refuses to do.*
+- [PR Guardian Shadow Report](PR-GUARDIAN-SHADOW-REPORT.md) · [PR Guardian Repository Config](PR-GUARDIAN-REPOSITORY-CONFIG.md)
+- [Knowledge Ingest](KNOWLEDGE-INGEST-RUNBOOK.md) · [Evidence Registry](evidence/README.md) · [Integration Proof](INTEGRATION-PROOF-RUNBOOK.md)
+- [Operations Intelligence (L1/L2)](OPERATIONS-INTELLIGENCE-RUNBOOK.md)
+- [L3 Rehearsal](L3-REHEARSAL-RUNBOOK.md) · [L4 Promotion](L4-PROMOTION-RUNBOOK.md) · [Temporal Worker](TEMPORAL-WORKER-RUNBOOK.md)
 - [24-Month Technical Roadmap](../roadmap/technical-roadmap-24-months.md)
 - [CFO ROI Model](../finops/cfo-roi-model.md) - Value equation and investment gates.
 

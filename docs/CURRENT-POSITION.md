@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Current implementation state |
 | **Owner** | Platform Engineering |
-| **Reviewed** | 2026-08-26 at the revision that merged this file |
+| **Reviewed** | 2026-08-26 at the revision that merged this file (Stage 0 in PR #75; Stage 1–6 engineering in the following pull request) |
 | **Rule** | This is the one document that answers "where are we today". Every other planning document points here instead of restating a position. |
 
 ## Two yardsticks, stated explicitly
@@ -35,6 +35,23 @@ request and the first observation record is retained.
 | Reviewer labels created on the pilot repository | Done for this repository (`eip-pr-guardian/*`) |
 | Named pilot repository with service owner and non-enforcement configuration | **Open** — none named |
 | Baseline metrics collection plan | **Open** |
+
+## Engineering built vs. evidence earned, per stage
+
+Every stage has an engineering half (code, runners, triggers, workflows) and an evidence half
+(a named repository, a real environment, retained outcomes, exercised drills). The engineering
+half of Stages 1–6 now exists in this repository. **No evidence half has been earned; no stage
+beyond Stage 0 has exited.** Every runner below fails closed and names its missing configuration
+when the environment it needs is absent.
+
+| Stage | Engineering present (this revision) | Evidence still required before exit |
+|---|---|---|
+| 1 — shadow PR Guardian | Report computes a real `decision` (`shadow-only` / `advisory-candidate`) with `blocking_authorized` fixed false; calibration section (recommendation only); closure workflow works with the Actions installation token; weekly report workflow — [`PR-GUARDIAN-SHADOW-REPORT.md`](PR-GUARDIAN-SHADOW-REPORT.md) | ≥30 observations, ≥30 reviewer classifications, ≥5 confirmed risks, precision ≥0.50, recall ≥0.80 on a named external repository |
+| 2 — advisory + knowledge plane | `ingestion/` has a runtime trigger (`scripts/ingest_repository.py`, `knowledge-ingest.yml`); integration proof fails closed on any of its 14 required variables and runs on a schedule when an `integration` environment exists; evidence registry (`docs/evidence/`, `scripts/record_evidence.py`) — [`KNOWLEDGE-INGEST-RUNBOOK.md`](KNOWLEDGE-INGEST-RUNBOOK.md), [`evidence/README.md`](evidence/README.md) | An Azure environment with secrets; 2–3 repositories indexed; the strategy's Advisory gate; the first retained evidence record |
+| 3 — selective enforcement + Architecture Guard | Repository-owned `.eip/pr-guardian.json` selects `shadow` / `advisory` / `enforce`; one deterministic rule with owner approval, expiry, waivers, and `EIP_PR_GUARDIAN_KILL_SWITCH`; the trusted publisher is the only writer and re-derives the condition; Architecture Guard on the PR path with honest coverage counts — [`PR-GUARDIAN-REPOSITORY-CONFIG.md`](PR-GUARDIAN-REPOSITORY-CONFIG.md) | A service owner enabling `enforce` in their repository, a monitored false-negative rate over a retained window, CODEOWNERS on `.github/workflows/` and `.eip/` |
+| 4 — operational intelligence L1/L2 | `POST /v1/events/deployment` and `/v1/events/incident` behind a shared secret; L2 proposals with `requires_human` fixed true; CLIs over fixture evidence — [`OPERATIONS-INTELLIGENCE-RUNBOOK.md`](OPERATIONS-INTELLIGENCE-RUNBOOK.md) | Azure Monitor / ADO wired to a real service; owner-confirmed outcomes; measured L2 acceptance |
+| 5 — rehearsed L3 | `temporal` control-plane mode is constructible over Cosmos state and a hash-chain-compatible Cosmos audit log; opt-in `eip.remediation.v1` workflow with a plan-hash-bound approval signal; soak, readiness, and L3 exercise runners (simulated runs are graded `rehearsal`) — [`L3-REHEARSAL-RUNBOOK.md`](L3-REHEARSAL-RUNBOOK.md), [`TEMPORAL-WORKER-RUNBOOK.md`](TEMPORAL-WORKER-RUNBOOK.md) | A managed Temporal + Cosmos environment; the nine certification items exercised on a real cluster with retained evidence; 168h soak |
+| 6 — scoped L4 | Certification scope and material-inputs hashes; eligibility that excludes rehearsal-graded exercises; the executor and the OPA bundle refuse L4 without a matching, unexpired record; `EIP_AUTONOMY_KILL_SWITCH` — [`L4-PROMOTION-RUNBOOK.md`](L4-PROMOTION-RUNBOOK.md) | Everything in Stage 5, per service + environment + runbook; nothing is certified |
 
 ## How the planning schemes map
 

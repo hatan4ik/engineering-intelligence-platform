@@ -1,9 +1,15 @@
-"""Portable, non-enforcing records for the PR Guardian shadow pilot.
+"""Portable PR Guardian observation records and their rendered comment.
 
-The records deliberately contain only deterministic assessment metadata.  They
-are safe to pass between the untrusted pull-request evaluation workflow and a
-separate, trusted publisher workflow; they are *not* production evidence or an
-authorization to enable merge enforcement.
+The records contain only deterministic assessment metadata, so they are safe to
+pass between the untrusted pull-request evaluation workflow and a separate,
+trusted publisher workflow.  They are *not* production evidence.
+
+A record carries the mode the evaluated repository chose for itself — ``shadow``,
+``advisory``, or ``enforce`` — and ``observation_comment`` renders the authority
+that mode actually has.  A record never authorizes enforcement: the mode comes
+from the repository's own ``.eip/pr-guardian.json``, and the trusted publisher
+re-derives the published conclusion from that file rather than trusting this
+record.  Closure/outcome records below remain non-enforcing calibration inputs.
 """
 
 from __future__ import annotations
@@ -55,12 +61,34 @@ def observation_from_assessment(
     would_block: bool,
     audit_chain_verified: bool,
     observed_at: str | None = None,
+    mode: str = "shadow",
+    enforcement: Mapping[str, object] | None = None,
+    architecture: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
-    """Return a strictly shaped non-enforcing shadow observation."""
+    """Return a strictly shaped observation for the repository's current mode.
+
+    ``mode`` comes from the evaluated repository's own configuration.  The
+    optional ``enforcement`` and ``architecture`` sections default to an
+    explicitly non-blocking, empty state so a caller that knows nothing about
+    them still produces a record the trusted publisher accepts.
+    """
     record: dict[str, object] = {
         "schema_version": SCHEMA_VERSION,
         "kind": OBSERVATION_KIND,
-        "mode": "shadow",
+        "mode": mode,
+        "enforcement": dict(enforcement) if enforcement is not None else {
+            "would_block": False,
+            "reason": "mode-not-enforcing",
+            "rule": None,
+            "waived_by": None,
+        },
+        "architecture": dict(architecture) if architecture is not None else {
+            "violations": [],
+            "in_scope": 0,
+            "reviewed": 0,
+            "skipped": [],
+            "summary": "Architecture Guard did not run for this evaluation.",
+        },
         "observed_at": observed_at or utc_now(),
         "subject": {
             "repository": event.repository,
@@ -89,18 +117,122 @@ def observation_from_assessment(
 
 def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
     """Validate a workflow-transfer record before a trusted workflow uses it."""
+
+    def _optional_string(raw: object, name: str, maximum: int) -> str | None:
+        return None if raw is None else _string(raw, name, maximum)
+
+    # Records written before advisory/enforce modes existed carry neither an
+    # enforcement nor an architecture section.  Fill both with their explicitly
+    # non-blocking, empty defaults so old artifacts keep validating and every
+    # normalized record has the same shape.
+    value = {
+        "enforcement": {
+            "would_block": False,
+            "reason": "mode-not-enforcing",
+            "rule": None,
+            "waived_by": None,
+        },
+        "architecture": {
+            "violations": [],
+            "in_scope": 0,
+            "reviewed": 0,
+            "skipped": [],
+            "summary": "Architecture Guard did not run for this evaluation.",
+        },
+        **dict(value),
+    }
     _exact_keys(
         value,
         {
-            "schema_version", "kind", "mode", "observed_at", "subject", "assessment",
-            "changed_services", "simulated_policy", "workflow",
+            "schema_version", "kind", "mode", "enforcement", "architecture", "observed_at",
+            "subject", "assessment", "changed_services", "simulated_policy", "workflow",
         },
         "shadow observation",
     )
     if value.get("schema_version") != SCHEMA_VERSION or value.get("kind") != OBSERVATION_KIND:
         raise ValueError("unsupported shadow observation schema")
-    if value.get("mode") != "shadow":
-        raise ValueError("only shadow PR Guardian observations may be published")
+    mode = _string(value.get("mode"), "mode", 20)
+    if mode not in {"shadow", "advisory", "enforce"}:
+        raise ValueError("mode is invalid")
+
+    raw_enforcement = _mapping(value.get("enforcement"), "enforcement")
+    _exact_keys(raw_enforcement, {"would_block", "reason", "rule", "waived_by"}, "enforcement")
+    enforcement: dict[str, object] = {
+        "would_block": _boolean(raw_enforcement.get("would_block"), "enforcement.would_block"),
+        "reason": _string(raw_enforcement.get("reason"), "enforcement.reason", 120),
+        "rule": _optional_string(raw_enforcement.get("rule"), "enforcement.rule", 120),
+        "waived_by": _optional_string(raw_enforcement.get("waived_by"), "enforcement.waived_by", 200),
+    }
+    # A record can describe a block only when it also names the rule that
+    # produced it; an unattributed block is not publishable.
+    if enforcement["would_block"] and not enforcement["rule"]:
+        raise ValueError("enforcement.rule is required when enforcement.would_block is true")
+    if enforcement["would_block"] and mode != "enforce":
+        raise ValueError("enforcement.would_block is allowed only in enforce mode")
+
+    # Older records carried only violations+summary; fill the coverage counts
+    # with a "nothing was reviewed" default so they cannot read as a clean run.
+    raw_architecture = {
+        "in_scope": 0,
+        "reviewed": 0,
+        "skipped": [],
+        **dict(_mapping(value.get("architecture"), "architecture")),
+    }
+    _exact_keys(
+        raw_architecture,
+        {"violations", "in_scope", "reviewed", "skipped", "summary"},
+        "architecture",
+    )
+    raw_violations = raw_architecture.get("violations")
+    if not isinstance(raw_violations, list) or len(raw_violations) > 64:
+        raise ValueError("architecture.violations is invalid")
+    violations: list[dict[str, object]] = []
+    for index, raw in enumerate(raw_violations):
+        item = _mapping(raw, f"architecture.violations[{index}]")
+        _exact_keys(
+            item,
+            {"rule_id", "path", "marker", "rationale", "severity"},
+            f"architecture.violations[{index}]",
+        )
+        violations.append({
+            "rule_id": _string(item.get("rule_id"), f"architecture.violations[{index}].rule_id", 120),
+            "path": _string(item.get("path"), f"architecture.violations[{index}].path", 400),
+            "marker": _string(item.get("marker"), f"architecture.violations[{index}].marker", 400),
+            "rationale": _string(item.get("rationale"), f"architecture.violations[{index}].rationale", 500),
+            "severity": _integer(
+                item.get("severity"), f"architecture.violations[{index}].severity", minimum=1, maximum=5
+            ),
+        })
+    raw_skipped = raw_architecture.get("skipped")
+    if not isinstance(raw_skipped, list) or len(raw_skipped) > 64:
+        raise ValueError("architecture.skipped is invalid")
+    skipped: list[dict[str, object]] = []
+    for index, raw in enumerate(raw_skipped):
+        item = _mapping(raw, f"architecture.skipped[{index}]")
+        _exact_keys(item, {"path", "reason"}, f"architecture.skipped[{index}]")
+        skipped.append({
+            "path": _string(item.get("path"), f"architecture.skipped[{index}].path", 400),
+            "reason": _string(item.get("reason"), f"architecture.skipped[{index}].reason", 200),
+        })
+    reviewed = _integer(
+        raw_architecture.get("reviewed"), "architecture.reviewed", minimum=0, maximum=10_000
+    )
+    in_scope = _integer(
+        raw_architecture.get("in_scope"), "architecture.in_scope", minimum=0, maximum=10_000
+    )
+    if reviewed > in_scope:
+        raise ValueError("architecture.reviewed cannot exceed architecture.in_scope")
+    # A record must not report findings it claims never to have read.
+    if violations and reviewed == 0:
+        raise ValueError("architecture.violations requires at least one reviewed file")
+    architecture = {
+        "violations": violations,
+        "in_scope": in_scope,
+        "reviewed": reviewed,
+        "skipped": skipped,
+        "summary": _string(raw_architecture.get("summary"), "architecture.summary", 500),
+    }
+
     observed_at = _string(value.get("observed_at"), "observed_at", 80)
     subject = _mapping(value.get("subject"), "subject")
     _exact_keys(subject, {"repository", "pr_number", "head_sha", "action"}, "subject")
@@ -156,7 +288,9 @@ def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
     return {
         "schema_version": SCHEMA_VERSION,
         "kind": OBSERVATION_KIND,
-        "mode": "shadow",
+        "mode": mode,
+        "enforcement": enforcement,
+        "architecture": architecture,
         "observed_at": observed_at,
         "subject": {
             "repository": repository,
@@ -171,10 +305,30 @@ def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
     }
 
 
-def observation_comment(observation: Mapping[str, object]) -> str:
+def observation_comment(
+    observation: Mapping[str, object],
+    *,
+    published_conclusion: str | None = None,
+    publish_reason: str | None = None,
+) -> str:
+    """Render the sticky comment, stating the authority this mode actually has.
+
+    This is the single rendering path for an observation.  The wording is a
+    function of the record's own ``mode``: a shadow record still says it cannot
+    change merge status, and an enforcing record names its rule, says whether it
+    would block *this* pull request, and names any waiver that applied.  A
+    trusted publisher that re-derived a different conclusion passes it in via
+    ``published_conclusion`` so the comment discloses what was actually posted.
+    """
+    # Imported here rather than at module scope so this transfer-record module
+    # keeps its narrow import surface; `explain` owns the reason wording.
+    from product.pr_guardian.enforcement import explain
+
     observation = validate_observation(observation)
+    mode = str(observation["mode"])
     assessment = _mapping(observation["assessment"], "assessment")
     policy = _mapping(observation["simulated_policy"], "simulated_policy")
+    enforcement = _mapping(observation["enforcement"], "enforcement")
     factors = assessment["factors"]
     assert isinstance(factors, list)
     evidence = "\n".join(
@@ -183,15 +337,61 @@ def observation_comment(observation: Mapping[str, object]) -> str:
     ) or "- No material risk factors detected"
     simulated_controls = _simulated_controls(policy)
     payload = json.dumps(observation, sort_keys=True, separators=(",", ":"))
+
+    if mode == "advisory":
+        heading = "## Engineering Intelligence — PR Guardian advisory review"
+        authority = (
+            "**Advisory — non-blocking check for this repository's certified scope.** "
+            "It is published as a neutral check and does not change merge status."
+        )
+        policy_heading = "### Advisory policy signals"
+    elif mode == "enforce":
+        heading = "## Engineering Intelligence — PR Guardian enforcement check"
+        would_block = bool(enforcement["would_block"])
+        verdict = (
+            "**would block this pull request**"
+            if would_block
+            else "does not block this pull request"
+        )
+        authority_lines = [
+            "**Selective enforcement is enabled for this repository by its service owners.**",
+            "",
+            f"- **Rule:** `{enforcement['rule'] or 'none'}`",
+            f"- **Result:** this change {verdict} — {explain(str(enforcement['reason']))}",
+        ]
+        if enforcement["waived_by"]:
+            authority_lines.append(
+                f"- **Waiver applied by:** `{enforcement['waived_by']}` "
+                "(a service owner accepted this risk in `.eip/pr-guardian.json`)"
+            )
+        authority = "\n".join(authority_lines)
+        policy_heading = "### Advisory policy signals"
+    else:
+        heading = "## Engineering Intelligence — PR Guardian shadow observation"
+        authority = (
+            "**Advisory only.** This result cannot approve, block, or otherwise change merge status."
+        )
+        policy_heading = "### Simulated policy"
+
+    if published_conclusion is not None:
+        authority += (
+            f"\n\n**Published check conclusion:** `{published_conclusion}` — "
+            f"{explain(publish_reason or '')}"
+        )
+    policy_note = "" if mode == "shadow" else (
+        "\n\nThese are the risk policy's recommendations to reviewers. They are separate "
+        "from the enforcement rule above, which is the only thing that can change this "
+        "check's conclusion."
+    )
     return (
         f"{COMMENT_MARKER}\n{DATA_MARKER}{payload}{DATA_SUFFIX}\n"
-        "## Engineering Intelligence — PR Guardian shadow observation\n\n"
-        "**Advisory only.** This result cannot approve, block, or otherwise change merge status.\n\n"
+        f"{heading}\n\n"
+        f"{authority}\n\n"
         f"**Risk score:** `{assessment['score']}/100` ({assessment['band']})\n\n"
         "### Evidence\n"
         f"{evidence}\n\n"
-        "### Simulated policy\n"
-        f"{simulated_controls}\n\n"
+        f"{policy_heading}\n"
+        f"{simulated_controls}{policy_note}\n\n"
         "For calibration, an authorized reviewer may apply at most one risk label "
         "(`eip-pr-guardian/confirmed-risk` or `eip-pr-guardian/false-positive`) and at most "
         "one utility label (`eip-pr-guardian/useful` or `eip-pr-guardian/not-useful`). "

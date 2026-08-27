@@ -1,3 +1,5 @@
+import asyncio
+
 from integrations.github.pr_guardian import ChangedFile, PullRequestEvent, normalize_pull_request_event
 from intelligence.graph import ServiceGraph, ServiceNode
 from product.pr_guardian_service import PRGuardianService
@@ -61,7 +63,9 @@ def test_pr_guardian_maps_services_scores_persists_and_publishes(tmp_path):
         history=History(),
     )
 
-    result = service.evaluate(PullRequestEvent("acme/platform", 7, "deadbeef", "opened"))
+    result = asyncio.run(
+        service.evaluate(PullRequestEvent("acme/platform", 7, "deadbeef", "opened"))
+    )
 
     assert result.changed_services == ("payments",)
     assert result.assessment.score >= 70
@@ -89,7 +93,9 @@ def test_unmapped_delivery_change_is_not_false_low(tmp_path):
             SqliteAuditLog(tmp_path / "audit.db"),
         ),
     )
-    result = service.evaluate(PullRequestEvent("acme/platform", 9, "feedface", "opened"))
+    result = asyncio.run(
+        service.evaluate(PullRequestEvent("acme/platform", 9, "feedface", "opened"))
+    )
     names = {factor.name for factor in result.assessment.factors}
     assert "delivery-control-change" in names
     assert "unmapped-service-change" in names
@@ -108,7 +114,9 @@ def test_low_risk_docs_only_pr_publishes_neutral_shadow_check(tmp_path):
             SqliteAuditLog(tmp_path / "audit.db"),
         ),
     )
-    result = service.evaluate(PullRequestEvent("acme/platform", 8, "cafebabe", "opened"))
+    result = asyncio.run(
+        service.evaluate(PullRequestEvent("acme/platform", 8, "cafebabe", "opened"))
+    )
     assert result.assessment.score == 0
     assert result.conclusion == "neutral"
     assert github.checks[0]["conclusion"] == "neutral"

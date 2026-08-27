@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Protocol
+from datetime import date, datetime, timezone
+from typing import Mapping, Protocol
 
 from company_brain.model import BrainPrincipal
 from control_plane.workflows import ControlPlaneWorkflows
@@ -11,8 +12,26 @@ from intelligence.graph import ServiceGraph
 from intelligence.pr_guardian import PRPolicyDecision, policy_for, render_markdown
 from intelligence.risk import ChangeContext, RiskAssessment, assess_change
 from integrations.github.pr_guardian import GitHubPRClient, PullRequestEvent
+from product.pr_guardian.config import default_shadow_config
 from product.pr_guardian.company_brain import PRGuardianCompanyContext
-from product.pr_guardian.contracts import EvidenceBasis, EvidenceBundle, FindingAction, PRFinding
+from product.pr_guardian.contracts import (
+    EvidenceBasis,
+    EvidenceBundle,
+    FindingAction,
+    PRFinding,
+    ProductMode,
+    RepositoryConfig,
+)
+from product.pr_guardian.enforcement import (
+    EnforcementDecision,
+    REASON_CONTEXT_UNQUALIFIED,
+    enforcement_decision,
+    is_delivery_control_path,
+    is_docs_path,
+    is_iac_path,
+    is_security_boundary_path,
+    is_test_path,
+)
 from product.pr_guardian.store import PRGuardianFindingStore
 from product.pr_guardian_shadow import observation_from_assessment, observation_comment
 from telemetry.events import NullTelemetrySink, OperationEvent, TelemetrySink
@@ -43,8 +62,10 @@ class PRGuardianResult:
     workflow_id: str
     conclusion: str
     changed_services: tuple[str, ...]
+    changed_files: tuple[str, ...]
     mode: str
     would_block: bool
+    enforcement: EnforcementDecision
     finding: PRFinding | None
     company_context: PRGuardianCompanyContext | None
 
@@ -65,13 +86,25 @@ class PRGuardianService:
         history: HistoricalFailureProvider | None = None,
         telemetry: TelemetrySink | None = None,
         mode: str = "shadow",
+        config: RepositoryConfig | None = None,
+        environ: Mapping[str, str] | None = None,
         company_context: QualifiedCompanyContextProvider | None = None,
         principal: BrainPrincipal | None = None,
         findings: PRGuardianFindingStore | None = None,
         policy_version: str = "pr-policy-v1",
     ) -> None:
-        if mode != "shadow":
-            raise ValueError("PR Guardian supports only non-blocking shadow mode")
+        # The mode is a property of the evaluated repository, not of this
+        # process.  Without a repository configuration the only defensible
+        # answer is shadow, so a caller cannot request advisory or enforce
+        # from a flag alone.
+        if config is not None:
+            resolved = str(config.mode)
+        elif mode == "shadow":
+            resolved = mode
+        else:
+            raise ValueError(
+                "a non-shadow PR Guardian mode must come from the repository configuration"
+            )
         if graph is None and company_context is None:
             raise ValueError("PR Guardian requires a graph or qualified Company Brain context")
         if company_context is not None and principal is None:
@@ -83,14 +116,28 @@ class PRGuardianService:
         self.workflows = workflows
         self.history = history
         self.telemetry = telemetry or NullTelemetrySink()
-        self.mode = mode
+        self.config = config
+        self.environ = environ
+        self.mode = resolved
         self.company_context = company_context
         self.principal = principal
         self.findings = findings
-        self.policy_version = policy_version
+        self.policy_version = config.policy_version if config is not None else policy_version
 
-    async def evaluate(self, event: PullRequestEvent, *, publish: bool = True) -> PRGuardianResult:
+    async def evaluate(
+        self,
+        event: PullRequestEvent,
+        *,
+        publish: bool = True,
+        now: date | datetime | None = None,
+    ) -> PRGuardianResult:
         started = time.monotonic()
+        config = self.config or default_shadow_config(event.repository)
+        if config.repository != event.repository:
+            raise ValueError(
+                "the loaded repository configuration names a different repository "
+                f"({config.repository}) than the pull request ({event.repository})"
+            )
         files = self.github.list_changed_files(event.repository, event.number)
         filenames = tuple(item.filename for item in files)
         known_services = (
@@ -119,11 +166,11 @@ class PRGuardianService:
             company_context.changed_services if company_context is not None else candidate_changed_services
         )
 
-        touches_iac = any(_is_iac(path) for path in filenames)
-        touches_delivery = any(_is_delivery_control(path) for path in filenames)
-        touches_security = any(_is_security_boundary(path) for path in filenames)
-        test_files = [path for path in filenames if _is_test(path)]
-        source_files = [path for path in filenames if not _is_test(path) and not _is_docs(path)]
+        touches_iac = any(is_iac_path(path) for path in filenames)
+        touches_delivery = any(is_delivery_control_path(path) for path in filenames)
+        touches_security = any(is_security_boundary_path(path) for path in filenames)
+        test_files = [path for path in filenames if is_test_path(path)]
+        source_files = [path for path in filenames if not is_test_path(path) and not is_docs_path(path)]
         weak_test_evidence = bool(source_files) and not test_files
         unmapped_service_change = bool(source_files) and (
             not candidate_changed_services
@@ -165,9 +212,17 @@ class PRGuardianService:
             simulated_policy=simulated_policy,
         )
 
-        # Shadow mode intentionally makes every published check neutral.  The
-        # policy remains visible only as a simulated "would" decision.
-        conclusion = "neutral"
+        # Shadow and advisory modes make every published check neutral.  Only
+        # enforce mode may fail, and only when the repository's own single
+        # deterministic rule fired and no owner waiver covered the change.
+        decision = enforcement_decision(
+            config, assessment, filenames, _today(now), environ=self.environ
+        )
+        if company_context is not None and not company_context.qualified:
+            # A caller that asks the Company Brain to qualify its context
+            # cannot fall back to raw graph data when that qualification fails.
+            decision = EnforcementDecision(False, REASON_CONTEXT_UNQUALIFIED, decision.rule)
+        conclusion = "failure" if decision.would_block else "neutral"
         finding = self._finding(
             event=event,
             assessment=assessment,
@@ -183,8 +238,10 @@ class PRGuardianService:
             workflow_id=workflow.workflow_id,
             conclusion=conclusion,
             changed_services=changed_services,
+            changed_files=filenames,
             mode=self.mode,
             would_block=policy.block_merge,
+            enforcement=decision,
             finding=finding,
             company_context=company_context,
         )
@@ -201,7 +258,11 @@ class PRGuardianService:
                 # shadow runner is responsible for a full chain verification.
                 # Do not claim that verification happened in this request path.
                 audit_chain_verified=False,
+                mode=self.mode,
+                enforcement=decision.as_dict(),
             )
+            # observation_comment is the single rendering path: it states the
+            # authority this repository's mode actually has.
             summary = observation_comment(observation)
             if company_context is not None and not company_context.qualified:
                 summary += (
@@ -212,9 +273,9 @@ class PRGuardianService:
             self.github.publish_check(
                 repository=event.repository,
                 head_sha=event.head_sha,
-                name="Engineering Intelligence / PR Guardian (shadow)",
+                name=f"Engineering Intelligence / PR Guardian ({self.mode})",
                 conclusion=conclusion,
-                title=f"Shadow risk: {assessment.score}/100 ({assessment.band})",
+                title=_check_title(self.mode, assessment, decision),
                 summary=summary,
             )
             self.github.publish_comment(
@@ -280,32 +341,21 @@ class PRGuardianService:
         )
 
 
-def _is_test(path: str) -> bool:
-    lowered = path.lower()
-    return "/test" in lowered or lowered.startswith("test") or lowered.endswith(("_test.py", ".spec.ts", ".test.ts", ".spec.js", ".test.js"))
+def _check_title(mode: str, assessment: RiskAssessment, decision: EnforcementDecision) -> str:
+    risk = f"{assessment.score}/100 ({assessment.band})"
+    if mode == ProductMode.ADVISORY.value:
+        return f"Advisory risk: {risk} — this check does not block merges"
+    if mode == ProductMode.ENFORCE.value:
+        if decision.would_block:
+            return f"Blocked by {decision.rule}: risk {risk}"
+        return f"Enforcing risk: {risk} — no blocking rule fired"
+    return f"Shadow risk: {risk}"
 
 
-def _is_docs(path: str) -> bool:
-    lowered = path.lower()
-    return lowered.endswith((".md", ".rst", ".txt")) or lowered.startswith("docs/")
-
-
-def _is_iac(path: str) -> bool:
-    lowered = path.lower()
-    return lowered.endswith((".tf", ".tfvars")) or lowered.startswith(("infra/", "terraform/", "helm/", "k8s/"))
-
-
-def _is_delivery_control(path: str) -> bool:
-    lowered = path.lower()
-    return lowered.startswith((".github/workflows/", "pipelines/", "azure-pipelines")) or lowered.endswith(("azure-pipelines.yml", "jenkinsfile"))
-
-
-def _is_security_boundary(path: str) -> bool:
-    lowered = path.lower()
-    markers = ("iam", "rbac", "identity", "auth", "security", "policy", "keyvault", "key_vault", "networkpolicy")
-    return any(marker in lowered for marker in markers)
-
-
+def _today(now: date | datetime | None) -> date:
+    if now is None:
+        return datetime.now(timezone.utc).date()
+    return now.date() if isinstance(now, datetime) else now
 def _simulated_action(policy: PRPolicyDecision) -> FindingAction:
     if policy.block_merge:
         return FindingAction.WOULD_BLOCK
