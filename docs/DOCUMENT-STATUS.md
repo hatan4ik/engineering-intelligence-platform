@@ -71,6 +71,8 @@ production-certified.
 | [`L4-PROMOTION-RUNBOOK.md`](L4-PROMOTION-RUNBOOK.md) | Current implementation state | Scoped certification record, what invalidates it, the platform cannot self-certify |
 | [`COMPANY-BRAIN-CORE.md`](COMPANY-BRAIN-CORE.md) | Target proposal | Company Brain feedback loop (merged from a parallel line; not reconciled with ADR-001) |
 | [`COMPANY-BRAIN-STORE.md`](COMPANY-BRAIN-STORE.md) | Target proposal | Company Brain reference store (merged from a parallel line) |
+| [`COMPANY-BRAIN-WORLD-MODEL.md`](COMPANY-BRAIN-WORLD-MODEL.md) | Target proposal | Company Brain world model (merged from a parallel line) |
+| [`COMPANY-BRAIN-MEMORY-SYNC.md`](COMPANY-BRAIN-MEMORY-SYNC.md) | Target proposal | Company Brain memory sync (merged from a parallel line) |
 
 ## Review cadence
 
