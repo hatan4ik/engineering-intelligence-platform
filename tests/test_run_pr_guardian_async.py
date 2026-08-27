@@ -6,6 +6,7 @@ import json
 from types import SimpleNamespace
 
 from intelligence.risk import RiskAssessment
+from product.pr_guardian.enforcement import EnforcementDecision
 from scripts import run_pr_guardian
 
 
@@ -38,18 +39,24 @@ def test_cli_awaits_the_async_product_evaluation(tmp_path, monkeypatch):
         def __init__(self, **kwargs):
             pass
 
-        async def evaluate(self, event, *, publish):
+        # The fake honours the real PRGuardianService.evaluate contract: the
+        # CLI passes ``now`` and reads changed_files / mode / enforcement so it
+        # can run Architecture Guard and record the repository's mode.
+        async def evaluate(self, event, *, publish, now=None):
             nonlocal called
             called = True
             return SimpleNamespace(
                 assessment=RiskAssessment(0, "low", (), ()),
                 workflow_id="pr:acme/platform:7",
                 changed_services=(),
+                changed_files=(),
                 policy=SimpleNamespace(
                     require_extended_tests=False,
                     require_additional_approval=False,
                 ),
                 would_block=False,
+                mode="shadow",
+                enforcement=EnforcementDecision(False, "shadow-mode", None),
             )
 
     monkeypatch.setattr(run_pr_guardian, "PRGuardianService", AsyncService)
