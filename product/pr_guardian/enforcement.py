@@ -36,6 +36,7 @@ REASON_APPROVAL_EXPIRED = "enforcement-approval-expired"
 REASON_CONDITION_NOT_MET = "rule-condition-not-met"
 REASON_WAIVED = "waived-by-owner"
 REASON_CONDITION_MET = "rule-condition-met"
+REASON_CONTEXT_UNQUALIFIED = "company-brain-context-unqualified"
 
 # Publisher-side reasons for declining to turn an observation into a failure.
 REASON_OBSERVATION_NOT_ENFORCING = "observation-mode-not-enforcing"
@@ -228,6 +229,9 @@ _REASON_SENTENCES = {
     REASON_CONDITION_NOT_MET: "the enforcement rule's condition was not met",
     REASON_WAIVED: "a service owner recorded a waiver covering every affected file",
     REASON_CONDITION_MET: "the enforcement rule's condition was met",
+    REASON_CONTEXT_UNQUALIFIED: (
+        "the Company Brain context was insufficient, stale, or conflicted for a control decision"
+    ),
     REASON_OBSERVATION_NOT_ENFORCING: "the evaluation was not enforcing",
     REASON_CONFIG_NOT_ENFORCING: (
         "the trusted repository configuration is not enforcing this pull request"

@@ -243,6 +243,8 @@ class PRFinding:
     summary: str
     correlation_id: str
     policy_version: str
+    context_version: str
+    context_qualified: bool
     simulated_action: FindingAction
     evidence: EvidenceBundle
 
@@ -259,8 +261,13 @@ class PRFinding:
         _required(self.summary, "summary", 1_000)
         _required(self.correlation_id, "correlation_id")
         _required(self.policy_version, "policy_version", 120)
+        _required(self.context_version, "context_version", 200)
+        if type(self.context_qualified) is not bool:
+            raise ProductContractError("context_qualified is invalid")
         if self.simulated_action not in set(FindingAction):
             raise ProductContractError("simulated_action is invalid")
+        if not self.context_qualified and self.simulated_action is not FindingAction.NONE:
+            raise ProductContractError("unqualified context cannot simulate a control")
 
 
 @dataclass(frozen=True)

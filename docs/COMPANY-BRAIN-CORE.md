@@ -62,8 +62,8 @@ than hidden decision inputs.
 
 ## Safe product use
 
-[`PRGuardianCompanyBrainAdapter`](../product/pr_guardian/company_brain.py) converts the core into
-the existing PR Guardian service graph and evidence contract. It is read-only:
+[`PRGuardianWorldModelAdapter`](../product/pr_guardian/company_brain.py) now converts the durable,
+qualified context into the PR Guardian service graph and evidence contract. It is read-only:
 
 - authorized evidence becomes a cited `EvidenceBundle`;
 - inaccessible evidence is omitted and produces a limitation;
@@ -74,7 +74,7 @@ This is the integration pattern for subsequent Company Brain products: consume a
 authorized context; emit a reviewable outcome; then return explicit feedback and independently
 correlated outcomes to governed organizational memory.
 
-[`CompanyBrainFeedbackProjector`](../company_brain/feedback.py) now records typed PR findings and
+[`CompanyBrainFeedbackProjector`](../company_brain/feedback.py) records typed PR findings and
 explicit reviewer outcomes as `finding` and `outcome` entities. It does **not** copy product
 evidence references into the Brain because those references do not carry the original source ACL;
 the source evidence must first enter through a governed projector.
