@@ -31,11 +31,33 @@ def test_the_in_memory_smoke_runs_the_real_cli():
 def test_both_jobs_pass_branch_identity_and_commit_provenance_separately():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    assert workflow.count("--branch main") == 2
+    # Document identity follows the ref that was dispatched or pushed; a
+    # hardcoded "main" let a dispatch from a feature branch overwrite main's
+    # documents in the live index.
+    assert workflow.count('--branch "${{ github.ref_name }}"') == 2
+    assert "--branch main" not in workflow
     assert workflow.count('--commit-sha "${{ github.sha }}"') == 2
     # The single --ref flag keyed document identity by commit sha, which made
     # every commit a new document instead of replacing the branch's document.
     assert "--ref " not in workflow
+
+
+def test_actions_are_pinned_to_the_shas_the_repository_already_uses():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    reference = (WORKFLOW.parent / "pr-guardian-shadow-report.yml").read_text(encoding="utf-8")
+
+    for action in ("actions/checkout", "actions/setup-python", "actions/upload-artifact"):
+        pinned = {line.split("uses: ")[1].split(" #")[0].strip() for line in reference.splitlines() if f"uses: {action}@" in line}
+        assert len(pinned) == 1, f"{action} is not pinned once in the reference workflow"
+        assert f"uses: {action}@v" not in workflow, f"{action} is unpinned"
+        assert pinned.pop() in workflow
+
+
+def test_ingests_for_the_same_ref_do_not_overlap():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "concurrency:" in workflow
+    assert "group: knowledge-ingest-${{ github.ref }}" in workflow
 
 
 def test_the_azure_path_reports_when_it_is_not_configured():

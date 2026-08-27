@@ -132,6 +132,27 @@ async def evaluate_pull_request(
 
 
 def main() -> int:
+    """Evaluate the pull request and always return 0.
+
+    The read-only evaluate job is never the merge gate: the trusted publisher
+    decides what is published from the artifact this job writes. An unexpected
+    failure here is therefore reported loudly and still exits 0 -- an uncaught
+    exception would turn a broken evaluate step into a de-facto required check,
+    which the workflow header promises it is not.
+    """
+
+    try:
+        return _evaluate_and_write()
+    except Exception as exc:  # noqa: BLE001 - see docstring: never a gate
+        print(
+            f"PR Guardian: evaluation failed and produced no observation "
+            f"({type(exc).__name__}: {exc}); the evaluate job is not a gate, exiting 0",
+            file=sys.stderr,
+        )
+        return 0
+
+
+def _evaluate_and_write() -> int:
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     token = os.environ.get("GITHUB_TOKEN")
     if not event_path or not token:

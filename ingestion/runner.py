@@ -175,8 +175,12 @@ def ingest_checkout(
         Files that are not ingestible source knowledge (unsupported suffix,
         oversize, or not decodable as UTF-8).
     ``failed``
-        Files that could not be read or that the pipeline rejected. A failure is
-        recorded in the ledger's dead-letter queue and does not abort the run.
+        Files that could not be read or that the pipeline rejected. A failure
+        does not abort the run. Read failures never reach the ledger (no event
+        exists yet), so they are not in its dead-letter queue; every failed
+        path is listed in ``failed_paths`` so a silently dropped file is visible.
+    ``failed_paths``
+        The checkout-relative paths counted in ``failed``, in walk order.
     ``duplicates``
         Files whose event id the ledger had already completed — the idempotency
         signal. A re-run over an unchanged checkout reports ``documents == 0``.
@@ -198,21 +202,30 @@ def ingest_checkout(
     pipeline = IngestionPipeline(index=index)
     worker = sqlite_worker(pipeline, str(ledger_path))
 
-    counts = {"documents": 0, "chunks": 0, "skipped": 0, "failed": 0, "duplicates": 0}
+    counts: dict[str, object] = {
+        "documents": 0, "chunks": 0, "skipped": 0, "failed": 0, "duplicates": 0,
+    }
+    failed_paths: list[str] = []
+    counts["failed_paths"] = failed_paths
+
+    def _bump(key: str) -> None:
+        counts[key] = int(counts[key]) + 1  # type: ignore[call-overload]
+
     for path in _walk(checkout):
         if not _is_ingestible(path):
-            counts["skipped"] += 1
+            _bump("skipped")
             continue
         try:
             if path.stat().st_size > max_file_bytes:
-                counts["skipped"] += 1
+                _bump("skipped")
                 continue
             content = _read_text(path, max_file_bytes)
         except OSError:
-            counts["failed"] += 1
+            _bump("failed")
+            failed_paths.append(path.relative_to(checkout).as_posix())
             continue
         if content is None:
-            counts["skipped"] += 1
+            _bump("skipped")
             continue
 
         relative_path = path.relative_to(checkout).as_posix()
@@ -231,11 +244,12 @@ def ingest_checkout(
         try:
             result = worker.handle(event)
         except Exception:  # noqa: BLE001 - one bad file must not abort the checkout
-            counts["failed"] += 1
+            _bump("failed")
+            failed_paths.append(relative_path)
             continue
         if result.get("duplicate"):
-            counts["duplicates"] += 1
+            _bump("duplicates")
             continue
-        counts["documents"] += int(result.get("upserted", 0))
-        counts["chunks"] += int(result.get("chunks", 0))
+        counts["documents"] = int(counts["documents"]) + int(result.get("upserted", 0))  # type: ignore[call-overload]
+        counts["chunks"] = int(counts["chunks"]) + int(result.get("chunks", 0))  # type: ignore[call-overload]
     return counts

@@ -1,14 +1,19 @@
 # Release image = API runtime closure for the PR Guardian wedge, the
 # operational-intelligence triggers, and the control-plane worker (see
-# Dockerfile, app/import_closure.py). topology/, remediation/, and resilience/
-# ship because app/operations_api.py resolves blast radius from the topology
-# store and the same image runs the opt-in Temporal remediation worker and the
-# certification exercise suite. Nothing in product/ needs to be excluded any
-# more; every consequential activity stays gated on
-# EIP_TEMPORAL_REMEDIATION_WORKFLOWS=enabled. tests/test_image_import_closure.py
-# keeps this file honest: any shipped module importing an unshipped package
-# must be listed here.
-#
-# The Company Brain adapter is reachable only from tests: no shipped module
-# imports product/pr_guardian/company_brain.py, so company_brain/ stays out of
-# the release image and the adapter is excluded with it.
+# Dockerfile, app/import_closure.py). Every first-party package the image
+# needs is COPYed explicitly, so this file only has to keep build-context
+# noise out and to exclude any shipped module that imports an unshipped
+# package (none today; tests/test_image_import_closure.py enforces that).
+.git
+.github
+.superpowers
+**/__pycache__
+*.pyc
+*.db
+*.db.sources
+tests/
+docs/
+infra/
+helm/
+slides/
+demo/

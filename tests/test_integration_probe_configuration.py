@@ -84,7 +84,7 @@ def test_main_emits_one_configuration_result_and_exits_2(tmp_path, monkeypatch, 
     payload = json.loads(evidence.read_text(encoding="utf-8"))
     expected_missing = [name for name in REQUIRED_ENVIRONMENT if name != "EIP_INTEGRATION_EVIDENCE"]
     assert payload["passed"] is False
-    assert payload["scope"] == "unscoped"
+    assert payload["scope"] == "configuration-refused"
     assert payload["results"] == [
         {"probe": "configuration", "passed": False, "missing": expected_missing}
     ]

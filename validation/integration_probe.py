@@ -241,16 +241,20 @@ def collect() -> tuple[ProbeResult, ...]:
     return tuple(results)
 
 
+#: The scope written on the configuration-refusal path, which runs before
+#: ``collect()`` and therefore before EIP_INTEGRATION_SCOPE has been proven set.
+#: It is a literal marker, not a fallback: a passing payload can never carry it.
+CONFIGURATION_REFUSED_SCOPE = "configuration-refused"
+
+
 def _emit(results: list[dict[str, object]], *, passed: bool) -> None:
-    # The two defaults below are reachable only on the configuration-refusal path,
-    # which runs before ``collect()``: a run that reaches the probes has already
-    # been proven to set EIP_INTEGRATION_SCOPE and EIP_INTEGRATION_EVIDENCE, so a
-    # payload with ``passed: true`` can never be unscoped or land on the default
-    # in-checkout path. A refusal record still has to be written somewhere.
+    scope = os.environ.get("EIP_INTEGRATION_SCOPE") or CONFIGURATION_REFUSED_SCOPE
+    if passed and scope == CONFIGURATION_REFUSED_SCOPE:
+        raise RuntimeError("a passing integration payload must carry EIP_INTEGRATION_SCOPE")
     payload: dict[str, object] = {
         "schema_version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "scope": os.getenv("EIP_INTEGRATION_SCOPE", "unscoped"),
+        "scope": scope,
         "results": results,
         "passed": passed,
     }

@@ -36,8 +36,10 @@ unchanged.
   commit on the same branch re-ingests only the files whose content changed. A file's citation
   therefore names the commit at which its content was last ingested — the commit that content came
   from, not necessarily `HEAD`.
-* **Failure isolation.** A file that cannot be read is counted in `failed` and recorded in the
-  ledger's dead-letter queue; it does not abort the run.
+* **Failure isolation.** A file that cannot be read is counted in `failed` and listed by path in
+  `failed_paths` in the run output; it does not abort the run. Read failures never reach the
+  ledger's dead-letter queue (no event exists for them yet) — the output is the only record, so
+  check it.
 
 The runner takes an `Index` instance. It never constructs an Azure client and never reads Azure
 configuration — that decision belongs to the caller.
