@@ -186,6 +186,10 @@ def _evaluate_and_write() -> int:
         workflows=workflows,
         config=config,
     )
+    # ``ControlPlaneWorkflows`` is asynchronous, so the product service is a
+    # coroutine even in the local/reference runner.  This entry point is a
+    # synchronous CLI boundary; run the evaluation (risk + Architecture Guard)
+    # to completion before serializing the transferable observation.
     observation = asyncio.run(
         evaluate_pull_request(
             event,
