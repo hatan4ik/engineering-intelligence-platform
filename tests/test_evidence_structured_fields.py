@@ -39,20 +39,25 @@ def test_readiness_key_must_name_a_required_item():
     assert "production-like-soak" in REQUIRED_KEYS
 
 
-def test_controls_must_be_a_list_of_control_names():
+def test_controls_must_be_a_list_of_known_control_names():
     with pytest.raises(ValueError, match="controls: must be a list"):
-        validate_record(base_record(controls="security-review-complete"))
+        validate_record(base_record(controls="security-review"))
     with pytest.raises(ValueError, match="controls: every entry"):
-        validate_record(base_record(controls=["security-review-complete", ""]))
-    record = validate_record(base_record(controls=[" verification-independent ", "verification-independent"]))
-    assert record.controls == ("verification-independent",)
+        validate_record(base_record(controls=["security-review", ""]))
+    # A name the certifier does not recognise would be accepted and then attest
+    # nothing; it is refused at validation instead.
+    with pytest.raises(ValueError, match="controls: unknown control"):
+        validate_record(base_record(controls=["security-review-complete"]))
+    record = validate_record(base_record(controls=[" independent-verification ", "independent-verification"]))
+    assert record.controls == ("independent-verification",)
+    assert set(ATTESTED_CONTROLS) == {"security-review", "independent-verification"}
 
 
 def test_structured_fields_round_trip_through_as_dict():
-    record = validate_record(base_record(readiness_key="audit-export", controls=["security-review-complete"]))
+    record = validate_record(base_record(readiness_key="audit-export", controls=["security-review"]))
     payload = record.as_dict()
     assert payload["readiness_key"] == "audit-export"
-    assert payload["controls"] == ["security-review-complete"]
+    assert payload["controls"] == ["security-review"]
     plain = validate_record(base_record()).as_dict()
     assert "readiness_key" not in plain and "controls" not in plain
 
@@ -98,8 +103,8 @@ def test_the_cli_writes_the_structured_fields(tmp_path):
         "--change", "sha=abc",
         "--claim", "soak held",
         "--readiness-key", "production-like-soak",
-        "--control", "security-review-complete",
-        "--control", "verification-independent",
+        "--control", "security-review",
+        "--control", "independent-verification",
         "--method", "observed window",
         "--result", "pass; 168h",
         "--independence", "SRE",
@@ -112,4 +117,4 @@ def test_the_cli_writes_the_structured_fields(tmp_path):
     assert code == 0
     written = json.loads((tmp_path / "2026-09-soak.json").read_text(encoding="utf-8"))
     assert written["readiness_key"] == "production-like-soak"
-    assert written["controls"] == ["security-review-complete", "verification-independent"]
+    assert written["controls"] == ["security-review", "independent-verification"]

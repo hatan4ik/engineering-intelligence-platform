@@ -47,7 +47,7 @@ measured records — `source_run_url`.
 | `decision` | One of `real-data-pilot`, `pr-guardian-advisory`, `blocking-pr-rule`, `l3-remediation-pilot`, `l4-promotion` |
 | `source_run_url` | The run the result was measured from. **Required** when `basis` is `measured` |
 | `readiness_key` | Optional. The production-readiness item this record proves — one of the keys in `validation.production_readiness.REQUIRED_KEYS` (`real-source-integration`, `entra-production-auth`, `private-network-path`, `ha-state-backend`, `backup-restore-drill`, `audit-export`, `security-adversarial-suite`, `control-plane-slo`, `production-like-soak`, `rollback-drill`, `kill-switch-drill`, `independent-verification`) |
-| `controls` | Optional list. The L4 certification controls this record attests, by exact name from [`../../architecture/l4-certification.md`](../../architecture/l4-certification.md) (for example `security-review-complete`, `verification-independent`) |
+| `controls` | Optional list. The L4 certification controls this record attests, by exact name from `resilience.certification.ATTESTED_CONTROLS` — today `security-review` and `independent-verification` (the two mandatory items in [`../../architecture/l4-certification.md`](../../architecture/l4-certification.md) that no exercise can demonstrate). Any other name is rejected at validation |
 
 ### What readers key on
 

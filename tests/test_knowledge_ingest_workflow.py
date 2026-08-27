@@ -76,7 +76,10 @@ def test_the_azure_job_can_actually_acquire_a_federated_token():
     azure_job = workflow.split("  azure:", 1)[1]
 
     assert "id-token: write" in header
-    assert "uses: azure/login@v2" in azure_job
+    # The highest-privilege step in the file (id-token: write plus five secrets)
+    # is pinned to a commit, not a floating tag.
+    assert "uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5" in azure_job
+    assert "uses: azure/login@v" not in azure_job
     assert "client-id: ${{ secrets.AZURE_CLIENT_ID }}" in azure_job
     assert "tenant-id: ${{ secrets.AZURE_TENANT_ID }}" in azure_job
     assert "subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}" in azure_job

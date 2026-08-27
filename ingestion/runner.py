@@ -162,7 +162,7 @@ def ingest_checkout(
     ledger_path: str | os.PathLike[str],
     groups: Iterable[str],
     max_file_bytes: int = DEFAULT_MAX_FILE_BYTES,
-) -> dict[str, int]:
+) -> dict[str, int | list[str]]:
     """Ingest every eligible file under ``root`` into ``index``.
 
     Returns the run counts:
@@ -202,14 +202,14 @@ def ingest_checkout(
     pipeline = IngestionPipeline(index=index)
     worker = sqlite_worker(pipeline, str(ledger_path))
 
-    counts: dict[str, object] = {
+    counts: dict[str, int | list[str]] = {
         "documents": 0, "chunks": 0, "skipped": 0, "failed": 0, "duplicates": 0,
     }
     failed_paths: list[str] = []
     counts["failed_paths"] = failed_paths
 
     def _bump(key: str) -> None:
-        counts[key] = int(counts[key]) + 1  # type: ignore[call-overload]
+        counts[key] = int(counts[key]) + 1  # type: ignore[arg-type]
 
     for path in _walk(checkout):
         if not _is_ingestible(path):
@@ -250,6 +250,6 @@ def ingest_checkout(
         if result.get("duplicate"):
             _bump("duplicates")
             continue
-        counts["documents"] = int(counts["documents"]) + int(result.get("upserted", 0))  # type: ignore[call-overload]
-        counts["chunks"] = int(counts["chunks"]) + int(result.get("chunks", 0))  # type: ignore[call-overload]
+        counts["documents"] = int(counts["documents"]) + int(result.get("upserted", 0))  # type: ignore[arg-type]
+        counts["chunks"] = int(counts["chunks"]) + int(result.get("chunks", 0))  # type: ignore[arg-type]
     return counts

@@ -66,6 +66,15 @@ def _readiness_keys() -> frozenset[str]:
     return frozenset(REQUIRED_KEYS)
 
 
+def _attested_controls() -> tuple[str, ...]:
+    # Imported lazily for the same reason: resilience.certification owns the
+    # control vocabulary an L4 attestation may name. A control it does not
+    # recognise would be accepted here and then silently attest nothing.
+    from resilience.certification import ATTESTED_CONTROLS
+
+    return tuple(ATTESTED_CONTROLS)
+
+
 @dataclass(frozen=True)
 class EvidenceRecord:
     """One immutable evidence record. Construct it through :func:`validate_record`."""
@@ -197,6 +206,14 @@ def validate_record(mapping: Mapping[str, Any]) -> EvidenceRecord:
                 name = item.strip()
                 if name not in seen:
                     seen.append(name)
+            unknown = [name for name in seen if name not in _attested_controls()]
+            if unknown:
+                violations.append(
+                    "controls: unknown control(s) "
+                    + ", ".join(unknown)
+                    + "; must be one of "
+                    + ", ".join(_attested_controls())
+                )
             controls = tuple(seen)
 
     if violations:
