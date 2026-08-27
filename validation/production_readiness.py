@@ -137,9 +137,6 @@ READINESS_AREAS: Mapping[str, ReadinessArea] = {
     "independent-verification": ReadinessArea.L3,
 }
 
-_PASSING_RESULTS = frozenset({"pass", "passed", "success", "succeeded"})
-
-
 @dataclass(frozen=True)
 class ReadinessEvidenceLoad:
     """What a registry directory yielded, including what it could not use."""
@@ -150,37 +147,38 @@ class ReadinessEvidenceLoad:
 
 
 def _record_key(record: Mapping[str, object]) -> str | None:
-    for field in ("readiness_key", "key", "claim"):
-        value = record.get(field)
-        if isinstance(value, str) and value in REQUIRED_KEYS:
-            return value
+    """The readiness item a record proves: its structured ``readiness_key`` only.
+
+    The free-text ``claim`` is never parsed. A record that does not name a key
+    is not readiness evidence, however its prose reads.
+    """
+    value = record.get("readiness_key")
+    if isinstance(value, str) and value in REQUIRED_KEYS:
+        return value
     return None
 
 
 def _record_passed(record: Mapping[str, object]) -> bool:
-    if isinstance(record.get("passed"), bool):
-        return bool(record["passed"])
+    """Whether the record's ``result`` records a pass.
+
+    Mirrors ``EvidenceRecord.passed``: the verdict is the first ``;``-separated
+    segment of ``result``, compared exactly to ``pass``. There is no ``passed``
+    boolean in the schema, so none is read.
+    """
     result = record.get("result")
-    if isinstance(result, AbcMapping) and isinstance(result.get("passed"), bool):
-        return bool(result["passed"])
-    if isinstance(result, str):
-        return result.strip().lower() in _PASSING_RESULTS
-    return False
+    if not isinstance(result, str):
+        return False
+    return result.split(";", 1)[0].strip().lower() == "pass"
 
 
 def _record_reference(record: Mapping[str, object]) -> str:
-    """The retained artifact this record points at.
+    """The first retained artifact this record points at.
 
     ``evidence_id`` is deliberately not a fallback: it identifies the record,
     not anything a reviewer can go and read. A record that lists no artifact has
     nothing retained behind it.
     """
-    value = record.get("evidence_ref")
-    if isinstance(value, str) and value.strip():
-        return value.strip()
     artifacts = record.get("artifacts")
-    if isinstance(artifacts, str):
-        return artifacts.strip()
     if isinstance(artifacts, (list, tuple)):
         for item in artifacts:
             if isinstance(item, str) and item.strip():
@@ -191,10 +189,11 @@ def _record_reference(record: Mapping[str, object]) -> str:
 def readiness_evidence_from_record(record: Mapping[str, object]) -> ReadinessEvidence | None:
     """Map one evidence record onto a readiness key, or None if it names none.
 
-    The registry record schema is defined by ``docs/PRODUCTION-EVIDENCE.md``.
-    This reader is deliberately tolerant about *where* the claim and artifact
-    live in the record and strict about what counts as passing: a record with no
-    retained artifact reference is not evidence, whatever its result says.
+    The registry record schema is defined by ``docs/PRODUCTION-EVIDENCE.md`` and
+    ``validation.evidence_records``. This reader keys on the structured fields
+    only -- ``readiness_key``, ``result``, ``artifacts`` -- and is strict about
+    what counts as passing: a record with no retained artifact reference is not
+    evidence, whatever its result says.
     """
     key = _record_key(record)
     if key is None:
@@ -232,7 +231,7 @@ def load_readiness_evidence(directory: str | Path) -> ReadinessEvidenceLoad:
                 continue
             item = readiness_evidence_from_record(record)
             if item is None:
-                ignored.append(f"{path.name}[{index}]: names no required readiness key")
+                ignored.append(f"{path.name}[{index}]: carries no readiness_key naming a required item")
                 continue
             evidence.append(item)
     return ReadinessEvidenceLoad(

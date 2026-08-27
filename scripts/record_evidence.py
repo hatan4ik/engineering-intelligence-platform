@@ -42,6 +42,17 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--basis", required=True, help="one of " + ", ".join(BASES))
     parser.add_argument("--decision", required=True, help="one of " + ", ".join(DECISIONS))
     parser.add_argument("--source-run-url", default=None, help="required when --basis measured")
+    parser.add_argument(
+        "--readiness-key",
+        default=None,
+        help="the production-readiness item this record proves (validation.production_readiness.REQUIRED_KEYS)",
+    )
+    parser.add_argument(
+        "--control",
+        action="append",
+        default=[],
+        help="repeatable; an L4 certification control this record attests (architecture/l4-certification.md)",
+    )
     return parser.parse_args(argv)
 
 
@@ -62,6 +73,10 @@ def main(argv: list[str] | None = None) -> int:
     }
     if args.source_run_url:
         mapping["source_run_url"] = args.source_run_url
+    if args.readiness_key:
+        mapping["readiness_key"] = args.readiness_key
+    if args.control:
+        mapping["controls"] = list(args.control)
 
     try:
         record = validate_record(mapping)

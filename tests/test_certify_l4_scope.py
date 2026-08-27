@@ -50,6 +50,7 @@ def write_evidence(directory, *, controls=ATTESTED_CONTROLS, basis="measured"):
             "scope": "payments/prod/aks.rollout.undo",
             "change": "L4 promotion for the payments rollout-undo scope",
             "claim": f"{control} completed for this scope",
+            "controls": [control],
             "method": "independent review",
             "result": "pass",
             "independence": "reviewed outside the platform team",

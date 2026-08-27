@@ -46,7 +46,24 @@ DECISIONS: tuple[str, ...] = (
 #: An evidence id is also a filename, so it is restricted to a safe shape.
 EVIDENCE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
-_ALL_FIELDS: frozenset[str] = frozenset(REQUIRED_FIELDS) | {"basis", "decision", "source_run_url"}
+#: Structured vocabulary that readers key on. ``readiness_key`` names the
+#: production-readiness item a record proves (one of
+#: ``validation.production_readiness.REQUIRED_KEYS``); ``controls`` names the
+#: L4 certification controls it attests (``architecture/l4-certification.md``).
+#: Readers match these fields exactly and never parse the free-text ``claim``.
+_STRUCTURED_FIELDS: frozenset[str] = frozenset({"readiness_key", "controls"})
+
+_ALL_FIELDS: frozenset[str] = (
+    frozenset(REQUIRED_FIELDS) | {"basis", "decision", "source_run_url"} | _STRUCTURED_FIELDS
+)
+
+
+def _readiness_keys() -> frozenset[str]:
+    # Imported lazily: production_readiness owns the key vocabulary and must not
+    # depend on this module.
+    from validation.production_readiness import REQUIRED_KEYS
+
+    return frozenset(REQUIRED_KEYS)
 
 
 @dataclass(frozen=True)
@@ -65,12 +82,32 @@ class EvidenceRecord:
     basis: str
     decision: str
     source_run_url: str | None = None
+    readiness_key: str | None = None
+    controls: tuple[str, ...] = ()
+
+    @property
+    def passed(self) -> bool:
+        """Whether ``result`` records a pass.
+
+        ``result`` is free text by contract ("pass/fail, quantitative result,
+        timestamps, ..."), so the verdict is its first ``;``-separated segment,
+        compared exactly: ``"pass; 2/2 principals behaved"`` passes,
+        ``"passed with caveats"`` and ``"fail"`` do not.
+        """
+
+        return self.result.split(";", 1)[0].strip().lower() == "pass"
 
     def as_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["artifacts"] = list(self.artifacts)
         if self.source_run_url is None:
             payload.pop("source_run_url")
+        if self.readiness_key is None:
+            payload.pop("readiness_key")
+        if not self.controls:
+            payload.pop("controls")
+        else:
+            payload["controls"] = list(self.controls)
         return payload
 
 
@@ -138,6 +175,30 @@ def validate_record(mapping: Mapping[str, Any]) -> EvidenceRecord:
             "source_run_url: a measured record must cite the run it was measured from"
         )
 
+    readiness_key = mapping.get("readiness_key")
+    if readiness_key is not None:
+        if not isinstance(readiness_key, str) or not readiness_key.strip():
+            violations.append("readiness_key: must be a non-blank string when present")
+        elif readiness_key not in _readiness_keys():
+            violations.append(
+                "readiness_key: must be one of " + ", ".join(sorted(_readiness_keys()))
+            )
+
+    controls: tuple[str, ...] = ()
+    raw_controls = mapping.get("controls")
+    if raw_controls is not None:
+        if not isinstance(raw_controls, (list, tuple)) or isinstance(raw_controls, str):
+            violations.append("controls: must be a list of control names")
+        elif any(not isinstance(item, str) or not item.strip() for item in raw_controls):
+            violations.append("controls: every entry must be a non-blank control name")
+        else:
+            seen: list[str] = []
+            for item in raw_controls:
+                name = item.strip()
+                if name not in seen:
+                    seen.append(name)
+            controls = tuple(seen)
+
     if violations:
         raise ValueError("invalid evidence record: " + "; ".join(sorted(violations)))
 
@@ -154,6 +215,8 @@ def validate_record(mapping: Mapping[str, Any]) -> EvidenceRecord:
         basis=str(mapping["basis"]),
         decision=str(mapping["decision"]),
         source_run_url=str(source_run_url) if source_run_url is not None else None,
+        readiness_key=str(readiness_key) if readiness_key is not None else None,
+        controls=controls,
     )
 
 

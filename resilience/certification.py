@@ -266,7 +266,11 @@ def _attests(record: "EvidenceRecord", *, scope: CertificationScope, control: st
         return False
     if str(getattr(record, "basis", "")).strip().lower() in NON_ATTESTING_BASES:
         return False
-    return control in str(getattr(record, "claim", "")).lower()
+    # Attestation is by the structured ``controls`` list only. The free-text
+    # ``claim`` is never parsed: a substring match would attest on a negation
+    # ("kill-switch-exercised was not achieved") as readily as on a pass.
+    controls = getattr(record, "controls", ())
+    return control in tuple(str(item).strip() for item in controls)
 
 
 def evaluate_l4_eligibility(

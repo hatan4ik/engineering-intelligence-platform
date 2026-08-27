@@ -46,6 +46,22 @@ measured records — `source_run_url`.
 | `basis` | `measured`, `derived`, or `modeled` (see below) |
 | `decision` | One of `real-data-pilot`, `pr-guardian-advisory`, `blocking-pr-rule`, `l3-remediation-pilot`, `l4-promotion` |
 | `source_run_url` | The run the result was measured from. **Required** when `basis` is `measured` |
+| `readiness_key` | Optional. The production-readiness item this record proves — one of the keys in `validation.production_readiness.REQUIRED_KEYS` (`real-source-integration`, `entra-production-auth`, `private-network-path`, `ha-state-backend`, `backup-restore-drill`, `audit-export`, `security-adversarial-suite`, `control-plane-slo`, `production-like-soak`, `rollback-drill`, `kill-switch-drill`, `independent-verification`) |
+| `controls` | Optional list. The L4 certification controls this record attests, by exact name from [`../../architecture/l4-certification.md`](../../architecture/l4-certification.md) (for example `security-review-complete`, `verification-independent`) |
+
+### What readers key on
+
+Readers never parse `claim`. `claim` is for humans.
+
+- `scripts/production_readiness_report.py` counts a record toward a readiness item only when
+  `readiness_key` names that item **and** the first `;`-separated segment of `result` is exactly
+  `pass` (so `"pass; 2/2 principals behaved as required; limitations: single region"` passes and
+  `"passed with caveats"` does not) **and** `artifacts` lists at least one retained reference.
+- `scripts/certify_l4_scope.py` counts a record as attesting a control only when that control's
+  exact name appears in `controls`, the record's `decision` is `l4-promotion`, its `scope` equals
+  the certification scope, and its `basis` is not `modeled`.
+
+A record without these fields is still a valid record; it just proves nothing to those readers.
 
 ### `basis`
 
@@ -63,6 +79,7 @@ PYTHONPATH=. python scripts/record_evidence.py \
   --scope "acme/platform, integration, westeurope, internal, L0" \
   --change "sha=<git sha> image=<digest> iac=<version> policy=<bundle>" \
   --claim "An unauthorized principal cannot retrieve protected evidence" \
+  --readiness-key real-source-integration \
   --method "Read-only integration probe (docs/INTEGRATION-PROOF-RUNBOOK.md)" \
   --result "pass; 2/2 principals behaved as required; limitations: single region" \
   --independence "SRE on-call reviewed; verifier is not the deploying identity" \
@@ -72,6 +89,8 @@ PYTHONPATH=. python scripts/record_evidence.py \
   --decision real-data-pilot \
   --source-run-url "https://…/run/123"
 ```
+
+An L4 attestation adds `--decision l4-promotion` and one `--control <name>` per control it attests.
 
 The CLI refuses to overwrite an existing record, refuses `--basis measured` without
 `--source-run-url`, and reports every schema violation at once.

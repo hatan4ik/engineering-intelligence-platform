@@ -8,14 +8,17 @@ from validation.production_readiness import REQUIRED_KEYS, load_readiness_eviden
 
 
 def write_record(directory, key, *, passed=True, evidence_ref="run://evidence/1"):
+    """A registry-shaped record: the reader keys on ``readiness_key`` and the
+    first ``;``-segment of ``result``, never on the free-text ``claim``."""
     directory.mkdir(parents=True, exist_ok=True)
     (directory / f"{key}.json").write_text(
         json.dumps({
             "evidence_id": f"sha256:{key}",
-            "claim": key,
+            "claim": f"{key} was exercised in prod-like conditions",
+            "readiness_key": key,
             "basis": "measured",
             "method": "drill",
-            "result": {"passed": passed},
+            "result": "pass; 1/1 exercised" if passed else "fail; 0/1 exercised",
             "artifacts": [evidence_ref],
         }),
         encoding="utf-8",
@@ -86,3 +89,38 @@ def test_the_loader_reads_the_registry_shape(tmp_path):
     assert [item.key for item in loaded.evidence] == ["audit-export"]
     assert loaded.files_read == 1
     assert loaded.ignored == ()
+
+
+def test_the_loader_never_parses_the_free_text_claim(tmp_path):
+    """A claim that happens to equal a key is not a readiness_key."""
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    (evidence / "prose.json").write_text(
+        json.dumps({
+            "evidence_id": "prose",
+            "claim": "audit-export",
+            "result": "pass",
+            "artifacts": ["run://evidence/1"],
+        }),
+        encoding="utf-8",
+    )
+    loaded = load_readiness_evidence(evidence)
+    assert loaded.evidence == ()
+    assert len(loaded.ignored) == 1
+
+
+def test_only_an_exact_pass_verdict_counts(tmp_path):
+    evidence = tmp_path / "evidence"
+    for name, result in (("a", "passed with caveats"), ("b", "PASS ; but see limits"), ("c", "success")):
+        evidence.mkdir(exist_ok=True)
+        (evidence / f"{name}.json").write_text(
+            json.dumps({
+                "evidence_id": name,
+                "readiness_key": "audit-export",
+                "result": result,
+                "artifacts": ["run://evidence/1"],
+            }),
+            encoding="utf-8",
+        )
+    verdicts = {item.evidence_ref and path.name: item.passed for path, item in zip(sorted(evidence.glob("*.json")), load_readiness_evidence(evidence).evidence)}
+    assert verdicts == {"a.json": False, "b.json": True, "c.json": False}

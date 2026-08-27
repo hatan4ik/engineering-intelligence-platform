@@ -51,6 +51,7 @@ def evidence(control: str, *, basis="measured", scope="payments/prod/aks.rollout
         "scope": scope,
         "change": "L4 promotion for the payments rollout-undo scope",
         "claim": f"{control} completed for this scope",
+        "controls": [control],
         "method": "independent review",
         "result": "pass",
         "independence": "reviewed by security, not by the platform team",
