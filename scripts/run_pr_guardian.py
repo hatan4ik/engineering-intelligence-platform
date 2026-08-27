@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -41,7 +42,11 @@ def main() -> int:
         github=GitHubRestPRClient(token),
         workflows=workflows,
     )
-    result = service.evaluate(event, publish=False)
+    # ``ControlPlaneWorkflows`` is asynchronous, so the product service is a
+    # coroutine even in the local/reference runner.  This entry point is a
+    # synchronous CLI boundary; run it to completion before serializing the
+    # transferable observation.
+    result = asyncio.run(service.evaluate(event, publish=False))
     observation = observation_from_assessment(
         event=event,
         assessment=result.assessment,
