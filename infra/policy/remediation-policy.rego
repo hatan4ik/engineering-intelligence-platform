@@ -36,7 +36,9 @@ deny_reason := "service kill switch is enabled" if {
 } else := "runbook is not certified for this service" if {
   not input.runbook.id in input.policy.certified_runbooks
 } else := "verified human approval is required" if {
-  input.policy.level == 3
+  # Keyed on the *effective* level: the one sanctioned downgrade (a supervised
+  # L3 run of an L4 scope) is still an L3 run, and L3 means approve-and-execute.
+  effective_level == 3
   input.request.approval_verified != true
 } else := "error budget exhausted; autonomous mutation disabled" if {
   input.policy.level >= 4
@@ -100,6 +102,16 @@ declared_level := upper(trim_space(raw)) if {
   raw := object.get(input, "autonomy_level", "")
   is_string(raw)
 }
+
+# The level a request actually runs at. The only claim that changes it is the
+# sanctioned downgrade: a declared "L3" under an L4 policy runs as a supervised
+# L3 and is therefore subject to the L3 approval rule. Everything else runs at
+# the reviewed policy level. Mirrors the effective level in
+# remediation/opa_policy.LocalReferenceEvaluator and remediation/executor.py.
+effective_level := 3 if {
+  declared_level == "L3"
+  input.policy.level >= 4
+} else := input.policy.level
 
 is_l4 if {
   declared_level == "L4"

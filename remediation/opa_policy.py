@@ -91,6 +91,25 @@ class AutonomyContext:
             return False
         return int(self.policy_level) >= 4
 
+    @property
+    def effective_level(self) -> int:
+        """The level this request actually runs at.
+
+        Mirrors ``effective_level`` in ``infra/policy/remediation-policy.rego``:
+        the sanctioned downgrade (a declared ``L3`` under an L4 policy) runs as
+        a supervised L3 -- and is therefore subject to the L3 approval rule --
+        while every other claim resolves to the reviewed policy level.
+        """
+
+        declared = (
+            self.autonomy_level.strip().upper()
+            if isinstance(self.autonomy_level, str)
+            else ""
+        )
+        if declared == SUPERVISED_DOWNGRADE and int(self.policy_level) >= 4:
+            return 3
+        return int(self.policy_level)
+
     @staticmethod
     def for_policy(policy: ServiceAutonomy) -> "AutonomyContext":
         """The honest fallback when a caller evaluates policy without a context."""
@@ -253,15 +272,20 @@ class LocalReferenceEvaluator:
             return EvaluatedPolicyDecision(False, "service autonomy level is below runbook requirement", "local-reference")
         if runbook.id not in policy.certified_runbooks:
             return EvaluatedPolicyDecision(False, "runbook is not certified for this service", "local-reference")
-        if int(policy.level) == 3 and not approval_verified:
+        # A caller that supplies no context is evaluated at its reviewed policy
+        # level; a supplied context cannot lower policy_level below the real one.
+        context = replace(
+            autonomy or AutonomyContext.for_policy(policy), policy_level=int(policy.level)
+        )
+        # Keyed on the *effective* level so the sanctioned L3 downgrade of an L4
+        # scope is still asked for the human approval L3 means.
+        if context.effective_level == 3 and not approval_verified:
             return EvaluatedPolicyDecision(False, "verified human approval is required", "local-reference")
         if int(policy.level) >= 4 and request.error_budget_remaining <= 0:
             return EvaluatedPolicyDecision(False, "error budget exhausted; autonomous mutation disabled", "local-reference")
-        # Mirrors the l4_certification rules in the rego bundle. A caller that
-        # supplies no context is evaluated at its reviewed policy level, so an
-        # L4 policy is still asked for a certification it cannot produce.
-        context = autonomy or AutonomyContext.for_policy(policy)
-        denial = certification_denial(replace(context, policy_level=int(policy.level)))
+        # Mirrors the l4_certification rules in the rego bundle, so an L4 policy
+        # is still asked for a certification it cannot produce.
+        denial = certification_denial(context)
         if denial is not None:
             return EvaluatedPolicyDecision(False, denial, "local-reference")
         return EvaluatedPolicyDecision(True, "authorized by local reference policy", "local-reference")

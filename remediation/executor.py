@@ -108,13 +108,17 @@ def _effective_level(
     granted = policy.level
     if declared is None:
         return granted, None
+    not_a_level = (
+        f"{AUTONOMY_LEVEL_CHECK}: declared autonomy level {declared!r} is not an "
+        f"autonomy level; the reviewed service policy grants L{int(granted)}"
+    )
+    # A fractional claim is not a level; int() would silently truncate 3.9 to L3.
+    if isinstance(declared, float) and not declared.is_integer():
+        return granted, not_a_level
     try:
         claimed = AutonomyLevel(int(declared))
     except (TypeError, ValueError):
-        return granted, (
-            f"{AUTONOMY_LEVEL_CHECK}: declared autonomy level {declared!r} is not an "
-            f"autonomy level; the reviewed service policy grants L{int(granted)}"
-        )
+        return granted, not_a_level
     if claimed == granted:
         return granted, None
     if claimed > granted:

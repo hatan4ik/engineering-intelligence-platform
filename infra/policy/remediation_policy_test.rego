@@ -212,6 +212,42 @@ test_a_level_three_policy_with_no_declared_level_is_not_asked_for_a_certificatio
   result.allowed == true
 }
 
+# --- the sanctioned downgrade is still a supervised L3 ------------------------
+#
+# Running an L4 scope as "L3" skips the L4 certification because supervised
+# exercises are the *input* to certification -- but L3 means approve-and-execute,
+# so the human-approval rule must still fire on that path.
+
+test_deny_the_supervised_downgrade_without_a_verified_approval if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "autonomy_level": "L3",
+    "request": object.union(base_input.request, {"approval_verified": false})
+  })
+  result := decision with input as candidate
+  result.allowed == false
+  result.reason == "verified human approval is required"
+}
+
+test_allow_the_supervised_downgrade_with_a_verified_approval_and_no_certification if {
+  candidate := object.union(l4_policy_no_declared_level, {
+    "autonomy_level": "L3",
+    "request": object.union(base_input.request, {"approval_verified": true})
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
+test_an_undeclared_level_four_policy_is_not_asked_for_an_approval if {
+  # No downgrade was claimed, so the run is L4: certification, not approval, is
+  # the control that applies.
+  candidate := object.union(l4_policy_no_declared_level, {
+    "request": object.union(base_input.request, {"approval_verified": false}),
+    "certification": valid_certification
+  })
+  result := decision with input as candidate
+  result.allowed == true
+}
+
 # --- a declared level that is not a string at all ----------------------------
 #
 # trim_space() on a non-string is a builtin type error, which a non-strict OPA
