@@ -22,6 +22,7 @@ dependencies = [
   "opentelemetry-exporter-otlp-proto-http",
   "PyJWT[crypto]",
   "temporalio",
+  "kubernetes",
 ]
 
 [project.optional-dependencies]
