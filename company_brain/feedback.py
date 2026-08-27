@@ -51,6 +51,8 @@ class CompanyBrainFeedbackProjector:
                 kind=EntityKind.FINDING,
                 label=finding.summary,
                 attributes=(
+                    ("context_qualified", str(finding.context_qualified).lower()),
+                    ("context_version", finding.context_version),
                     ("evidence_basis", finding.evidence.basis.value),
                     ("policy_version", finding.policy_version),
                     ("severity", finding.severity),

@@ -79,6 +79,7 @@ def _build_shadow_pr_guardian(source: Mapping[str, str]):
     from control_plane.workflows import ControlPlaneWorkflows
     from integrations.github.pr_guardian import GitHubRestPRClient
     from product.graph_from_checkout import build_service_graph_from_checkout
+    from product.pr_guardian.store import SqlitePRGuardianStore
     from product.pr_guardian_service import PRGuardianService
     from state.audit import SqliteAuditLog
     from state.store import SqliteStateStore
@@ -89,9 +90,49 @@ def _build_shadow_pr_guardian(source: Mapping[str, str]):
         SqliteStateStore(state_dir / "state.db"),
         SqliteAuditLog(state_dir / "audit.db"),
     )
+    company_context, principal = _optional_company_brain_context(source)
     return PRGuardianService(
-        graph=build_service_graph_from_checkout(source["EIP_SERVICE_GRAPH_ROOT"]),
+        graph=(
+            None
+            if company_context is not None
+            else build_service_graph_from_checkout(source["EIP_SERVICE_GRAPH_ROOT"])
+        ),
         github=GitHubRestPRClient(source["GITHUB_TOKEN"]),
         workflows=workflows,
         mode="shadow",
+        company_context=company_context,
+        principal=principal,
+        findings=SqlitePRGuardianStore(state_dir / "pr-guardian.db"),
+        policy_version=source.get("EIP_PR_GUARDIAN_POLICY_VERSION", "pr-policy-v1").strip() or "pr-policy-v1",
+    )
+
+
+def _optional_company_brain_context(source: Mapping[str, str]):
+    """Return qualified Company Brain wiring only when its complete trust boundary is configured."""
+
+    names = ("EIP_COMPANY_BRAIN_DB", "EIP_COMPANY_BRAIN_TENANT", "EIP_PR_GUARDIAN_PRINCIPAL_GROUPS")
+    values = {name: source.get(name, "").strip() for name in names}
+    configured = [name for name, value in values.items() if value]
+    if not configured:
+        return None, None
+    missing = [name for name, value in values.items() if not value]
+    if missing:
+        raise RuntimeError(
+            "Company Brain PR Guardian context requires " + ", ".join(missing) + "; refusing an ambiguous trust boundary"
+        )
+
+    from company_brain import BrainPrincipal, CompanyBrainWorldModel, SqliteCompanyBrainStore
+    from product.pr_guardian.company_brain import PRGuardianWorldModelAdapter
+
+    groups = tuple(sorted({item.strip() for item in values["EIP_PR_GUARDIAN_PRINCIPAL_GROUPS"].split(",") if item.strip()}))
+    if not groups:
+        raise RuntimeError("EIP_PR_GUARDIAN_PRINCIPAL_GROUPS must name at least one group")
+    return (
+        PRGuardianWorldModelAdapter(
+            CompanyBrainWorldModel(
+                SqliteCompanyBrainStore(values["EIP_COMPANY_BRAIN_DB"]),
+                values["EIP_COMPANY_BRAIN_TENANT"],
+            )
+        ),
+        BrainPrincipal(groups=groups),
     )

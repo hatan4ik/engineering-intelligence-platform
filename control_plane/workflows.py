@@ -42,11 +42,18 @@ class ControlPlaneWorkflows:
         repository: str,
         pr_number: int,
         assessment: RiskAssessment,
+        simulated_policy: PRPolicyDecision | None = None,
         actor: str = "agent:pr-guardian",
     ) -> tuple[WorkflowRecord, PRPolicyDecision]:
         workflow_id = f"pr:{repository}:{pr_number}"
         correlation_id = str(uuid.uuid4())
-        policy = policy_for(assessment)
+        maximum_policy = policy_for(assessment)
+        policy = simulated_policy or maximum_policy
+        if any(
+            getattr(policy, field) and not getattr(maximum_policy, field)
+            for field in ("require_extended_tests", "require_additional_approval", "block_merge")
+        ):
+            raise ValueError("simulated PR policy may only reduce the deterministic policy")
         plan_hash = _hash({"assessment": asdict(assessment), "policy": asdict(policy)})
         workflow = self.store.put_workflow(
             WorkflowRecord(

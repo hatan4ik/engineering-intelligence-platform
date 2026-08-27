@@ -38,6 +38,7 @@ production-certified.
 | [`../architecture/non-functional-requirements.md`](../architecture/non-functional-requirements.md) | Current design | Operational, data, and safety requirements |
 | [`PRODUCT-STRATEGY.md`](PRODUCT-STRATEGY.md) | Current product decision | First product wedge and expansion gates |
 | [`PR-GUARDIAN-DOMAIN-CONTRACT.md`](PR-GUARDIAN-DOMAIN-CONTRACT.md) | Current product boundary | PR Guardian records and safety invariants |
+| [`PR-GUARDIAN-COMPANY-BRAIN.md`](PR-GUARDIAN-COMPANY-BRAIN.md) | Implemented reference contract | Qualified context, durable findings, and non-enforcement rules |
 | [`../roadmap/technical-roadmap-24-months.md`](../roadmap/technical-roadmap-24-months.md) | Target proposal | Outcome-gated delivery sequence and promotion gates |
 | [`CURRENT-POSITION.md`](CURRENT-POSITION.md) | Current implementation state | The single answer to "where are we today", with both yardsticks stated |
 | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) | Current evidence contract | What must be retained to support a promotion claim |

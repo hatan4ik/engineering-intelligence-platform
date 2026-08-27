@@ -63,6 +63,8 @@ def test_finding_requires_authorized_evidence_and_only_simulates_actions():
         summary="This change crosses the payments architecture boundary.",
         correlation_id="corr-42",
         policy_version="pr-policy-2026-08",
+        context_version="world-model:v1:test",
+        context_qualified=True,
         simulated_action=FindingAction.WOULD_BLOCK,
         evidence=evidence(),
     )
@@ -74,6 +76,26 @@ def test_finding_requires_authorized_evidence_and_only_simulates_actions():
             source_kind="incident",
             locator="knowledge://incident/1",
             authorized=False,
+        )
+
+    with pytest.raises(ProductContractError, match="unqualified context"):
+        PRFinding(
+            finding_id="pr:acme/payments:42:unqualified",
+            repository="acme/payments",
+            pr_number=42,
+            head_sha="deadbeef",
+            severity="high",
+            summary="Unqualified context cannot propose a control.",
+            correlation_id="corr-43",
+            policy_version="pr-policy-2026-08",
+            context_version="world-model:v1:unqualified",
+            context_qualified=False,
+            simulated_action=FindingAction.WOULD_BLOCK,
+            evidence=EvidenceBundle(
+                basis=EvidenceBasis.DERIVED,
+                references=(),
+                limitations=("No qualified context was available.",),
+            ),
         )
 
 

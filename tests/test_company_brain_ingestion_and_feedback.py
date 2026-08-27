@@ -41,6 +41,8 @@ def finding() -> PRFinding:
         summary="Payments dependency boundary changed.",
         correlation_id="corr-42",
         policy_version="pr-policy-2026-08",
+        context_version="world-model:v1:test",
+        context_qualified=True,
         simulated_action=FindingAction.WOULD_BLOCK,
         evidence=EvidenceBundle(
             basis=EvidenceBasis.MEASURED,
