@@ -65,7 +65,7 @@ def configure_capabilities(app: FastAPI, environ: Mapping[str, str] | None = Non
     # Operational intelligence (L1 analysis + L2 proposals) is enabled by the
     # presence of any of its variables; an incomplete set raises here rather than
     # answering 503 forever. See app/operations_api.build_operations_capability.
-    from app.operations_api import build_operations_capability, operations_enabled
+    from app.operations.api import build_operations_capability, operations_enabled
 
     if operations_enabled(source):
         app.state.operations = build_operations_capability(source)
