@@ -455,3 +455,17 @@ The immediate milestone is therefore not “finish the platform.” It is a trus
 shadow pilot that validates the Company Brain shared memory, evidence, reasoning, and feedback
 loop. That creates the empirical foundation that later incident and remediation capabilities must
 reuse.
+
+## 7. Integration with the 22-Skill Operating Stack Audit
+
+A parallel **Skill-Driven Documentation & Design Review** (`skill-driven-doc-review.md`) evaluated the repository against the Enterprise AI Transformation 22-Skill Operating Stack. That audit strongly corroborates the engineering conclusions in this document, identifying three critical cross-cutting themes:
+
+1. **Implementation leads documentation:** The codebase enforces a stronger, more complete operating model than the documentation describes. For example, the code encodes typed phases, approval gates, and escalations, but the Target Operating Model (TOM) document lacks a role-evolution table and a formalized AI↔human handoff map. The governance documentation asserts remediation surfaces are the strictest, but fails to mathematically derive this from a data-sensitivity × decision-impact tiering.
+2. **Missing Latency/Throughput Budgets:** The skill audit highlights a critical systems-engineering gap (Skill 09): there is no documented latency model for the self-healing chain (retrieve → LLM synthesize → policy → simulate → execute → verify). The implicit budget—a 60-second job lease—is mis-sized for a complete simulate+execute pass.
+3. **The gate structure is production-grade; the evidence is not yet real:** Both reviews agree that the architectural boundaries (kill switches, Temporal durability, digital twin sandboxes) are robust. However, the evidence harnesses currently validate *shape* rather than *truth*. Advancing the product maturity requires producing real evidence artifacts (load tests, rehearsed-rollback logs with dates, finance sign-offs) rather than adding more gates.
+
+### Consolidated Action Items from the Skill Audit
+To align the engineering architecture with the enterprise operating model, the following operator handoffs must be executed:
+- **Governance:** Derive and document the data-sensitivity × decision-impact tier for every workflow. Close the three identified audit-log gaps (confidence scores, RAG evidence lineage, and log-access policy).
+- **Systems Engineering:** Publish a strict latency/throughput budget per workflow step and resize the execution lease accordingly. Wire the semantic embeddings into the production path.
+- **Process:** Author a formalized Target Operating Model (TOM) section detailing role evolution (e.g., how SRE tasks shift from execution to validation) and Human-in-the-Loop SLAs. Obtain finance sign-off on the token-spend budget guardrails.
