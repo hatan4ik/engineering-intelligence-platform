@@ -33,9 +33,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = [
-  "app*", "control_plane*", "feedback*", "finops*", "ingestion*", "integrations*",
-  "intelligence*", "orchestration*", "portal*", "product*", "security*", "state*",
-  "telemetry*",
+  "app*", "company_brain*", "control_plane*", "feedback*", "finops*", 
+  "ingestion*", "integrations*", "intelligence*", "orchestration*", 
+  "portal*", "product*", "remediation*", "resilience*", "security*", 
+  "state*", "telemetry*", "topology*"
 ]
 
 [tool.pytest.ini_options]

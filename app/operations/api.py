@@ -26,7 +26,8 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Final, Mapping, Sequence
+from typing import Any, Final, Mapping, Sequence, Literal
+from pydantic import BaseModel
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
@@ -434,6 +435,65 @@ def _build_evidence_provider(source: Mapping[str, str], mode: str) -> Any:
 # --------------------------------------------------------------------------- #
 
 
+
+
+class HypothesisResponse(BaseModel):
+    title: str
+    evidence_ids: list[str]
+    confidence: float
+    facts: list[str] | None = None
+    inferences: list[str] | None = None
+
+class TimelineEvent(BaseModel):
+    timestamp: str
+    message: str
+    kind: str
+    attributes: dict[str, str]
+
+class IncidentAnalysisResponse(BaseModel):
+    hypotheses: list[HypothesisResponse]
+    timeline: list[TimelineEvent]
+
+class DeploymentAnalysisResponse(BaseModel):
+    deployment_id: str
+    service: str
+    facts: list[str]
+    hypotheses: list[HypothesisResponse]
+    evidence_ids: list[str]
+
+class ProposalResponse(BaseModel):
+    kind: str
+    title: str
+    exact_action: str
+    rollback_path: str
+    evidence_refs: list[str]
+    requires_human: bool
+
+class IncidentReport(BaseModel):
+    status: Literal["investigated", "ignored"]
+    autonomy_level: Literal["L2-propose", "L1-advise"] | None = None
+    executed: bool | None = None
+    correlation_id: str | None = None
+    workflow_id: str | None = None
+    incident_id: str | None = None
+    service: str | None = None
+    environment: str | None = None
+    impacted_services: list[str] | None = None
+    analysis: IncidentAnalysisResponse | None = None
+    proposals: list[ProposalResponse] | None = None
+    reason: str | None = None
+
+class DeploymentReport(BaseModel):
+    status: Literal["investigated"]
+    autonomy_level: Literal["L2-propose"]
+    executed: bool
+    correlation_id: str
+    workflow_id: str
+    service: str
+    environment: str
+    analysis: DeploymentAnalysisResponse
+    proposals: list[ProposalResponse]
+
 def _hypotheses_to_dicts(analysis: IncidentAnalysis | DeploymentFailureAnalysis) -> list[dict[str, object]]:
     return [
         {
@@ -479,7 +539,7 @@ def deployment_analysis_to_dict(analysis: DeploymentFailureAnalysis) -> dict[str
     }
 
 
-def deployment_report(event: DeploymentFailureEvent, result: Any) -> dict[str, object]:
+def deployment_report(event: DeploymentFailureEvent, result: Any) -> DeploymentReport:
     """The response/CLI document for a deployment-failure investigation."""
 
     proposals = build_proposals(
@@ -501,7 +561,7 @@ def deployment_report(event: DeploymentFailureEvent, result: Any) -> dict[str, o
     }
 
 
-def incident_report(trigger: IncidentTrigger, result: Any) -> dict[str, object]:
+def incident_report(trigger: IncidentTrigger, result: Any) -> IncidentReport:
     """The response/CLI document for an incident correlation."""
 
     proposals = build_proposals(
@@ -566,11 +626,11 @@ async def _json_body(request: Request) -> dict[str, Any]:
     return payload
 
 
-@router.post("/deployment")
+@router.post("/deployment", response_model_exclude_none=True)
 async def deployment_event(
     request: Request,
     x_eip_operations_secret: str | None = Header(default=None),
-) -> dict[str, object]:
+) -> DeploymentReport:
     _verify_secret(x_eip_operations_secret)
     capability = _capability(request)
     payload = await _json_body(request)
@@ -585,11 +645,11 @@ async def deployment_event(
     return deployment_report(event, result)
 
 
-@router.post("/incident")
+@router.post("/incident", response_model_exclude_none=True)
 async def incident_event(
     request: Request,
     x_eip_operations_secret: str | None = Header(default=None),
-) -> dict[str, object]:
+) -> IncidentReport|dict[str, object]:
     _verify_secret(x_eip_operations_secret)
     capability = _capability(request)
     payload = await _json_body(request)
