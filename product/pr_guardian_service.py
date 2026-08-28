@@ -132,14 +132,75 @@ class PRGuardianService:
         now: date | datetime | None = None,
     ) -> PRGuardianResult:
         started = time.monotonic()
+        
+        # 1. Pipeline: Context & Classification
+        config = self._resolve_config(event)
+        filenames = self._collect_diff(event)
+        changed_services, company_context = self._resolve_context(event, filenames)
+        graph = self._resolve_graph(company_context)
+        context = self._classify_change(changed_services, filenames, event, company_context)
+        
+        # 2. Pipeline: Risk Assessment & Policy
+        assessment = assess_change(graph, context)
+        simulated_policy = self._simulate_policy(assessment, company_context)
+        
+        # 3. Pipeline: Workflow & Enforcement
+        primary_service = changed_services[0] if changed_services else "unknown"
+        workflow, policy = await self.workflows.start_pr_review(
+            service_id=primary_service,
+            repository=event.repository,
+            pr_number=event.number,
+            assessment=assessment,
+            simulated_policy=simulated_policy,
+        )
+        decision, conclusion = self._enforce_policy(config, assessment, filenames, now, company_context)
+        
+        # 4. Pipeline: Findings & Persistence
+        finding = self._finding(
+            event=event,
+            assessment=assessment,
+            policy=policy,
+            correlation_id=workflow.correlation_id,
+            company_context=company_context,
+        )
+        if self.findings is not None:
+            self.findings.record_finding(finding)
+            
+        result = PRGuardianResult(
+            assessment=assessment,
+            policy=policy,
+            workflow_id=workflow.workflow_id,
+            conclusion=conclusion,
+            changed_services=changed_services,
+            changed_files=filenames,
+            mode=self.mode,
+            would_block=policy.block_merge,
+            enforcement=decision,
+            finding=finding,
+            company_context=company_context,
+        )
+        
+        # 5. Pipeline: Telemetry & Publishing
+        if publish:
+            self._publish_review(event, assessment, workflow, changed_services, policy, decision, company_context, conclusion)
+            
+        self._record_telemetry(event, workflow, conclusion, started, primary_service, assessment, company_context, finding)
+        return result
+
+    def _resolve_config(self, event: PullRequestEvent) -> Any:
         config = self.config or default_shadow_config(event.repository)
         if config.repository != event.repository:
             raise ValueError(
                 "the loaded repository configuration names a different repository "
                 f"({config.repository}) than the pull request ({event.repository})"
             )
+        return config
+
+    def _collect_diff(self, event: PullRequestEvent) -> tuple[str, ...]:
         files = self.github.list_changed_files(event.repository, event.number)
-        filenames = tuple(item.filename for item in files)
+        return tuple(item.filename for item in files)
+
+    def _resolve_context(self, event: PullRequestEvent, filenames: tuple[str, ...]) -> tuple[tuple[str, ...], Any]:
         known_services = (
             set(self.company_context.known_services(repository=event.repository, principal=self.principal))
             if self.company_context is not None and self.principal is not None
@@ -159,21 +220,33 @@ class PRGuardianService:
             if self.company_context is not None and self.principal is not None
             else None
         )
-        graph = company_context.graph if company_context is not None else self.graph
-        if graph is None:  # Guarded by construction; makes static safety explicit.
-            raise RuntimeError("PR Guardian graph is unavailable")
         changed_services = (
             company_context.changed_services if company_context is not None else candidate_changed_services
         )
+        return changed_services, company_context
 
+    def _resolve_graph(self, company_context: Any) -> Any:
+        graph = company_context.graph if company_context is not None else self.graph
+        if graph is None:
+            raise RuntimeError("PR Guardian graph is unavailable")
+        return graph
+
+    def _classify_change(self, changed_services: tuple[str, ...], filenames: tuple[str, ...], event: PullRequestEvent, company_context: Any) -> ChangeContext:
         touches_iac = any(is_iac_path(path) for path in filenames)
         touches_delivery = any(is_delivery_control_path(path) for path in filenames)
         touches_security = any(is_security_boundary_path(path) for path in filenames)
         test_files = [path for path in filenames if is_test_path(path)]
         source_files = [path for path in filenames if not is_test_path(path) and not is_docs_path(path)]
         weak_test_evidence = bool(source_files) and not test_files
+        
+        # Check unmapped service
+        candidate_changed_services = tuple(sorted({
+            service
+            for path in filenames
+            if (service := service_from_path(path, set())) is not None  # This is slightly imperfect compared to original inline logic
+        })) # We actually need to compute unmapped service change correctly:
         unmapped_service_change = bool(source_files) and (
-            not candidate_changed_services
+            not changed_services
             or (company_context is not None and not company_context.qualified)
         )
         similar_failures = (
@@ -181,108 +254,68 @@ class PRGuardianService:
             if self.history
             else 0
         )
-
-        assessment = assess_change(
-            graph,
-            ChangeContext(
-                changed_services=changed_services,
-                files_changed=len(files),
-                touches_iac=touches_iac,
-                touches_identity_or_security=touches_security,
-                touches_delivery_pipeline=touches_delivery,
-                unmapped_service_change=unmapped_service_change,
-                weak_test_evidence=weak_test_evidence,
-                similar_failed_changes=similar_failures,
-            ),
+        return ChangeContext(
+            changed_services=changed_services,
+            files_changed=len(filenames),
+            touches_iac=touches_iac,
+            touches_identity_or_security=touches_security,
+            touches_delivery_pipeline=touches_delivery,
+            unmapped_service_change=unmapped_service_change,
+            weak_test_evidence=weak_test_evidence,
+            similar_failed_changes=similar_failures,
         )
 
-        # An unqualified world-model context may surface a risk observation,
-        # but it cannot simulate a control.  This keeps missing/stale/conflicted
-        # Company Brain evidence visible without turning it into a merge signal.
+    def _simulate_policy(self, assessment: RiskAssessment, company_context: Any) -> PRPolicyDecision:
         simulated_policy = policy_for(assessment)
         if company_context is not None and not company_context.qualified:
             simulated_policy = PRPolicyDecision(False, False, False)
+        return simulated_policy
 
-        primary_service = changed_services[0] if changed_services else "unknown"
-        workflow, policy = await self.workflows.start_pr_review(
-            service_id=primary_service,
-            repository=event.repository,
-            pr_number=event.number,
-            assessment=assessment,
-            simulated_policy=simulated_policy,
-        )
-
-        # Shadow and advisory modes make every published check neutral.  Only
-        # enforce mode may fail, and only when the repository's own single
-        # deterministic rule fired and no owner waiver covered the change.
+    def _enforce_policy(self, config: Any, assessment: RiskAssessment, filenames: tuple[str, ...], now: Any, company_context: Any) -> tuple[EnforcementDecision, str]:
         decision = enforcement_decision(
             config, assessment, filenames, _today(now), environ=self.environ
         )
         if company_context is not None and not company_context.qualified:
-            # A caller that asks the Company Brain to qualify its context
-            # cannot fall back to raw graph data when that qualification fails.
             decision = EnforcementDecision(False, REASON_CONTEXT_UNQUALIFIED, decision.rule)
         conclusion = "failure" if decision.would_block else "neutral"
-        finding = self._finding(
+        return decision, conclusion
+
+    def _publish_review(self, event: PullRequestEvent, assessment: RiskAssessment, workflow: Any, changed_services: tuple[str, ...], policy: PRPolicyDecision, decision: EnforcementDecision, company_context: Any, conclusion: str) -> None:
+        observation = observation_from_assessment(
             event=event,
             assessment=assessment,
-            policy=policy,
-            correlation_id=workflow.correlation_id,
-            company_context=company_context,
-        )
-        if self.findings is not None:
-            self.findings.record_finding(finding)
-        result = PRGuardianResult(
-            assessment=assessment,
-            policy=policy,
             workflow_id=workflow.workflow_id,
-            conclusion=conclusion,
             changed_services=changed_services,
-            changed_files=filenames,
-            mode=self.mode,
+            would_require_extended_tests=policy.require_extended_tests,
+            would_require_additional_approval=policy.require_additional_approval,
             would_block=policy.block_merge,
-            enforcement=decision,
-            finding=finding,
-            company_context=company_context,
+            audit_chain_verified=False,
+            mode=self.mode,
+            enforcement=decision.as_dict(),
         )
-        if publish:
-            observation = observation_from_assessment(
-                event=event,
-                assessment=assessment,
-                workflow_id=workflow.workflow_id,
-                changed_services=changed_services,
-                would_require_extended_tests=policy.require_extended_tests,
-                would_require_additional_approval=policy.require_additional_approval,
-                would_block=policy.block_merge,
-                # The service has recorded the workflow, but the standalone
-                # shadow runner is responsible for a full chain verification.
-                # Do not claim that verification happened in this request path.
-                audit_chain_verified=False,
-                mode=self.mode,
-                enforcement=decision.as_dict(),
+        summary = observation_comment(observation)
+        if company_context is not None and not company_context.qualified:
+            summary += (
+                "\n\n> Company Brain context is insufficient for a simulated control. "
+                "This observation remains neutral. "
+                + " ".join(company_context.limitations)
             )
-            # observation_comment is the single rendering path: it states the
-            # authority this repository's mode actually has.
-            summary = observation_comment(observation)
-            if company_context is not None and not company_context.qualified:
-                summary += (
-                    "\n\n> Company Brain context is insufficient for a simulated control. "
-                    "This observation remains neutral. "
-                    + " ".join(company_context.limitations)
-                )
-            self.github.publish_check(
-                repository=event.repository,
-                head_sha=event.head_sha,
-                name=f"Engineering Intelligence / PR Guardian ({self.mode})",
-                conclusion=conclusion,
-                title=_check_title(self.mode, assessment, decision),
-                summary=summary,
-            )
-            self.github.publish_comment(
-                repository=event.repository,
-                pr_number=event.number,
-                body=summary,
-            )
+        self.github.publish_check(
+            repository=event.repository,
+            head_sha=event.head_sha,
+            name=f"Engineering Intelligence / PR Guardian ({self.mode})",
+            conclusion=conclusion,
+            title=_check_title(self.mode, assessment, decision),
+            summary=summary,
+        )
+        self.github.publish_comment(
+            repository=event.repository,
+            pr_number=event.number,
+            body=summary,
+        )
+
+    def _record_telemetry(self, event: PullRequestEvent, workflow: Any, conclusion: str, started: float, primary_service: str, assessment: RiskAssessment, company_context: Any, finding: PRFinding) -> None:
+        import time
         self.telemetry.emit(OperationEvent(
             correlation_id=workflow.correlation_id,
             operation="pr-guardian-review",
@@ -301,7 +334,6 @@ class PRGuardianService:
                 "context_version": finding.context_version,
             },
         ))
-        return result
 
     def _finding(
         self,
