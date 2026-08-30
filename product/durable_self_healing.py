@@ -3,7 +3,11 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from control_plane.remediation import RemediationWorkflowPlan, RemediationWorkflows
+from control_plane.remediation import (
+    RemediationTerminalStatus,
+    RemediationWorkflowPlan,
+    RemediationWorkflows,
+)
 from intelligence.incidents import IncidentAnalysis
 from orchestration.approvals import Approval
 from orchestration.jobs import Job, SqliteJobQueue
@@ -177,7 +181,7 @@ class DurableSelfHealingCoordinator:
         )
         self.workflows.finish(
             workflow_id=job.workflow_id,
-            status=result.status,
+            status=_terminal_status(result.status),
             execution_ref=result.execution_ref,
             rollback_ref=result.rollback_ref,
         )
@@ -187,3 +191,12 @@ class DurableSelfHealingCoordinator:
             verified=str(result.verified).lower(),
         )
         return result
+
+
+def _terminal_status(value: str) -> RemediationTerminalStatus:
+    """Reject an execution result that is not one of the durable terminal states."""
+
+    try:
+        return RemediationTerminalStatus(value)
+    except ValueError as error:
+        raise ValueError(f"unknown remediation execution status: {value!r}") from error

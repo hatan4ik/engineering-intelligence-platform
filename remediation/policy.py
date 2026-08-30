@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .catalog import AutonomyLevel, Runbook
+from .policy_contract import PolicyReason
 
 
 @dataclass(frozen=True)
@@ -33,19 +34,19 @@ class PolicyDecision:
 
 def authorize(runbook: Runbook, policy: ServiceAutonomy, request: ActionRequest) -> PolicyDecision:
     if policy.kill_switch:
-        return PolicyDecision(False, "service kill switch is enabled")
+        return PolicyDecision(False, PolicyReason.KILL_SWITCH.value)
     if request.service != policy.service or request.environment != policy.environment:
-        return PolicyDecision(False, "request is outside service/environment policy scope")
+        return PolicyDecision(False, PolicyReason.OUTSIDE_SCOPE.value)
     if request.environment not in runbook.environments:
-        return PolicyDecision(False, "runbook is not permitted in this environment")
+        return PolicyDecision(False, PolicyReason.RUNBOOK_ENVIRONMENT.value)
     if request.blast_radius > runbook.max_blast_radius or request.blast_radius > policy.max_blast_radius:
-        return PolicyDecision(False, "blast radius exceeds certified limit")
+        return PolicyDecision(False, PolicyReason.BLAST_RADIUS.value)
     if policy.level < runbook.required_level:
-        return PolicyDecision(False, "service autonomy level is below runbook requirement")
+        return PolicyDecision(False, PolicyReason.AUTONOMY_LEVEL.value)
     if runbook.id not in policy.certified_runbooks:
-        return PolicyDecision(False, "runbook is not certified for this service")
+        return PolicyDecision(False, PolicyReason.RUNBOOK_CERTIFICATION.value)
     if policy.level == AutonomyLevel.APPROVE_AND_EXECUTE and not request.approval_token:
         return PolicyDecision(False, "human approval token is required")
     if policy.level >= AutonomyLevel.BOUNDED_AUTONOMOUS and request.error_budget_remaining <= 0:
-        return PolicyDecision(False, "error budget exhausted; autonomous mutation disabled")
+        return PolicyDecision(False, PolicyReason.ERROR_BUDGET.value)
     return PolicyDecision(True, "authorized by deterministic autonomy policy")

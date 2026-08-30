@@ -5,11 +5,12 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
-from typing import Protocol
+from typing import Mapping, Protocol
 
 from resilience.scope import parse_instant
 
 from .catalog import Runbook
+from .policy_contract import PolicyReason
 from .policy import ActionRequest, PolicyDecision, ServiceAutonomy
 
 
@@ -43,7 +44,7 @@ class CertificationClaim:
 #: supervised L3. It is the exercise path -- the promotion rule makes supervised
 #: runs the *input* to certification, so they cannot require it.
 SUPERVISED_DOWNGRADE = "L3"
-AUTHORIZED_REASON = "authorized by OPA remediation policy"
+AUTHORIZED_REASON = PolicyReason.AUTHORIZED.value
 
 
 @dataclass(frozen=True)
@@ -136,21 +137,21 @@ def certification_denial(autonomy: AutonomyContext) -> str | None:
         return None
     claim = autonomy.certification
     if claim is None:
-        return "l4-certification: no certification record for this L4 scope"
+        return PolicyReason.CERTIFICATION_ABSENT.value
     now = parse_instant(autonomy.now)
     if now is None:
-        return "l4-certification: request carries no readable evaluation time"
+        return PolicyReason.EVALUATION_TIME_UNREADABLE.value
     expires = parse_instant(claim.expires_on)
     if expires is None:
-        return "l4-certification: certification expires_on is not a readable timestamp"
+        return PolicyReason.CERTIFICATION_EXPIRY_UNREADABLE.value
     if expires <= now:
-        return "l4-certification: certification has expired"
+        return PolicyReason.CERTIFICATION_EXPIRED.value
     if not str(autonomy.scope_hash).strip():
-        return "l4-certification: request carries no scope hash"
+        return PolicyReason.SCOPE_MISSING.value
     if str(claim.scope_hash) != str(autonomy.scope_hash):
-        return "l4-certification: record scope_hash does not match the requested scope"
+        return PolicyReason.SCOPE_MISMATCH.value
     if not str(claim.inputs_hash).strip():
-        return "l4-certification: certification carries no material-inputs hash"
+        return PolicyReason.INPUTS_HASH_MISSING.value
     return None
 
 
@@ -195,23 +196,36 @@ class OpaPolicyClient:
         control: PolicyControlState,
         autonomy: AutonomyContext | None = None,
     ) -> EvaluatedPolicyDecision:
-        payload = opa_input(
-            runbook=runbook,
-            policy=policy,
-            request=request,
-            approval_verified=approval_verified,
-            control=control,
-            autonomy=autonomy,
+        return self.evaluate_input(
+            opa_input(
+                runbook=runbook,
+                policy=policy,
+                request=request,
+                approval_verified=approval_verified,
+                control=control,
+                autonomy=autonomy,
+            )
         )
+
+    def evaluate_input(self, payload: Mapping[str, object]) -> EvaluatedPolicyDecision:
+        """Evaluate an already-serialized OPA envelope for conformance probes.
+
+        Product code calls :meth:`evaluate` with domain objects. This narrow
+        method exists so malformed wire-level cases can be checked against the
+        authoritative Rego bundle without pretending they are valid domain
+        objects.
+        """
+
+        request_payload = dict(payload)
         req = urllib.request.Request(
             self.endpoint + "/v1/data/engineering_intelligence/remediation/decision",
             method="POST",
-            data=json.dumps(payload).encode(),
+            data=json.dumps(request_payload).encode(),
             headers={"Content-Type": "application/json"},
         )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout_seconds) as response:
-                body = json.load(response)
+                body: object = json.load(response)
         except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
             return EvaluatedPolicyDecision(False, f"OPA unavailable or invalid: {type(exc).__name__}", "unknown")
         result = body.get("result") if isinstance(body, dict) else None
@@ -222,6 +236,85 @@ class OpaPolicyClient:
             str(result.get("reason", "OPA denied without reason")),
             str(result.get("policy_revision", "unknown")),
         )
+
+
+def policy_input_boundary_denial(payload: Mapping[str, object]) -> str | None:
+    """Return the Rego-equivalent refusal for raw inputs invalid at the wire edge.
+
+    Domain objects make a missing/non-numeric policy level unrepresentable. The
+    explicit wire check closes the remaining conformance gap and retains Rego's
+    kill-switch precedence for malformed raw requests.
+    """
+
+    policy = payload.get("policy")
+    if isinstance(policy, Mapping) and policy.get("kill_switch") is True:
+        return PolicyReason.KILL_SWITCH.value
+    if not isinstance(policy, Mapping) or type(policy.get("level")) is not int:
+        return PolicyReason.POLICY_LEVEL_MISSING.value
+    return None
+
+
+class LocalReferenceEvaluator:
+    """Offline/CI reference evaluator matching the policy contract.
+
+    It exists for deterministic tests and disconnected demos. Production should
+    set EIP_REQUIRE_OPA=true and inject OpaPolicyClient.
+    """
+
+    def evaluate_input(self, payload: Mapping[str, object]) -> EvaluatedPolicyDecision:
+        """Evaluate the raw-input checks that precede construction of domain objects."""
+
+        denial = policy_input_boundary_denial(payload)
+        if denial is None:
+            raise ValueError("raw policy input is representable; use evaluate() with domain objects")
+        return EvaluatedPolicyDecision(False, denial, "local-reference")
+
+    def evaluate(
+        self,
+        *,
+        runbook: Runbook,
+        policy: ServiceAutonomy,
+        request: ActionRequest,
+        approval_verified: bool,
+        control: PolicyControlState,
+        autonomy: AutonomyContext | None = None,
+    ) -> EvaluatedPolicyDecision:
+        # Keep the exact evaluation order in the Rego bundle. The reason is
+        # part of the authorization contract: a later unsafe condition must
+        # not replace the first deterministic refusal an operator receives.
+        if policy.kill_switch:
+            return EvaluatedPolicyDecision(False, PolicyReason.KILL_SWITCH.value, "local-reference")
+        if request.service != policy.service or request.environment != policy.environment:
+            return EvaluatedPolicyDecision(False, PolicyReason.OUTSIDE_SCOPE.value, "local-reference")
+        if request.environment not in runbook.environments:
+            return EvaluatedPolicyDecision(False, PolicyReason.RUNBOOK_ENVIRONMENT.value, "local-reference")
+        if request.blast_radius > runbook.max_blast_radius or request.blast_radius > policy.max_blast_radius:
+            return EvaluatedPolicyDecision(False, PolicyReason.BLAST_RADIUS.value, "local-reference")
+        if policy.level < runbook.required_level:
+            return EvaluatedPolicyDecision(False, PolicyReason.AUTONOMY_LEVEL.value, "local-reference")
+        if runbook.id not in policy.certified_runbooks:
+            return EvaluatedPolicyDecision(False, PolicyReason.RUNBOOK_CERTIFICATION.value, "local-reference")
+        # A caller that supplies no context is evaluated at its reviewed policy
+        # level; a supplied context cannot lower policy_level below the real one.
+        context = replace(
+            autonomy or AutonomyContext.for_policy(policy), policy_level=int(policy.level)
+        )
+        # Keyed on the *effective* level so the sanctioned L3 downgrade of an L4
+        # scope is still asked for the human approval L3 means.
+        if context.effective_level == 3 and not approval_verified:
+            return EvaluatedPolicyDecision(False, PolicyReason.HUMAN_APPROVAL.value, "local-reference")
+        if int(policy.level) >= 4 and request.error_budget_remaining <= 0:
+            return EvaluatedPolicyDecision(False, PolicyReason.ERROR_BUDGET.value, "local-reference")
+        # Mirrors the l4_certification rules in the rego bundle, so an L4 policy
+        # is still asked for a certification it cannot produce.
+        denial = certification_denial(context)
+        if denial is not None:
+            return EvaluatedPolicyDecision(False, denial, "local-reference")
+        if not control.audit_available:
+            return EvaluatedPolicyDecision(False, PolicyReason.AUDIT_UNAVAILABLE.value, "local-reference")
+        if not control.verification_defined:
+            return EvaluatedPolicyDecision(False, PolicyReason.VERIFICATION_UNAVAILABLE.value, "local-reference")
+        return EvaluatedPolicyDecision(True, AUTHORIZED_REASON, "local-reference")
 
 
 def opa_input(
@@ -253,61 +346,6 @@ def opa_input(
             "certification": context.certification.as_input() if context.certification else None,
         }
     }
-
-
-class LocalReferenceEvaluator:
-    """Offline/CI reference evaluator matching the policy contract.
-
-    It exists for deterministic tests and disconnected demos. Production should
-    set EIP_REQUIRE_OPA=true and inject OpaPolicyClient.
-    """
-
-    def evaluate(
-        self,
-        *,
-        runbook: Runbook,
-        policy: ServiceAutonomy,
-        request: ActionRequest,
-        approval_verified: bool,
-        control: PolicyControlState,
-        autonomy: AutonomyContext | None = None,
-    ) -> EvaluatedPolicyDecision:
-        # Keep the exact evaluation order in the Rego bundle. The reason is
-        # part of the authorization contract: a later unsafe condition must
-        # not replace the first deterministic refusal an operator receives.
-        if policy.kill_switch:
-            return EvaluatedPolicyDecision(False, "service kill switch is enabled", "local-reference")
-        if request.service != policy.service or request.environment != policy.environment:
-            return EvaluatedPolicyDecision(False, "request is outside service/environment policy scope", "local-reference")
-        if request.environment not in runbook.environments:
-            return EvaluatedPolicyDecision(False, "runbook is not permitted in this environment", "local-reference")
-        if request.blast_radius > runbook.max_blast_radius or request.blast_radius > policy.max_blast_radius:
-            return EvaluatedPolicyDecision(False, "blast radius exceeds certified limit", "local-reference")
-        if policy.level < runbook.required_level:
-            return EvaluatedPolicyDecision(False, "service autonomy level is below runbook requirement", "local-reference")
-        if runbook.id not in policy.certified_runbooks:
-            return EvaluatedPolicyDecision(False, "runbook is not certified for this service", "local-reference")
-        # A caller that supplies no context is evaluated at its reviewed policy
-        # level; a supplied context cannot lower policy_level below the real one.
-        context = replace(
-            autonomy or AutonomyContext.for_policy(policy), policy_level=int(policy.level)
-        )
-        # Keyed on the *effective* level so the sanctioned L3 downgrade of an L4
-        # scope is still asked for the human approval L3 means.
-        if context.effective_level == 3 and not approval_verified:
-            return EvaluatedPolicyDecision(False, "verified human approval is required", "local-reference")
-        if int(policy.level) >= 4 and request.error_budget_remaining <= 0:
-            return EvaluatedPolicyDecision(False, "error budget exhausted; autonomous mutation disabled", "local-reference")
-        # Mirrors the l4_certification rules in the rego bundle, so an L4 policy
-        # is still asked for a certification it cannot produce.
-        denial = certification_denial(context)
-        if denial is not None:
-            return EvaluatedPolicyDecision(False, denial, "local-reference")
-        if not control.audit_available:
-            return EvaluatedPolicyDecision(False, "audit control unavailable", "local-reference")
-        if not control.verification_defined:
-            return EvaluatedPolicyDecision(False, "verification control unavailable", "local-reference")
-        return EvaluatedPolicyDecision(True, AUTHORIZED_REASON, "local-reference")
 
 
 def as_policy_decision(value: EvaluatedPolicyDecision) -> PolicyDecision:
