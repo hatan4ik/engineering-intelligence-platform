@@ -21,5 +21,7 @@ def test_missing_evaluation_artifact_does_not_stop_the_trusted_publisher():
     assert "id: download_observation" in download_step
     assert "continue-on-error: true" in download_step
     assert "actions/download-artifact" in download_step
+    assert "github-token: ${{ github.token }}" in download_step
+    assert "run-id: ${{ github.event.workflow_run.id }}" in download_step
     assert "EIP_PR_GUARDIAN_RESULT_PATH: shadow-input/pr-guardian-shadow-result.json" in workflow
     assert "python scripts/publish_pr_guardian_shadow.py" in workflow
