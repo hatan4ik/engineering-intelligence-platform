@@ -6,6 +6,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from azure.core.exceptions import AzureError
 from azure.identity import DefaultAzureCredential
 
 from intelligence.incidents import EvidenceEvent, EvidenceKind
@@ -53,16 +54,18 @@ class AzureMonitorEvidenceClient:
             "query": query.kql,
             "timespan": f"{query.start.astimezone(timezone.utc).isoformat()}/{query.end.astimezone(timezone.utc).isoformat()}",
         }).encode()
-        req = urllib.request.Request(
-            url,
-            method="POST",
-            data=payload,
-            headers={
-                "Authorization": f"Bearer {self._token()}",
-                "Content-Type": "application/json",
-            },
-        )
         def send() -> dict[str, object]:
+            # Keep token acquisition inside the same bounded dependency call as
+            # the query: managed identity is an external runtime dependency too.
+            req = urllib.request.Request(
+                url,
+                method="POST",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {self._token()}",
+                    "Content-Type": "application/json",
+                },
+            )
             with urllib.request.urlopen(req, timeout=self.timeout_seconds) as response:
                 raw: object = json.load(response)
             if not isinstance(raw, dict):
@@ -73,7 +76,7 @@ class AzureMonitorEvidenceClient:
             raw = self._dependency.call(send, is_transient=_transient_azure_monitor_error)
         except DependencyUnavailable:
             raise
-        except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as error:
+        except (AzureError, OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as error:
             raise DependencyUnavailable(
                 "azure-monitor-logs", f"request failed: {type(error).__name__}"
             ) from error

@@ -6,6 +6,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Mapping
 
+from azure.core.exceptions import AzureError
 from azure.identity import DefaultAzureCredential
 
 from intelligence.drift import ResourceSnapshot
@@ -55,16 +56,18 @@ class AzureResourceGraphClient:
             "query": query,
             "options": {"resultFormat": "objectArray"},
         }).encode()
-        req = urllib.request.Request(
-            f"https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version={self.api_version}",
-            method="POST",
-            data=payload,
-            headers={
-                "Authorization": f"Bearer {self._token()}",
-                "Content-Type": "application/json",
-            },
-        )
         def send() -> dict[str, object]:
+            # Managed identity is part of this adapter's dependency boundary,
+            # not a precondition that can bypass its bulkhead.
+            req = urllib.request.Request(
+                f"https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version={self.api_version}",
+                method="POST",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {self._token()}",
+                    "Content-Type": "application/json",
+                },
+            )
             with urllib.request.urlopen(req, timeout=self.timeout_seconds) as response:
                 raw: object = json.load(response)
             if not isinstance(raw, dict):
@@ -75,7 +78,7 @@ class AzureResourceGraphClient:
             raw = self._dependency.call(send, is_transient=_transient_resource_graph_error)
         except DependencyUnavailable:
             raise
-        except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as error:
+        except (AzureError, OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as error:
             raise DependencyUnavailable(
                 "azure-resource-graph", f"request failed: {type(error).__name__}"
             ) from error
