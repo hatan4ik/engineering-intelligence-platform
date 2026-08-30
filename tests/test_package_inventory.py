@@ -74,7 +74,7 @@ def test_runtime_manifest_and_project_metadata_describe_the_same_dependencies():
         for dependency in metadata["project"]["dependencies"]
     }
     assert project_dependencies == runtime_dependency_names()
-    assert "azure-servicebus" in project_dependencies
+    assert "azure-servicebus" not in project_dependencies
     assert "pytest" not in project_dependencies
 
     test_dependencies = metadata["project"]["optional-dependencies"]["test"]
@@ -111,4 +111,4 @@ def test_dependency_inventory_reports_runtime_metadata_drift(tmp_path):
     error = dependency_inventory_error(wheel_path)
     assert error is not None
     assert "missing runtime dependencies from wheel:" in error
-    assert "azure-servicebus" in error
+    assert "temporalio" in error
