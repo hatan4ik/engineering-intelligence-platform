@@ -29,6 +29,7 @@ def test_checked_in_baseline_has_the_expected_core_scope_and_tool_versions():
         "intelligence",
         "product",
         "remediation",
+        "resilience",
         "control_plane",
         "state",
         "integrations",
@@ -37,6 +38,12 @@ def test_checked_in_baseline_has_the_expected_core_scope_and_tool_versions():
         ("ruff", "0.16.4"),
         ("mypy", "2.3.1"),
     ]
+
+
+def test_mypy_unused_ignore_warnings_are_part_of_the_quality_ratchet():
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert "warn_unused_ignores = true" in pyproject
 
 
 def test_dynamic_typing_count_uses_python_not_prose_or_comments(tmp_path, monkeypatch):

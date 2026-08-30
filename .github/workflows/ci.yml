@@ -28,6 +28,8 @@ jobs:
       - name: Validate runtime capability contract
         run: python scripts/verify_runtime_capability_contract.py --check-rendered
       - run: pytest -q
+      - name: Kill targeted dependency-boundary mutants
+        run: python scripts/verify_targeted_mutations.py
       - name: Enforce non-increasing static-analysis debt
         run: python scripts/verify_static_analysis_baseline.py
       - name: Verify distributable package inventory

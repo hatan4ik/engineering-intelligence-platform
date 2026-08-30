@@ -24,13 +24,13 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 from remediation.catalog import AutonomyLevel, Runbook
 from remediation.policy import ActionRequest, ServiceAutonomy
 from resilience.exercises import ExerciseKind, ExerciseResult, certification_from_exercises
 from resilience.policy import AutonomyCertification
-from resilience.scope import CertificationScope, parse_instant
+from resilience.scope import CertificationScope, JsonValue, parse_instant
 
 if TYPE_CHECKING:  # pragma: no cover - typing only; ``validation`` is not shipped.
     from validation.evidence_records import EvidenceRecord
@@ -227,7 +227,7 @@ class L4CertificationRecord:
     issued_by: str
     evidence_ids: tuple[str, ...] = ()
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> dict[str, JsonValue]:
         return {
             "scope": self.scope.canonical(),
             "scope_hash": self.scope_hash,
@@ -240,23 +240,67 @@ class L4CertificationRecord:
         }
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "L4CertificationRecord":
-        scope = payload["scope"]
+    def from_dict(cls, payload: Mapping[str, object]) -> "L4CertificationRecord":
+        """Parse a persisted record without coercing malformed JSON into authority.
+
+        This is an execution-boundary DTO: a malformed certificate must fail
+        closed instead of turning arbitrary values into strings or iterating a
+        string as ``evidence_ids``.
+        """
+
+        scope = _required_mapping(payload, "scope")
         return cls(
             scope=CertificationScope(
-                service=str(scope["service"]),
-                environment=str(scope["environment"]),
-                runbook_id=str(scope["runbook_id"]),
-                blast_radius_budget=int(scope["blast_radius_budget"]),
+                service=_required_text(scope, "service"),
+                environment=_required_text(scope, "environment"),
+                runbook_id=_required_text(scope, "runbook_id"),
+                blast_radius_budget=_required_positive_int(scope, "blast_radius_budget"),
             ),
-            scope_hash=str(payload["scope_hash"]),
-            inputs_hash=str(payload["inputs_hash"]),
-            exercises_digest=str(payload["exercises_digest"]),
-            issued_on=str(payload["issued_on"]),
-            expires_on=str(payload["expires_on"]),
-            issued_by=str(payload["issued_by"]),
-            evidence_ids=tuple(str(item) for item in payload.get("evidence_ids", ())),
+            scope_hash=_required_text(payload, "scope_hash"),
+            inputs_hash=_required_text(payload, "inputs_hash"),
+            exercises_digest=_required_text(payload, "exercises_digest"),
+            issued_on=_required_text(payload, "issued_on"),
+            expires_on=_required_text(payload, "expires_on"),
+            issued_by=_required_text(payload, "issued_by"),
+            evidence_ids=_optional_text_list(payload, "evidence_ids"),
         )
+
+
+def _required_mapping(payload: Mapping[str, object], field: str) -> Mapping[str, object]:
+    value = _required_value(payload, field)
+    if not isinstance(value, Mapping):
+        raise ValueError(f"L4 certification record {field} must be an object")
+    return value
+
+
+def _required_text(payload: Mapping[str, object], field: str) -> str:
+    value = _required_value(payload, field)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"L4 certification record {field} must be a non-blank string")
+    return value
+
+
+def _required_positive_int(payload: Mapping[str, object], field: str) -> int:
+    value = _required_value(payload, field)
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"L4 certification record {field} must be a positive integer")
+    return value
+
+
+def _optional_text_list(payload: Mapping[str, object], field: str) -> tuple[str, ...]:
+    value = payload.get(field, ())
+    if not isinstance(value, (list, tuple)) or any(
+        not isinstance(item, str) or not item.strip() for item in value
+    ):
+        raise ValueError(f"L4 certification record {field} must be a list of non-blank strings")
+    return tuple(value)
+
+
+def _required_value(payload: Mapping[str, object], field: str) -> object:
+    try:
+        return payload[field]
+    except KeyError as error:
+        raise ValueError(f"L4 certification record is missing {field}") from error
 
 
 def _attests(record: "EvidenceRecord", *, scope: CertificationScope, control: str) -> bool:
