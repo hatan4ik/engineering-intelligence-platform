@@ -46,6 +46,8 @@ production-certified.
 | [`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md) | Target promotion plan | Required sequence and gates |
 | [`APPLICATION-CONFIGURATION.md`](APPLICATION-CONFIGURATION.md) | Current implementation contract | Typed HTTP-process settings, startup validation, and capability composition |
 | [`../architecture/MATURITY-SCORECARD.md`](../architecture/MATURITY-SCORECARD.md) | Current repository assessment | Directional maturity, never production proof |
+| [`reviews/ENGINEERING_REVIEW.md`](reviews/ENGINEERING_REVIEW.md) | Historical review with dated reconciliation | Baseline findings; use its stated revision and reconciliation scope only |
+| [`reviews/ENGINEERING_REVIEW_V2.md`](reviews/ENGINEERING_REVIEW_V2.md) | Current implementation review addendum | Evidence-backed correction to the post-quality-wave draft; not a second scorecard |
 | [`../architecture/ALIGNMENT-REVIEW.md`](../architecture/ALIGNMENT-REVIEW.md) | Historical review | Pre-corrective baseline only |
 | [`architecture-review-2026-08.md`](architecture-review-2026-08.md) | Historical review | Point-in-time assessment only |
 | [`../architecture/faang-multi-cloud-and-on-prem-extensions.md`](../architecture/faang-multi-cloud-and-on-prem-extensions.md) | Target proposal | Multi-cloud and air-gapped target architecture |

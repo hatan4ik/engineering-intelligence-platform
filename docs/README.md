@@ -50,3 +50,5 @@ Welcome to the documentation for the Engineering Intelligence Platform. To preve
 - [Architecture Decision Records (ADRs)](../architecture/adr/)
 - [Alignment Review](../architecture/ALIGNMENT-REVIEW.md)
 - [Pre-Corrective Baseline Review (2026-08)](architecture-review-2026-08.md)
+- [Engineering Review and reconciliation](reviews/ENGINEERING_REVIEW.md)
+- [Post-Quality-Wave Review Addendum](reviews/ENGINEERING_REVIEW_V2.md) — evidence-backed correction, not a second maturity scorecard
