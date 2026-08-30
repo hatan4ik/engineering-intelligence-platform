@@ -9,7 +9,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from app.observability import tracer
 from app.request_context import request_correlation_id
 from feedback.outcome_capture import normalize_github_pr_outcome
-from integrations.github.pr_guardian import normalize_pull_request_event
+from integrations.github.pr_guardian import GitHubAPIError, normalize_pull_request_event
 from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
 from app.settings import SettingsError, settings_for_application
 
@@ -72,7 +72,15 @@ async def github_webhook(
         span.set_attribute("eip.repo", event.repository)
         span.set_attribute("eip.pr", event.number)
         span.set_attribute("eip.delivery_id", x_github_delivery or "")
-        result = await guardian.evaluate(event, correlation_id=correlation_id)
+        try:
+            result = await guardian.evaluate(event, correlation_id=correlation_id)
+        except GitHubAPIError as error:
+            # GitHub delivery retries are safer than pretending the review was
+            # published when its dependency was unavailable.
+            raise HTTPException(
+                status_code=503,
+                detail="PR Guardian cannot reach GitHub; retry the delivery",
+            ) from error
         span.set_attribute("eip.correlation_id", result.correlation_id)
         span.set_attribute("eip.risk_score", result.assessment.score)
     return {

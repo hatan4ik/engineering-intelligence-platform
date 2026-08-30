@@ -15,6 +15,7 @@ from app.gateway import GatewayAuthError, GatewayPolicyError, authorize_request
 from app.observability import tracer
 from app.request_context import request_correlation_id
 from app.settings import ApplicationSettings, SettingsError, settings_for_application
+from resilience.dependencies import DependencyUnavailable
 
 
 router = APIRouter(prefix="/v1", tags=["governed-query"])
@@ -196,7 +197,7 @@ def query(
         span.set_attribute("eip.redacted", question != req.question)
 
         if settings.query.backend == "azure":
-            from app.rag.azure_backend import AzureRagBackend
+            from app.rag.azure_backend import AzureRagBackendFactory
 
             azure_rag = settings.query.azure_rag
             if azure_rag is None:
@@ -205,15 +206,27 @@ def query(
                     detail="Azure backend configuration is unavailable",
                 )
             deployment = azure_rag.deployment_for(model_tier)
-            backend = AzureRagBackend(settings=azure_rag, deployment=deployment)
-            docs = backend.retrieve(
-                question,
-                req.repo,
-                groups,
-                correlation_id=correlation_id,
-                service=req.service,
-                user=user,
-            )
+            factory = getattr(request.app.state, "azure_rag_backends", None)
+            if not isinstance(factory, AzureRagBackendFactory):
+                raise HTTPException(
+                    status_code=503,
+                    detail="Azure Company Brain backend is not composed on this process",
+                )
+            backend = factory.for_model_tier(model_tier)
+            try:
+                docs = backend.retrieve(
+                    question,
+                    req.repo,
+                    groups,
+                    correlation_id=correlation_id,
+                    service=req.service,
+                    user=user,
+                )
+            except DependencyUnavailable as error:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Azure Company Brain dependencies are unavailable; retry the request",
+                ) from error
             evidence = [Evidence(source=document.source, text=document.text, score=document.score) for document in docs]
             if not evidence:
                 return QueryResponse(
@@ -222,14 +235,20 @@ def query(
                     model="none",
                     correlation_id=correlation_id,
                 )
-            answer = backend.synthesize(
-                question,
-                docs,
-                correlation_id=correlation_id,
-                service=req.service,
-                repo=req.repo,
-                user=user,
-            )
+            try:
+                answer = backend.synthesize(
+                    question,
+                    docs,
+                    correlation_id=correlation_id,
+                    service=req.service,
+                    repo=req.repo,
+                    user=user,
+                )
+            except DependencyUnavailable as error:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Azure Company Brain dependencies are unavailable; retry the request",
+                ) from error
             return QueryResponse(
                 answer=answer,
                 evidence=evidence,

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.request_context import request_correlation_id
 from integrations.azure_devops.deployment_failure import normalize_service_hook
+from resilience.dependencies import DependencyUnavailable
 
 from .capability import OperationsCapability
 from .contracts import (
@@ -107,6 +108,11 @@ async def deployment_event(
     correlation_id = request_correlation_id(request)
     try:
         result = await capability.deployment.investigate(event, correlation_id=correlation_id)
+    except DependencyUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="operational evidence dependency is unavailable; retry the event",
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return deployment_report(event, result)
@@ -130,10 +136,16 @@ async def incident_event(
     if not trigger.fired:
         return IgnoredIncidentResponse()
     correlation_id = request_correlation_id(request)
-    result = await capability.incident.investigate(
-        incident_id=trigger.incident_id,
-        service=trigger.service,
-        environment=trigger.environment,
-        correlation_id=correlation_id,
-    )
+    try:
+        result = await capability.incident.investigate(
+            incident_id=trigger.incident_id,
+            service=trigger.service,
+            environment=trigger.environment,
+            correlation_id=correlation_id,
+        )
+    except DependencyUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="operational evidence dependency is unavailable; retry the event",
+        ) from exc
     return incident_report(trigger, result)

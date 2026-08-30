@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Mapping
 
+from azure.core.exceptions import AzureError
 from azure.identity import DefaultAzureCredential
 
 from intelligence.drift import ResourceSnapshot
+from resilience.dependencies import DependencyBoundary, DependencyLimits, DependencyUnavailable
 
 
 @dataclass(frozen=True)
@@ -28,10 +31,19 @@ class AzureResourceGraphClient:
         subscriptions: tuple[str, ...],
         credential: DefaultAzureCredential | None = None,
         api_version: str = "2022-10-01",
+        timeout_seconds: float = 30.0,
+        dependency: DependencyBoundary | None = None,
     ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
         self.subscriptions = subscriptions
         self.credential = credential or DefaultAzureCredential()
         self.api_version = api_version
+        self.timeout_seconds = timeout_seconds
+        self._dependency = dependency or DependencyBoundary(
+            "azure-resource-graph",
+            DependencyLimits(max_in_flight=4, failure_threshold=3, recovery_seconds=30),
+        )
 
     def _token(self) -> str:
         return self.credential.get_token("https://management.azure.com/.default").token
@@ -44,17 +56,33 @@ class AzureResourceGraphClient:
             "query": query,
             "options": {"resultFormat": "objectArray"},
         }).encode()
-        req = urllib.request.Request(
-            f"https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version={self.api_version}",
-            method="POST",
-            data=payload,
-            headers={
-                "Authorization": f"Bearer {self._token()}",
-                "Content-Type": "application/json",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=30) as response:
-            return json.load(response)
+        def send() -> dict[str, object]:
+            # Managed identity is part of this adapter's dependency boundary,
+            # not a precondition that can bypass its bulkhead.
+            req = urllib.request.Request(
+                f"https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version={self.api_version}",
+                method="POST",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {self._token()}",
+                    "Content-Type": "application/json",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as response:
+                raw: object = json.load(response)
+            if not isinstance(raw, dict):
+                raise ValueError("Azure Resource Graph response must be a JSON object")
+            return {str(key): value for key, value in raw.items()}
+
+        try:
+            raw = self._dependency.call(send, is_transient=_transient_resource_graph_error)
+        except DependencyUnavailable:
+            raise
+        except (AzureError, OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as error:
+            raise DependencyUnavailable(
+                "azure-resource-graph", f"request failed: {type(error).__name__}"
+            ) from error
+        return raw
 
     def observed_by_id(self, resource_ids: tuple[str, ...], *, properties: tuple[str, ...]) -> dict[str, dict[str, object]]:
         if not resource_ids:
@@ -129,3 +157,11 @@ def _safe_alias(value: str) -> str:
 
 def _kusto_string(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
+
+
+def _transient_resource_graph_error(error: Exception) -> bool:
+    """Classify only transport, throttle, service, or response-shape failures."""
+
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or error.code >= 500
+    return isinstance(error, (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError))

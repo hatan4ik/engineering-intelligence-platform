@@ -83,6 +83,15 @@ def configure_capabilities(app: FastAPI, settings: ApplicationSettings) -> tuple
         app.state.pr_guardian = _build_shadow_pr_guardian(settings.pr_guardian)
         configured.append("pr_guardian")
 
+    if settings.query.backend == "azure":
+        azure_rag = settings.query.azure_rag
+        if azure_rag is None:
+            raise RuntimeError("Azure query settings were not validated before composition")
+        from app.rag.azure_backend import AzureRagBackendFactory
+
+        app.state.azure_rag_backends = AzureRagBackendFactory(azure_rag)
+        configured.append("azure_rag_backends")
+
     # Operational intelligence (L1 analysis + L2 proposals) is enabled by the
     # presence of any of its variables; an incomplete set raises here rather than
     # answering 503 forever. The capability factory owns that validation.

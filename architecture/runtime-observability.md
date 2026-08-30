@@ -61,3 +61,14 @@ trace headers nor correlation headers grant access or change a policy decision.
 The next operational step is collector/dashboard wiring and a retained
 trace-to-audit reconciliation record for a named environment. Do not infer
 that evidence from the unit tests or response headers.
+
+## Dependency failure boundary
+
+Synchronous runtime integrations use explicit timeouts plus a per-process
+bulkhead/circuit breaker. The boundary never applies a generic retry, because
+it cannot establish that a publication or remediation-related call is
+idempotent. The exact covered adapters, thresholds, safe HTTP/policy behavior,
+and deliberately unimplemented fleet-wide controls are in the
+[Runtime Dependency Resilience Contract](../docs/DEPENDENCY-RESILIENCE.md).
+That source-level contract is not an operational latency, availability, or
+recovery claim.
