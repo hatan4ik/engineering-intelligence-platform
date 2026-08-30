@@ -32,7 +32,7 @@ class AzureMonitorEvidenceProvider:
                 ts = timestamp.astimezone(timezone.utc)
             else:
                 ts = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00")).astimezone(timezone.utc)
-            severity = int(row.get("SeverityLevel") or 1)
+            severity = _severity(row.get("SeverityLevel"))
             events.append(
                 EvidenceEvent(
                     id=f"azure-monitor:{incident_id}:{index}",
@@ -46,3 +46,18 @@ class AzureMonitorEvidenceProvider:
                 )
             )
         return events
+
+
+def _severity(value: object) -> int:
+    """Normalize the loosely typed Azure Monitor severity field to 1..5."""
+
+    if isinstance(value, bool):
+        return 1
+    if isinstance(value, int):
+        return max(1, min(5, value))
+    if isinstance(value, str):
+        try:
+            return max(1, min(5, int(value)))
+        except ValueError:
+            return 1
+    return 1

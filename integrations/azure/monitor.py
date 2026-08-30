@@ -5,8 +5,6 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Iterable
-
 from azure.identity import DefaultAzureCredential
 
 from intelligence.incidents import EvidenceEvent, EvidenceKind
@@ -50,7 +48,10 @@ class AzureMonitorEvidenceClient:
             },
         )
         with urllib.request.urlopen(req, timeout=30) as response:
-            return json.load(response)
+            raw: object = json.load(response)
+        if not isinstance(raw, dict):
+            raise RuntimeError("Azure Monitor query response must be a JSON object")
+        return {str(key): value for key, value in raw.items()}
 
     def query(self, query: AzureMonitorQuery) -> list[EvidenceEvent]:
         payload = self._post(query)
@@ -121,8 +122,15 @@ def _kind(value: str) -> EvidenceKind:
 
 
 def _severity(value: object) -> int:
-    try:
-        raw = int(value) if value is not None else 1
-    except (TypeError, ValueError):
+    if isinstance(value, bool) or value is None:
+        return 1
+    if isinstance(value, int):
+        raw = value
+    elif isinstance(value, str):
+        try:
+            raw = int(value)
+        except ValueError:
+            return 1
+    else:
         return 1
     return max(1, min(5, raw))
