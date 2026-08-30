@@ -11,7 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .catalog import AutonomyLevel, Runbook, default_catalog
-from .opa_policy import AutonomyContext, CertificationClaim, PolicyControlState
+from .opa_policy import AutonomyContext, CertificationClaim, PolicyControlState, opa_input
+from .policy_contract import PolicyReason, RegoDenyBranch, branch_requirement
 from .policy import ActionRequest, ServiceAutonomy
 
 
@@ -28,6 +29,23 @@ class PolicyConformanceCase:
     autonomy: AutonomyContext
     allowed: bool
     reason: str
+    branch: RegoDenyBranch | None
+
+
+@dataclass(frozen=True)
+class RawPolicyConformanceCase:
+    """A malformed wire-level input that has no valid domain-object form.
+
+    ``input`` is the object below the OPA envelope's ``input`` key.  These
+    cases close the small but important gap that typed domain constructors
+    intentionally make unrepresentable.
+    """
+
+    name: str
+    input: dict[str, object]
+    allowed: bool
+    reason: str
+    branch: RegoDenyBranch
 
 
 def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
@@ -93,7 +111,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l3_context,
             True,
-            "authorized by OPA remediation policy",
+            PolicyReason.AUTHORIZED.value,
         ),
         _case(
             "kill-switch-precedes-all-other-failures",
@@ -104,7 +122,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(audit_available=False),
             l3_context,
             False,
-            "service kill switch is enabled",
+            PolicyReason.KILL_SWITCH.value,
         ),
         _case(
             "scope-service",
@@ -115,7 +133,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l3_context,
             False,
-            "request is outside service/environment policy scope",
+            PolicyReason.OUTSIDE_SCOPE.value,
         ),
         _case(
             "scope-environment",
@@ -126,7 +144,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l3_context,
             False,
-            "request is outside service/environment policy scope",
+            PolicyReason.OUTSIDE_SCOPE.value,
         ),
         _case(
             "runbook-environment",
@@ -137,7 +155,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l3_context,
             False,
-            "runbook is not permitted in this environment",
+            PolicyReason.RUNBOOK_ENVIRONMENT.value,
         ),
         _case(
             "runbook-blast-radius",
@@ -148,7 +166,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l3_context,
             False,
-            "blast radius exceeds certified limit",
+            PolicyReason.BLAST_RADIUS.value,
         ),
         _case(
             "service-blast-radius",
@@ -159,7 +177,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l3_context,
             False,
-            "blast radius exceeds certified limit",
+            PolicyReason.BLAST_RADIUS.value,
         ),
         _case(
             "autonomy-level",
@@ -170,7 +188,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l3_context,
             False,
-            "service autonomy level is below runbook requirement",
+            PolicyReason.AUTONOMY_LEVEL.value,
         ),
         _case(
             "runbook-certification",
@@ -181,7 +199,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l3_context,
             False,
-            "runbook is not certified for this service",
+            PolicyReason.RUNBOOK_CERTIFICATION.value,
         ),
         _case(
             "l3-human-approval",
@@ -192,7 +210,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l3_context,
             False,
-            "verified human approval is required",
+            PolicyReason.HUMAN_APPROVAL.value,
         ),
         _case(
             "l4-error-budget",
@@ -203,7 +221,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(audit_available=False),
             l4_context,
             False,
-            "error budget exhausted; autonomous mutation disabled",
+            PolicyReason.ERROR_BUDGET.value,
         ),
         _case(
             "l4-certification-absent",
@@ -214,7 +232,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             replace(l4_context, certification=None),
             False,
-            "l4-certification: no certification record for this L4 scope",
+            PolicyReason.CERTIFICATION_ABSENT.value,
         ),
         _case(
             "l4-evaluation-time-unreadable",
@@ -225,7 +243,21 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             replace(l4_context, now="not-a-time"),
             False,
-            "l4-certification: request carries no readable evaluation time",
+            PolicyReason.EVALUATION_TIME_UNREADABLE.value,
+        ),
+        _case(
+            "l4-certification-expiry-unreadable",
+            l4_runbook,
+            l4_policy,
+            l4_request,
+            True,
+            PolicyControlState(),
+            replace(
+                l4_context,
+                certification=replace(valid_claim, expires_on="not-a-time"),
+            ),
+            False,
+            PolicyReason.CERTIFICATION_EXPIRY_UNREADABLE.value,
         ),
         _case(
             "l4-certification-expired",
@@ -239,7 +271,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
                 certification=replace(valid_claim, expires_on="2026-08-27T00:00:00+00:00"),
             ),
             False,
-            "l4-certification: certification has expired",
+            PolicyReason.CERTIFICATION_EXPIRED.value,
         ),
         _case(
             "l4-scope-missing",
@@ -250,7 +282,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             replace(l4_context, scope_hash=""),
             False,
-            "l4-certification: request carries no scope hash",
+            PolicyReason.SCOPE_MISSING.value,
         ),
         _case(
             "l4-scope-mismatch",
@@ -261,7 +293,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             replace(l4_context, scope_hash="scope-b"),
             False,
-            "l4-certification: record scope_hash does not match the requested scope",
+            PolicyReason.SCOPE_MISMATCH.value,
         ),
         _case(
             "l4-inputs-hash-missing",
@@ -272,7 +304,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             replace(l4_context, certification=replace(valid_claim, inputs_hash="")),
             False,
-            "l4-certification: certification carries no material-inputs hash",
+            PolicyReason.INPUTS_HASH_MISSING.value,
         ),
         _case(
             "audit-control-after-safety-and-certification",
@@ -283,7 +315,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(audit_available=False, verification_defined=False),
             l4_context,
             False,
-            "audit control unavailable",
+            PolicyReason.AUDIT_UNAVAILABLE.value,
         ),
         _case(
             "verification-control",
@@ -294,7 +326,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(verification_defined=False),
             l4_context,
             False,
-            "verification control unavailable",
+            PolicyReason.VERIFICATION_UNAVAILABLE.value,
         ),
         _case(
             "authorized-l4",
@@ -305,7 +337,7 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             l4_context,
             True,
-            "authorized by OPA remediation policy",
+            PolicyReason.AUTHORIZED.value,
         ),
         _case(
             "l4-supervised-downgrade-still-requires-approval",
@@ -316,7 +348,49 @@ def remediation_policy_conformance_cases() -> tuple[PolicyConformanceCase, ...]:
             PolicyControlState(),
             replace(l4_context, autonomy_level="L3", certification=None),
             False,
-            "verified human approval is required",
+            PolicyReason.HUMAN_APPROVAL.value,
+        ),
+)
+
+
+def raw_remediation_policy_conformance_cases() -> tuple[RawPolicyConformanceCase, ...]:
+    """Return policy inputs rejected before valid domain objects can exist."""
+
+    authorized_l3 = next(
+        case for case in remediation_policy_conformance_cases() if case.name == "authorized-l3"
+    )
+    payload = opa_input(
+        runbook=authorized_l3.runbook,
+        policy=authorized_l3.policy,
+        request=authorized_l3.request,
+        approval_verified=authorized_l3.approval_verified,
+        control=authorized_l3.control,
+        autonomy=authorized_l3.autonomy,
+    )
+    raw = payload["input"]
+    if not isinstance(raw, dict):  # Defensive: opa_input is a public wire contract.
+        raise RuntimeError("OPA input builder returned a non-object input")
+    policy = raw.get("policy")
+    if not isinstance(policy, dict):
+        raise RuntimeError("OPA input builder returned a non-object policy")
+    requirement = branch_requirement("policy-level-missing")
+    if requirement is None:  # Keep the corpus coupled to the branch manifest.
+        raise RuntimeError("policy-level branch requirement is absent")
+    missing_level = {key: value for key, value in policy.items() if key != "level"}
+    return (
+        RawPolicyConformanceCase(
+            name="policy-level-missing",
+            input={**raw, "policy": missing_level},
+            allowed=False,
+            reason=requirement.reason.value,
+            branch=requirement.branch,
+        ),
+        RawPolicyConformanceCase(
+            name="policy-level-non-numeric",
+            input={**raw, "policy": {**policy, "level": "4"}},
+            allowed=False,
+            reason=requirement.reason.value,
+            branch=requirement.branch,
         ),
     )
 
@@ -332,6 +406,11 @@ def _case(
     allowed: bool,
     reason: str,
 ) -> PolicyConformanceCase:
+    requirement = branch_requirement(name)
+    if requirement is not None and reason != requirement.reason.value:
+        raise ValueError(
+            f"{name}: expected reason must match {requirement.branch.value} contract branch"
+        )
     return PolicyConformanceCase(
         name=name,
         runbook=runbook,
@@ -342,4 +421,5 @@ def _case(
         autonomy=autonomy,
         allowed=allowed,
         reason=reason,
+        branch=requirement.branch if requirement is not None else None,
     )

@@ -208,9 +208,13 @@ undefined value silently skips a rule rather than failing it:
   the kill switch, with `service autonomy policy carries no reviewed level`. OPA cannot recompute the material-inputs hash — it would
 have to reproduce the executor's canonical JSON of the runbook definition — so it
 checks that one is present and bound to the right scope, and the executor
-compares the value. `LocalReferenceEvaluator` mirrors the same rules so the
-offline reference and the authoritative bundle cannot drift; `opa test /policy`
-covers the allow and deny cases in CI.
+compares the value. `LocalReferenceEvaluator` mirrors the same rules for
+offline/reference use. CI runs `opa test /policy` and
+`verify_remediation_policy_conformance.py`; the latter sends every named Rego
+deny branch through both evaluators and includes malformed wire-level cases
+(`policy.level` missing or non-numeric) that valid domain objects deliberately
+cannot represent. It asserts the exact allow/deny result and reason, so a
+one-sided policy edit fails the build.
 
 ## The kill switch
 

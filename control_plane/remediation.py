@@ -4,6 +4,8 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass, replace
+from enum import StrEnum
+from typing import assert_never
 
 from orchestration.approvals import Approval, verify_approval
 from state.audit import AuditLog
@@ -14,6 +16,37 @@ from state.store import StateStore
 def _hash(value: object) -> str:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
     return "sha256:" + hashlib.sha256(payload.encode()).hexdigest()
+
+
+class RemediationTerminalStatus(StrEnum):
+    """The only terminal results an execution boundary may persist."""
+
+    BLOCKED = "blocked"
+    DENIED = "denied"
+    SUCCEEDED = "succeeded"
+    ROLLED_BACK = "rolled_back"
+    ESCALATE = "escalate"
+    FAILED = "failed"
+
+
+def workflow_status_for_terminal(status: RemediationTerminalStatus) -> WorkflowStatus:
+    """Map every typed remediation result to an authoritative workflow state."""
+
+    match status:
+        case RemediationTerminalStatus.SUCCEEDED:
+            return WorkflowStatus.SUCCEEDED
+        case RemediationTerminalStatus.ROLLED_BACK:
+            return WorkflowStatus.ROLLED_BACK
+        case RemediationTerminalStatus.ESCALATE:
+            return WorkflowStatus.ESCALATED
+        case (
+            RemediationTerminalStatus.BLOCKED
+            | RemediationTerminalStatus.DENIED
+            | RemediationTerminalStatus.FAILED
+        ):
+            return WorkflowStatus.FAILED
+        case unreachable:
+            assert_never(unreachable)
 
 
 @dataclass(frozen=True)
@@ -91,16 +124,18 @@ class RemediationWorkflows:
         ))
         return updated
 
-    def finish(self, *, workflow_id: str, status: str, execution_ref: str | None, rollback_ref: str | None) -> WorkflowRecord:
+    def finish(
+        self,
+        *,
+        workflow_id: str,
+        status: RemediationTerminalStatus,
+        execution_ref: str | None,
+        rollback_ref: str | None,
+    ) -> WorkflowRecord:
         workflow = self.store.get_workflow(workflow_id)
         if workflow is None:
             raise ValueError("remediation workflow not found")
-        target = {
-            "succeeded": WorkflowStatus.SUCCEEDED,
-            "rolled_back": WorkflowStatus.ROLLED_BACK,
-            "escalate": WorkflowStatus.ESCALATED,
-            "denied": WorkflowStatus.FAILED,
-        }.get(status, WorkflowStatus.FAILED)
+        target = workflow_status_for_terminal(status)
         updated = self.store.put_workflow(replace(workflow, status=target), expected_version=workflow.version)
         self.audit.append(AuditEvent(
             event_id=f"{workflow_id}:result:{updated.version}",
@@ -108,6 +143,6 @@ class RemediationWorkflows:
             actor="agent:remediation-executor",
             action="finish-remediation",
             resource=workflow_id,
-            payload={"status": status, "execution_ref": execution_ref, "rollback_ref": rollback_ref},
+            payload={"status": status.value, "execution_ref": execution_ref, "rollback_ref": rollback_ref},
         ))
         return updated

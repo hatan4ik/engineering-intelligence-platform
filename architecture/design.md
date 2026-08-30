@@ -338,7 +338,7 @@ Crucially, new AI agents or prompt modifications are never deployed directly to 
 | Model hosting | Enterprise API (Azure OpenAI) under tenant isolation | Self-hosted open-weights on bare metal | Zero-retention enterprise terms give the IP guarantee without the GPU estate and MLOps burden; the RAG plane, not the model, is the differentiator |
 | Retrieval store | Azure AI Search (hybrid BM25 + vector + semantic rerank) | pgvector | Managed security trimming, semantic ranking, and Entra integration outweigh portability; the `Index` protocol keeps pgvector possible |
 | Risk authority | Deterministic, explainable scoring | LLM-judged risk | A merge gate must be reproducible, auditable, and immune to prompt injection; the LLM contributes evidence, not the verdict |
-| Mutation policy | Typed in-code policy converging on OPA as the single decision service | Prose runbooks + human judgment only | Policy-as-code is testable and versioned; OPA convergence is tracked work — the current Python/OPA duplication is a known defect, not a design choice |
+| Mutation policy | OPA as the authoritative decision service; typed local reference evaluator for offline/CI conformance | Prose runbooks + human judgment only | Policy-as-code is versioned; a shared adversarial corpus evaluates every named Rego deny branch through both the authoritative bundle and the local reference, including malformed wire-level inputs that domain types reject |
 | Local durability | SQLite implementations of production contracts | Mocks, or cloud services required for tests | Real concurrency/durability semantics in CI; production adapters (Temporal/PostgreSQL) implement the same interfaces |
 | Autonomy | Bounded L4 ceiling, per-runbook certification | L5 general autonomy | Blast radius of a wrong mutation is unbounded; evidence-gated autonomy is the product's core trust claim |
 
@@ -352,9 +352,10 @@ Tracked honestly; grades and queue live in the
    risk is rollout: every ingress must require the gateway path, and on-behalf-of flows and
    group-to-ACL mapping against real Entra groups still need production hardening.
 2. **Policy parity** — OPA is the authoritative, fail-closed decision adapter for
-   remediation (`remediation/opa_policy.py`); the residual risk is drift between the local
-   reference evaluator used in CI and the deployed Rego bundle — parity tests between the
-   two are the control.
+   remediation (`remediation/opa_policy.py`); the shared conformance corpus exercises each
+   named Rego deny branch and raw wire-level rejection through both OPA and the local
+   reference evaluator. The residual risk is bundle distribution/version-promotion operations,
+   not an untested hand-synced decision vocabulary.
 3. **Retrieval quality is implemented but not yet gated** — hybrid BM25 + vector retrieval
    with ACL filtering exists (`ingestion/vector_search.py`); recall/precision claims should
    still wait on the evaluation harness gating index and chunking changes in CI.

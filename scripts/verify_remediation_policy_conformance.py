@@ -21,7 +21,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from remediation.opa_policy import LocalReferenceEvaluator, OpaPolicyClient
-from remediation.policy_conformance import remediation_policy_conformance_cases
+from remediation.policy_conformance import (
+    raw_remediation_policy_conformance_cases,
+    remediation_policy_conformance_cases,
+)
+from remediation.policy_contract import REGO_DENY_BRANCH_REQUIREMENTS
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,8 +35,20 @@ def main(argv: list[str] | None = None) -> int:
 
     authoritative = OpaPolicyClient(args.opa_endpoint)
     local = LocalReferenceEvaluator()
+    typed_cases = remediation_policy_conformance_cases()
+    raw_cases = raw_remediation_policy_conformance_cases()
     failures: list[str] = []
-    for case in remediation_policy_conformance_cases():
+    required_branches = {requirement.branch for requirement in REGO_DENY_BRANCH_REQUIREMENTS}
+    covered_branches = {
+        case.branch for case in typed_cases if case.branch is not None
+    } | {case.branch for case in raw_cases}
+    if covered_branches != required_branches:
+        failures.append(
+            "branch corpus mismatch: "
+            f"missing={sorted(required_branches - covered_branches)!r}; "
+            f"unexpected={sorted(covered_branches - required_branches)!r}"
+        )
+    for case in typed_cases:
         kwargs = {
             "runbook": case.runbook,
             "policy": case.policy,
@@ -51,13 +67,24 @@ def main(argv: list[str] | None = None) -> int:
                 f"{case.name}: expected {expected!r}; OPA={actual_opa!r}; "
                 f"local={actual_reference!r}"
             )
+    for case in raw_cases:
+        opa = authoritative.evaluate_input({"input": case.input})
+        reference = local.evaluate_input(case.input)
+        expected = (case.allowed, case.reason)
+        actual_opa = (opa.allowed, opa.reason)
+        actual_reference = (reference.allowed, reference.reason)
+        if actual_opa != expected or actual_reference != expected:
+            failures.append(
+                f"{case.name}: expected {expected!r}; OPA={actual_opa!r}; "
+                f"local={actual_reference!r}"
+            )
     if failures:
         print("remediation policy conformance failed:")
         print("\n".join(f"- {failure}" for failure in failures))
         return 1
     print(
         "remediation policy conformance verified for "
-        f"{len(remediation_policy_conformance_cases())} cases"
+        f"{len(typed_cases)} typed and {len(raw_cases)} wire-boundary cases"
     )
     return 0
 
