@@ -15,14 +15,14 @@ ban on `Any`; it is to narrow data immediately, make public contracts explicit, 
 static-analysis debt from growing while the existing code is improved.
 
 The baseline currently covers the product and control-path packages: `app`, `company_brain`,
-`intelligence`, `product`, `remediation`, `control_plane`, `state`, and `integrations`. It
+`intelligence`, `product`, `remediation`, `resilience`, `control_plane`, `state`, and `integrations`. It
 intentionally does not claim that every package or external SDK is fully type-checked yet.
 
 ## Ratchet
 
 `requirements/static-analysis-baseline.json` pins tool versions, selected package scope, and the
 maximum count for each check. The CI command runs Ruff's import/name correctness rules, mypy with
-explicit package bases, and an AST-based count of real `Any` uses and `# type: ignore` comments
+explicit package bases and unused-ignore warnings, and an AST-based count of real `Any` uses and `# type: ignore` comments
 (not prose, strings, or an unused import). A change may reduce a ceiling only together with its observed result; it may never
 raise one casually.
 
@@ -43,8 +43,8 @@ operational evidence record.
    outcomes should use explicit result models or discriminated states, not open dictionary shapes.
 3. A new `Any` or `# type: ignore` in the scoped packages is a ratchet regression. Eliminate it,
    narrow it at the boundary, or make a separately reviewed baseline reduction/exception decision.
-4. Run mypy with `explicit_package_bases` so valid implicit-namespace packages are checked without
-   requiring mechanical `__init__.py` marker files.
+4. Run mypy with `explicit_package_bases` and `warn_unused_ignores` so valid implicit-namespace
+   packages are checked without requiring mechanical `__init__.py` marker files and stale suppressions fail.
 5. Add stricter Ruff rules, a second type checker, or a wider scope only after measuring their
    starting debt in a separate, reviewable baseline change.
 

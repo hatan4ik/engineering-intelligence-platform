@@ -62,3 +62,4 @@ explicit_package_bases = true
 follow_imports = "silent"
 ignore_missing_imports = true
 warn_unused_configs = true
+warn_unused_ignores = true

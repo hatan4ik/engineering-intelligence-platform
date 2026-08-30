@@ -180,7 +180,9 @@ def ruff_error_count(scope: Iterable[str]) -> int:
 def mypy_error_count(scope: Iterable[str]) -> int:
     """Return only mypy errors; notes and summaries are deliberately not debt count."""
 
-    result = _run(["mypy", "--show-error-codes", "--no-error-summary", *scope])
+    result = _run(
+        ["mypy", "--warn-unused-ignores", "--show-error-codes", "--no-error-summary", *scope]
+    )
     return len(ERROR.findall(result.stdout))
 
 

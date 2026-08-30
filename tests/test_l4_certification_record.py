@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
+
 from resilience.certification import L4CertificationRecord, certification_refusal
 from resilience.scope import CertificationScope
 
@@ -72,3 +74,17 @@ def test_every_refusal_names_the_check():
 def test_a_record_round_trips_through_json():
     original = record()
     assert L4CertificationRecord.from_dict(original.as_dict()) == original
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    (
+        ({"scope": {}}, "missing service"),
+        ({**record().as_dict(), "scope": "not-an-object"}, "scope must be an object"),
+        ({**record().as_dict(), "scope": {**SCOPE.canonical(), "blast_radius_budget": "3"}}, "positive integer"),
+        ({**record().as_dict(), "evidence_ids": "not-a-list"}, "list of non-blank strings"),
+    ),
+)
+def test_a_malformed_persisted_record_fails_closed(payload, message):
+    with pytest.raises(ValueError, match=message):
+        L4CertificationRecord.from_dict(payload)

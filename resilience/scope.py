@@ -29,7 +29,14 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
-from typing import Any, Iterable, Mapping
+from typing import Iterable, Mapping, TypeAlias
+
+
+JsonScalar: TypeAlias = str | int | float | bool | None
+"""A scalar value that can appear in the canonical certification payload."""
+
+JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+"""The deliberately small JSON-shaped boundary used by certification hashes."""
 
 
 def parse_instant(value: str) -> datetime | None:
@@ -46,7 +53,7 @@ def parse_instant(value: str) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
-def _canonical(payload: Any) -> str:
+def _canonical(payload: JsonValue) -> str:
     """Canonical JSON: sorted keys, no insignificant whitespace, stable coercion."""
 
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
@@ -56,7 +63,7 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _plain(value: Any) -> Any:
+def _plain(value: object) -> JsonValue:
     """Reduce dataclasses/mappings to plain JSON-comparable structures.
 
     A runbook definition reaches this module either as the ``Runbook`` dataclass
@@ -71,7 +78,12 @@ def _plain(value: Any) -> Any:
         return {str(key): _plain(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_plain(item) for item in value]
-    return value
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    # ``json.dumps(..., default=str)`` was the prior compatibility behaviour
+    # for an unexpected runbook field. Preserve its stable representation while
+    # keeping the hash input JSON-shaped instead of leaking ``Any`` inward.
+    return str(value)
 
 
 @dataclass(frozen=True)
@@ -95,7 +107,7 @@ class CertificationScope:
                 "certification scope blast_radius_budget must be a positive bounded budget"
             )
 
-    def canonical(self) -> dict[str, Any]:
+    def canonical(self) -> dict[str, JsonValue]:
         return {
             "service": str(self.service),
             "environment": str(self.environment),
@@ -116,7 +128,7 @@ class CertificationScope:
     def material_inputs_hash(
         self,
         *,
-        runbook_definition: Any,
+        runbook_definition: object,
         policy_bundle_version: str,
         verification_signal: str,
         dependencies: Iterable[str],
@@ -127,11 +139,11 @@ class CertificationScope:
         in which a caller happened to list them is not.
         """
 
-        payload = {
+        payload: dict[str, JsonValue] = {
             "scope": self.canonical(),
             "runbook_definition": _plain(runbook_definition),
             "policy_bundle_version": str(policy_bundle_version),
             "verification_signal": str(verification_signal),
-            "dependencies": sorted(str(item) for item in dependencies),
+            "dependencies": [_plain(item) for item in sorted(str(item) for item in dependencies)],
         }
         return _sha256(_canonical(payload))

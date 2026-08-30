@@ -73,6 +73,7 @@ production-certified.
 | [`PR-GUARDIAN-SHADOW-REPORT.md`](PR-GUARDIAN-SHADOW-REPORT.md) | Current implementation state | What the shadow report computes and does not authorize |
 | [`PR-GUARDIAN-REPOSITORY-CONFIG.md`](PR-GUARDIAN-REPOSITORY-CONFIG.md) | Current implementation state | Repository-owned modes, waivers, kill switch, threat model |
 | [`TYPE-SAFETY-BASELINE.md`](TYPE-SAFETY-BASELINE.md) | Current implementation-quality contract | Versioned Ruff/mypy/dynamic-typing ratchet for core product and control packages |
+| [`TARGETED-MUTATION-CONTRACT.md`](TARGETED-MUTATION-CONTRACT.md) | Current implementation-quality contract | Source-level mutation gate for named dependency-boundary safety invariants; not production evidence |
 | [`KNOWLEDGE-INGEST-RUNBOOK.md`](KNOWLEDGE-INGEST-RUNBOOK.md) | Current implementation state | Ingestion runner and workflow; Azure path requirements |
 | [`evidence/README.md`](evidence/README.md) | Current evidence contract | The evidence registry; an empty directory means not proven |
 | [`OPERATIONS-INTELLIGENCE-RUNBOOK.md`](OPERATIONS-INTELLIGENCE-RUNBOOK.md) | Current implementation state | L1/L2 routes, secret, evidence modes, what an L2 proposal is not |
