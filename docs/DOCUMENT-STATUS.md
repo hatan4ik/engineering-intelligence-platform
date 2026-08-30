@@ -55,6 +55,7 @@ production-certified.
 | [`../architecture/faang-multi-cloud-and-on-prem-extensions.md`](../architecture/faang-multi-cloud-and-on-prem-extensions.md) | Target proposal | Multi-cloud and air-gapped target architecture |
 | [`../architecture/adr/001-temporal-control-plane.md`](../architecture/adr/001-temporal-control-plane.md) | Current design | Decision record mandating Temporal control plane |
 | [`../architecture/adr/002-prompt-injection-and-caching.md`](../architecture/adr/002-prompt-injection-and-caching.md) | Target proposal | Proposed decision for guardrails and caching |
+| [`../architecture/adr/003-company-brain-runtime-topology-and-recovery.md`](../architecture/adr/003-company-brain-runtime-topology-and-recovery.md) | Current design | Target Company Brain data ownership, durable topology, and recovery boundaries |
 | [`../roadmap/PROGRAM-BACKLOG.md`](../roadmap/PROGRAM-BACKLOG.md) | Target proposal | Workstream themes; sequencing deferred to the roadmap stages |
 | [`kpi-system.md`](kpi-system.md) | Current design | Metric definitions and measurement basis |
 | [`../governance/operating-model.md`](../governance/operating-model.md) | Current design | Governance roles and cadence |
