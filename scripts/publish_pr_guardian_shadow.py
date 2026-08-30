@@ -33,7 +33,12 @@ from product.architecture_review import (
 from product.pr_guardian.config import load_effective_config
 from product.pr_guardian.contracts import RepositoryConfig
 from product.pr_guardian.enforcement import explain, publishable_conclusion
-from product.pr_guardian_shadow import COMMENT_MARKER, observation_comment, validate_observation
+from product.pr_guardian_shadow import (
+    COMMENT_MARKER,
+    ShadowObservation,
+    observation_comment,
+    validate_observation,
+)
 
 
 CHECK_PREFIX = "Engineering Intelligence / PR Guardian"
@@ -48,7 +53,7 @@ def trusted_observation(
     *,
     repository: str,
     head_sha: str,
-) -> dict[str, object]:
+) -> ShadowObservation:
     """Load the artifact, or refuse it with a reason a human can act on.
 
     Every refusal is an ``UntrustedEvaluation`` rather than a crash, so the
@@ -73,13 +78,12 @@ def trusted_observation(
     except ValueError as exc:
         raise UntrustedEvaluation(f"the evaluation artifact did not validate: {exc}") from exc
     subject = observation["subject"]
-    assert isinstance(subject, Mapping)
     if subject["repository"] != repository:
         raise UntrustedEvaluation(
             "the evaluation artifact names a different repository "
             f"({subject['repository']}) than this workflow ({repository})"
         )
-    if str(subject["head_sha"]).lower() != head_sha.lower():
+    if subject["head_sha"] != head_sha.lower():
         raise UntrustedEvaluation(
             "the evaluation artifact's head SHA does not match the triggering workflow run"
         )
@@ -136,7 +140,6 @@ def publish_observation(
     """Publish the check and sticky comment; return the conclusion used."""
     observation = validate_observation(observation)
     subject = observation["subject"]
-    assert isinstance(subject, Mapping)
     if subject["repository"] != repository:
         raise RuntimeError("observation repository does not match the publisher repository")
     if config.repository != repository:
@@ -153,14 +156,13 @@ def publish_observation(
 
     assessment = observation["assessment"]
     architecture = observation["architecture"]
-    assert isinstance(assessment, Mapping) and isinstance(architecture, Mapping)
-    violations = violations_from_records(architecture["violations"])  # type: ignore[arg-type]
+    violations = violations_from_records(architecture["violations"])
     coverage = coverage_from_records(
         violations,
-        reviewed=int(architecture["reviewed"]),  # type: ignore[arg-type]
-        in_scope=int(architecture["in_scope"]),  # type: ignore[arg-type]
-        skipped=architecture["skipped"],  # type: ignore[arg-type]
-        summary=str(architecture["summary"]),
+        reviewed=architecture["reviewed"],
+        in_scope=architecture["in_scope"],
+        skipped=architecture["skipped"],
+        summary=architecture["summary"],
     )
 
     # One rendering path: observation_comment states the mode's real authority
@@ -178,7 +180,7 @@ def publish_observation(
     # mode should not have an old artifact publish under the old check name.
     client.publish_check(
         repository=repository,
-        head_sha=str(subject["head_sha"]),
+        head_sha=subject["head_sha"],
         name=f"{CHECK_PREFIX} ({config.mode})",
         conclusion=conclusion,
         title=_title(str(config.mode), assessment, conclusion, reason),
@@ -186,7 +188,7 @@ def publish_observation(
     )
     client.publish_sticky_comment(
         repository=repository,
-        pr_number=int(subject["pr_number"]),
+        pr_number=subject["pr_number"],
         marker=COMMENT_MARKER,
         body=body,
     )

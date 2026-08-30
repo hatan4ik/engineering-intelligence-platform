@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from fnmatch import fnmatch
-from typing import Any, Iterable, Mapping, Protocol, Sequence
+from typing import Iterable, Mapping, Protocol, Sequence
 
 from intelligence.architecture_guard import ArchitectureRule, ArchitectureViolation, evaluate_architecture
 
@@ -233,18 +233,32 @@ def violation_records(violations: tuple[ArchitectureViolation, ...]) -> list[dic
     ]
 
 
-def violations_from_records(records: Sequence[Mapping[str, Any]]) -> tuple[ArchitectureViolation, ...]:
+def violations_from_records(records: Sequence[Mapping[str, object]]) -> tuple[ArchitectureViolation, ...]:
     """Rebuild findings a trusted publisher validated, for rendering only."""
     return tuple(
         ArchitectureViolation(
-            rule_id=str(record["rule_id"]),
-            path=str(record["path"]),
-            marker=str(record["marker"]),
-            rationale=str(record["rationale"]),
-            severity=int(record["severity"]),
+            rule_id=_record_text(record, "rule_id"),
+            path=_record_text(record, "path"),
+            marker=_record_text(record, "marker"),
+            rationale=_record_text(record, "rationale"),
+            severity=_record_severity(record),
         )
         for record in records
     )
+
+
+def _record_text(record: Mapping[str, object], field: str) -> str:
+    value = record.get(field)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"architecture violation {field} must be a non-empty string")
+    return value
+
+
+def _record_severity(record: Mapping[str, object]) -> int:
+    value = record.get("severity")
+    if type(value) is not int or not 1 <= value <= 5:
+        raise ValueError("architecture violation severity must be an integer from 1 through 5")
+    return value
 
 
 def architecture_summary_line(coverage: ChangedPathsReview) -> str:
@@ -275,7 +289,7 @@ def coverage_from_records(
     *,
     reviewed: int,
     in_scope: int,
-    skipped: Sequence[Mapping[str, Any]],
+    skipped: Sequence[Mapping[str, object]],
     summary: str,
 ) -> ChangedPathsReview:
     """Rebuild coverage a trusted publisher validated, for rendering only."""
@@ -283,8 +297,6 @@ def coverage_from_records(
         violations=violations,
         in_scope=in_scope,
         reviewed=reviewed,
-        skipped=tuple(
-            SkippedPath(str(item["path"]), str(item["reason"])) for item in skipped
-        ),
+        skipped=tuple(SkippedPath(_record_text(item, "path"), _record_text(item, "reason")) for item in skipped),
         summary=summary,
     )

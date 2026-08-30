@@ -18,7 +18,7 @@ from intelligence.risk_calibration import (
     ScoredOutcome,
     calibrate_high_risk_threshold,
 )
-from product.pr_guardian_shadow import validate_outcome
+from product.pr_guardian_shadow import ShadowOutcome, validate_outcome
 
 CALIBRATION_NOTE = (
     "Threshold changes are reviewed product decisions; this section is a recommendation only."
@@ -35,30 +35,31 @@ _FAILURE_DISPOSITION = next(
 
 
 def build_shadow_report(outcomes: Sequence[Mapping[str, object]]) -> dict[str, object]:
-    records = [validate_outcome(item) for item in outcomes]
-    joined = [record for record in records if record["source_observation"] is not None]
-    reviewed = [
+    records: list[ShadowOutcome] = [validate_outcome(item) for item in outcomes]
+    joined: list[ShadowOutcome] = [record for record in records if record["source_observation"] is not None]
+    reviewed: list[ShadowOutcome] = [
         record for record in joined
-        if record["reviewer_signal"]["risk"] != "not-reviewed"  # type: ignore[index]
+        if record["reviewer_signal"]["risk"] != "not-reviewed"
     ]
     confirmed = [
         record for record in reviewed
-        if record["reviewer_signal"]["risk"] == "confirmed-risk"  # type: ignore[index]
+        if record["reviewer_signal"]["risk"] == "confirmed-risk"
     ]
     useful = sum(
         1 for record in joined
-        if record["reviewer_signal"]["utility"] == "useful"  # type: ignore[index]
+        if record["reviewer_signal"]["utility"] == "useful"
     )
     not_useful = sum(
         1 for record in joined
-        if record["reviewer_signal"]["utility"] == "not-useful"  # type: ignore[index]
+        if record["reviewer_signal"]["utility"] == "not-useful"
     )
     tp = fp = tn = fn = 0
     for record in reviewed:
         source = record["source_observation"]
-        assert isinstance(source, Mapping)
-        would_block = bool(source["would_block"])
-        confirmed_risk = record["reviewer_signal"]["risk"] == "confirmed-risk"  # type: ignore[index]
+        if source is None:
+            continue
+        would_block = source["would_block"]
+        confirmed_risk = record["reviewer_signal"]["risk"] == "confirmed-risk"
         if would_block and confirmed_risk:
             tp += 1
         elif would_block:
@@ -125,7 +126,7 @@ def _next_review(records: Sequence[Mapping[str, object]], failures: Sequence[str
     return "human evidence review of the promotion packet"
 
 
-def _calibration(reviewed: Sequence[Mapping[str, object]]) -> dict[str, object]:
+def _calibration(reviewed: Sequence[ShadowOutcome]) -> dict[str, object]:
     """Recommend high-risk thresholds from reviewer dispositions.
 
     Nothing reads this section: it is a suggestion for a reviewed product
@@ -158,22 +159,21 @@ def _calibration(reviewed: Sequence[Mapping[str, object]]) -> dict[str, object]:
     }
 
 
-def _scored_outcomes(reviewed: Sequence[Mapping[str, object]]) -> list[ScoredOutcome]:
+def _scored_outcomes(reviewed: Sequence[ShadowOutcome]) -> list[ScoredOutcome]:
     outcomes: list[ScoredOutcome] = []
     for record in reviewed:
         source = record["source_observation"]
-        if not isinstance(source, Mapping):
+        if source is None:
             continue
-        disposition = str(record["reviewer_signal"]["risk"])  # type: ignore[index]
+        disposition = record["reviewer_signal"]["risk"]
         if disposition not in _DISPOSITION_FAILED:
             continue
         subject = record["subject"]
-        assert isinstance(subject, Mapping)
         outcomes.append(
             ScoredOutcome(
-                score=int(source["score"]),  # type: ignore[arg-type]
+                score=source["score"],
                 failed=_DISPOSITION_FAILED[disposition],
-                service=str(subject["repository"]),
+                service=subject["repository"],
             )
         )
     return outcomes
