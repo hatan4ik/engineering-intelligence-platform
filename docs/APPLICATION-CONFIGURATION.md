@@ -21,6 +21,9 @@ configurations are refused before serving traffic.
 Embedding hosts and tests can call `create_app(settings)` with an already-built
 record. This is the supported way to make a test configuration explicit; it
 also avoids a test accidentally depending on the developer shell environment.
+An application that has neither entered its lifespan nor received explicit
+settings returns an unavailable response; it never reparses `os.environ` on a
+request path.
 
 ## Safety rules
 
@@ -41,6 +44,10 @@ also avoids a test accidentally depending on the developer shell environment.
   visible as non-secret health-control state.
 - Secrets are excluded from settings' default representation and `/healthz`
   reports capability and safety-control state rather than secret values.
+- The HTTP middleware validates one `X-Correlation-Id` (falling back to a
+  GitHub delivery ID), returns it on the response, and creates a W3C
+  `traceparent` child span. Trace headers are observability metadata only;
+  malformed values are discarded rather than trusted or reflected.
 
 ## Configuration groups
 
@@ -65,6 +72,11 @@ Configuration is a process-start snapshot. A value change takes effect only
 when the ASGI process restarts, unless a separate, documented live-control
 mechanism owns that value. This document does not imply a hot-reload or
 control-plane API.
+
+The non-consequential Temporal evidence workflow can carry the same validated
+W3C trace context in its typed request/result contract. That verifies the
+transport contract, not a deployed cross-process trace export or a production
+SLO; those remain operational-evidence work.
 
 The lifecycle removes settings and capabilities it created if startup fails or
 shuts down. That matters for test isolation and for an embedding host that

@@ -4,7 +4,7 @@ from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.export import MetricReader, PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -23,22 +23,32 @@ def _signal_endpoint(endpoint: str, signal: str) -> str:
 
 
 def configure_tracing(otlp_endpoint: str | None) -> None:
-    """Configure OTLP tracing and metrics once from an explicit bootstrap value."""
+    """Configure tracing and metrics once from an explicit bootstrap value.
+
+    A provider is installed even when OTLP export is disabled.  That preserves
+    valid W3C parent/child trace context across HTTP boundaries in a local or
+    reference process without claiming that it is being exported anywhere.
+    """
 
     global _configured
-    if _configured or otlp_endpoint is None:
+    if _configured:
         return
 
     trace_provider = TracerProvider(resource=_RESOURCE)
-    trace_provider.add_span_processor(
-        BatchSpanProcessor(OTLPSpanExporter(endpoint=_signal_endpoint(otlp_endpoint, "traces")))
-    )
+    if otlp_endpoint is not None:
+        trace_provider.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=_signal_endpoint(otlp_endpoint, "traces")))
+        )
     trace.set_tracer_provider(trace_provider)
 
-    metric_reader = PeriodicExportingMetricReader(
-        OTLPMetricExporter(endpoint=_signal_endpoint(otlp_endpoint, "metrics"))
-    )
-    metrics.set_meter_provider(MeterProvider(resource=_RESOURCE, metric_readers=[metric_reader]))
+    metric_readers: tuple[MetricReader, ...] = ()
+    if otlp_endpoint is not None:
+        metric_readers = (
+            PeriodicExportingMetricReader(
+                OTLPMetricExporter(endpoint=_signal_endpoint(otlp_endpoint, "metrics"))
+            ),
+        )
+    metrics.set_meter_provider(MeterProvider(resource=_RESOURCE, metric_readers=metric_readers))
     _configured = True
 
 

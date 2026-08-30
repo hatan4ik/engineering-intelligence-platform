@@ -8,7 +8,7 @@ from typing import Final
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
-from control_plane.correlation import resolve_correlation_id
+from app.request_context import request_correlation_id
 from integrations.azure_devops.deployment_failure import normalize_service_hook
 
 from .capability import OperationsCapability
@@ -93,7 +93,6 @@ async def json_object(request: Request) -> dict[str, object]:
 async def deployment_event(
     request: Request,
     x_eip_operations_secret: str | None = Header(default=None),
-    x_correlation_id: str | None = Header(default=None),
 ) -> DeploymentInvestigationResponse:
     verify_webhook_secret(
         x_eip_operations_secret,
@@ -103,9 +102,9 @@ async def deployment_event(
     payload = await json_object(request)
     try:
         event = normalize_service_hook(payload)
-        correlation_id = resolve_correlation_id(x_correlation_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    correlation_id = request_correlation_id(request)
     try:
         result = await capability.deployment.investigate(event, correlation_id=correlation_id)
     except ValueError as exc:
@@ -117,7 +116,6 @@ async def deployment_event(
 async def incident_event(
     request: Request,
     x_eip_operations_secret: str | None = Header(default=None),
-    x_correlation_id: str | None = Header(default=None),
 ) -> IncidentInvestigationResponse | IgnoredIncidentResponse:
     verify_webhook_secret(
         x_eip_operations_secret,
@@ -131,10 +129,7 @@ async def incident_event(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not trigger.fired:
         return IgnoredIncidentResponse()
-    try:
-        correlation_id = resolve_correlation_id(x_correlation_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    correlation_id = request_correlation_id(request)
     result = await capability.incident.investigate(
         incident_id=trigger.incident_id,
         service=trigger.service,

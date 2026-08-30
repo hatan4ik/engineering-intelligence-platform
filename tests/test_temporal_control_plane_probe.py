@@ -8,6 +8,7 @@ pytest.importorskip("temporalio")
 from control_plane.runtime import TemporalWorkerSettings
 from orchestration.temporal_client import run_evidence_workflow
 from orchestration.temporal_workflow import ControlPlaneEvidenceResult
+from telemetry.trace_context import TraceContext
 
 
 def settings():
@@ -71,6 +72,7 @@ def test_evidence_client_accepts_the_sdk_json_object_form():
         "workflow_id": "eip-control-plane-evidence:proof-1",
         "request_id": "proof-1",
         "correlation_id": "corr-1",
+        "trace_context": {"traceparent": None, "tracestate": None},
         "capability": "temporal-control-plane-evidence",
         "mutation_performed": False,
     })
@@ -78,3 +80,30 @@ def test_evidence_client_accepts_the_sdk_json_object_form():
         run_evidence_workflow(settings(), request_id="proof-1", correlation_id="corr-1", client=client)
     )
     assert observed.workflow_id == "eip-control-plane-evidence:proof-1"
+
+
+def test_evidence_client_preserves_explicit_trace_context_in_the_workflow_contract():
+    trace_context = TraceContext(
+        traceparent="00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    )
+    result = ControlPlaneEvidenceResult(
+        workflow_id="eip-control-plane-evidence:proof-1",
+        request_id="proof-1",
+        correlation_id="corr-1",
+        trace_context=trace_context,
+    )
+    client = Client(result)
+
+    observed = asyncio.run(
+        run_evidence_workflow(
+            settings(),
+            request_id="proof-1",
+            correlation_id="corr-1",
+            trace_context=trace_context,
+            client=client,
+        )
+    )
+
+    request = client.calls[0][0][1]
+    assert observed.trace_context == trace_context
+    assert request.trace_context == trace_context

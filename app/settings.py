@@ -502,16 +502,17 @@ class ApplicationSettings:
 
 
 def settings_for_application(application: object) -> ApplicationSettings:
-    """Get lifecycle-bound settings, with a test-friendly process fallback.
+    """Get the immutable settings record bound during startup or injection.
 
-    A normally started ASGI process always has the first path.  The fallback
-    preserves direct route tests that intentionally do not enter FastAPI's
-    lifespan; it still keeps environment parsing inside this configuration
-    module rather than distributed through transport code.
+    Serving a request before lifespan startup is an integration error, not an
+    excuse to read a potentially changed process environment.  Tests and
+    embedding hosts can either enter lifespan or pass ``create_app(settings)``.
     """
 
     state = getattr(application, "state", None)
     configured = getattr(state, "eip_settings", None)
     if isinstance(configured, ApplicationSettings):
         return configured
-    return ApplicationSettings.from_environment()
+    raise SettingsError(
+        "application settings are not bound; start the ASGI lifespan or pass explicit settings"
+    )

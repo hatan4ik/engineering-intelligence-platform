@@ -16,9 +16,11 @@ be indistinguishable from the real one at registration time.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from temporalio import workflow
+
+from telemetry.trace_context import TraceContext
 
 
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -31,6 +33,7 @@ class ControlPlaneEvidenceRequest:
 
     request_id: str
     correlation_id: str
+    trace_context: TraceContext = field(default_factory=TraceContext)
 
     def validate(self) -> None:
         if not _REQUEST_ID.fullmatch(self.request_id):
@@ -49,6 +52,7 @@ class ControlPlaneEvidenceResult:
     workflow_id: str
     request_id: str
     correlation_id: str
+    trace_context: TraceContext = field(default_factory=TraceContext)
     capability: str = "temporal-control-plane-evidence"
     mutation_performed: bool = False
 
@@ -64,4 +68,5 @@ class ControlPlaneEvidenceWorkflow:
             workflow_id=workflow.info().workflow_id,
             request_id=request.request_id,
             correlation_id=request.correlation_id,
+            trace_context=request.trace_context,
         )

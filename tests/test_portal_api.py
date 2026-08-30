@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.application import create_app
+from app.settings import ApplicationSettings
 from feedback.store import summarize_feedback
 from finops.live_control_tower import ControlTowerSnapshot
 from portal.intelligence_view import (
@@ -74,21 +75,25 @@ class TrendProvider:
         )
 
 
-def _clear_state():
+def _application():
+    return create_app(ApplicationSettings.from_mapping({}))
+
+
+def _clear_state(application):
     for name in (
         "service_intelligence_provider",
         "portfolio_intelligence_provider",
         "portfolio_trend_provider",
     ):
-        if hasattr(app.state, name):
-            delattr(app.state, name)
+        if hasattr(application.state, name):
+            delattr(application.state, name)
 
 
-def test_service_portal_returns_authorized_view(monkeypatch):
-    monkeypatch.setenv("EIP_REQUIRE_AUTH", "false")
-    _clear_state()
-    app.state.service_intelligence_provider = ServiceProvider()
-    response = TestClient(app).get(
+def test_service_portal_returns_authorized_view():
+    application = _application()
+    _clear_state(application)
+    application.state.service_intelligence_provider = ServiceProvider()
+    response = TestClient(application).get(
         "/v1/portal/services/payments",
         headers={"x-eip-groups": "engineering", "x-eip-user": "developer"},
     )
@@ -96,26 +101,26 @@ def test_service_portal_returns_authorized_view(monkeypatch):
     payload = response.json()
     assert payload["service"] == "payments"
     assert payload["viewer"] == {"subject": "developer", "group_count": 1}
-    _clear_state()
+    _clear_state(application)
 
 
-def test_service_portal_hides_missing_or_unauthorized_service(monkeypatch):
-    monkeypatch.setenv("EIP_REQUIRE_AUTH", "false")
-    _clear_state()
-    app.state.service_intelligence_provider = ServiceProvider()
-    response = TestClient(app).get(
+def test_service_portal_hides_missing_or_unauthorized_service():
+    application = _application()
+    _clear_state(application)
+    application.state.service_intelligence_provider = ServiceProvider()
+    response = TestClient(application).get(
         "/v1/portal/services/payments",
         headers={"x-eip-groups": "other"},
     )
     assert response.status_code == 404
-    _clear_state()
+    _clear_state(application)
 
 
-def test_portfolio_portal_preserves_metric_lineage(monkeypatch):
-    monkeypatch.setenv("EIP_REQUIRE_AUTH", "false")
-    _clear_state()
-    app.state.portfolio_intelligence_provider = PortfolioProvider()
-    response = TestClient(app).get(
+def test_portfolio_portal_preserves_metric_lineage():
+    application = _application()
+    _clear_state(application)
+    application.state.portfolio_intelligence_provider = PortfolioProvider()
+    response = TestClient(application).get(
         "/v1/portal/portfolio",
         headers={"x-eip-groups": "engineering", "x-eip-user": "vp-eng"},
     )
@@ -123,14 +128,14 @@ def test_portfolio_portal_preserves_metric_lineage(monkeypatch):
     metrics = {item["name"]: item for item in response.json()["metrics"]}
     assert metrics["net_value_usd"]["basis"] == "modeled"
     assert response.json()["viewer"]["subject"] == "vp-eng"
-    _clear_state()
+    _clear_state(application)
 
 
-def test_portfolio_trend_endpoint_preserves_lineage_and_direction(monkeypatch):
-    monkeypatch.setenv("EIP_REQUIRE_AUTH", "false")
-    _clear_state()
-    app.state.portfolio_trend_provider = TrendProvider()
-    response = TestClient(app).get(
+def test_portfolio_trend_endpoint_preserves_lineage_and_direction():
+    application = _application()
+    _clear_state(application)
+    application.state.portfolio_trend_provider = TrendProvider()
+    response = TestClient(application).get(
         "/v1/portal/portfolio/trends/mttr_minutes",
         headers={"x-eip-groups": "engineering", "x-eip-user": "vp-eng"},
     )
@@ -140,23 +145,23 @@ def test_portfolio_trend_endpoint_preserves_lineage_and_direction(monkeypatch):
     assert payload["improved"] is True
     assert payload["points"][0]["basis"] == "measured"
     assert payload["viewer"]["subject"] == "vp-eng"
-    _clear_state()
+    _clear_state(application)
 
 
-def test_portfolio_trend_hides_unknown_or_unauthorized_metric(monkeypatch):
-    monkeypatch.setenv("EIP_REQUIRE_AUTH", "false")
-    _clear_state()
-    app.state.portfolio_trend_provider = TrendProvider()
-    response = TestClient(app).get(
+def test_portfolio_trend_hides_unknown_or_unauthorized_metric():
+    application = _application()
+    _clear_state(application)
+    application.state.portfolio_trend_provider = TrendProvider()
+    response = TestClient(application).get(
         "/v1/portal/portfolio/trends/mttr_minutes",
         headers={"x-eip-groups": "other"},
     )
     assert response.status_code == 404
-    _clear_state()
+    _clear_state(application)
 
 
-def test_portal_fails_closed_without_provider(monkeypatch):
-    monkeypatch.setenv("EIP_REQUIRE_AUTH", "false")
-    _clear_state()
-    response = TestClient(app).get("/v1/portal/portfolio")
+def test_portal_fails_closed_without_provider():
+    application = _application()
+    _clear_state(application)
+    response = TestClient(application).get("/v1/portal/portfolio")
     assert response.status_code == 503
