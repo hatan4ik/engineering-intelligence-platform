@@ -16,7 +16,6 @@ dependencies = [
   "azure-identity",
   "azure-search-documents",
   "azure-cosmos",
-  "azure-servicebus",
   "openai",
   "opentelemetry-api",
   "opentelemetry-sdk",

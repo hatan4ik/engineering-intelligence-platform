@@ -360,7 +360,9 @@ Tracked honestly; grades and queue live in the
    still wait on the evaluation harness gating index and chunking changes in CI.
 4. **Verification independence** — some verification signals still derive from the action
    path; SLO-based independent verification is required before L4 certification is credible.
-5. **Local contracts vs production adapters** — SQLite semantics are proven and the Cosmos
-   Temporal adapter is the authoritative execution engine; the legacy Azure Service Bus
-   adapter is still unwritten, and semantic drift between local and production adapters
-   (isolation, lease clocks, compare-and-swap behavior) remains the risk to test for.
+5. **Local contracts vs production adapters** — SQLite semantics are proven locally. Temporal
+   is the accepted target execution engine and Cosmos is the target application-state adapter,
+   but neither is production evidence. No Azure Service Bus queue adapter is shipped: adding
+   one requires an explicit port, composition path, infrastructure/identity design, and adapter
+   conformance evidence. Semantic drift between local and production adapters (isolation,
+   clocks, and compare-and-swap behavior) remains a risk to test for.
