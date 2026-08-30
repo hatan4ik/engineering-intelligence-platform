@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Current implementation state |
 | **Owner** | Platform Engineering |
-| **Reviewed** | 2026-08-28 against `origin/main` at `ac5c0a17` (the merge of PR #82); source-only contracts in this change must pass CI before they become a new baseline |
+| **Reviewed** | 2026-08-30 against `origin/main` at `a0fdfd7` (the merge of PR #96); [Reference Implementation CI run 33305907816](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33305907816) passed for that revision. This is source-level CI evidence, not deployment, pilot, or production proof. |
 | **Rule** | This is the one document that answers "where are we today". Every other planning document points here instead of restating a position. |
 
 ## Two yardsticks, stated explicitly
@@ -33,7 +33,7 @@ request and the first observation record is retained.
 |---|---|
 | Product contracts under test | Done in this source contract — `product/pr_guardian/contracts.py`, `company_brain/product_contracts.py`, and their contract tests |
 | Documentation links/anchors gated in CI | Done — `check_links.py`, `check_anchors.py` in `ci.yml` |
-| Reference CI green on `main` | Done for the current upstream baseline — [Reference Implementation CI run 33156433876](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33156433876) succeeded at `ac5c0a17` (656 passed, 1 skipped). This records the checked baseline only; it is not deployment or pilot evidence. |
+| Reference CI green on `main` | Done for the reviewed upstream baseline — [Reference Implementation CI run 33305907816](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33305907816) succeeded at `a0fdfd7`. This records checked source only; it is not deployment or pilot evidence. |
 | Every route in the release image works or is declared | Done — `/healthz` reports capabilities; startup fails closed when a capability is enabled but incomplete |
 | Release image import closure verified | Done — `app/import_closure.py` runs inside the built image in CI |
 | Legacy/unreferenced code retired | Done — `src/`, `providers/` deleted |
@@ -44,10 +44,12 @@ request and the first observation record is retained.
 ## Engineering built vs. evidence earned, per stage
 
 Every stage has an engineering half (code, runners, triggers, workflows) and an evidence half
-(a named repository, a real environment, retained outcomes, exercised drills). The engineering
-half of Stages 1–6 now exists in this repository. **No evidence half has been earned; no stage
-beyond Stage 0 has exited.** Every runner below fails closed and names its missing configuration
-when the environment it needs is absent.
+(a named repository, a real environment, retained outcomes, exercised drills). Reference paths
+exist across Stages 1–6, but that is not the same as completing each stage's engineering exit
+criteria: the current source still lacks, for example, a Guardrail SLM, per-principal rate/
+concurrency enforcement, managed durable runtime proof, and real-data governance operations.
+**No evidence half has been earned; no stage beyond Stage 0 has exited.** Every runner below
+fails closed and names its missing configuration when the environment it needs is absent.
 
 | Stage | Engineering present (this revision) | Evidence still required before exit |
 |---|---|---|

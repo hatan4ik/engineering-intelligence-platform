@@ -30,6 +30,19 @@ def test_rendered_runtime_capability_table_is_current() -> None:
     assert rendered_document_matches(DEFAULT_DOCUMENT, load_baseline()) is True
 
 
+def test_process_composed_safety_controls_are_explicitly_not_chart_configuration() -> None:
+    baseline = load_baseline()
+    resilience = next(
+        item
+        for item in baseline.capabilities
+        if item.capability_id == "EIP-RUNTIME-DEPENDENCY-RESILIENCE"
+    )
+
+    assert resilience.state == "process-composed-reference"
+    assert resilience.chart.exposes == ()
+    assert resilience.chart.omits == ()
+
+
 def test_chart_exposure_drift_is_reported_with_the_capability_id() -> None:
     baseline = load_baseline()
     query = next(item for item in baseline.capabilities if item.capability_id == "EIP-RUNTIME-API-QUERY")
@@ -54,4 +67,19 @@ def test_source_only_baseline_refuses_a_claimed_evidence_status(tmp_path) -> Non
     path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(RuntimeCapabilityContractError, match="must be not-collected"):
+        load_baseline(path)
+
+
+def test_process_composed_capability_refuses_chart_variable_claims(tmp_path) -> None:
+    payload = json.loads(DEFAULT_BASELINE.read_text(encoding="utf-8"))
+    resilience = next(
+        item
+        for item in payload["capabilities"]
+        if item["id"] == "EIP-RUNTIME-DEPENDENCY-RESILIENCE"
+    )
+    resilience["chart"]["exposes"] = ["EIP_BACKEND"]
+    path = tmp_path / "runtime-capabilities.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(RuntimeCapabilityContractError, match="cannot declare chart variables"):
         load_baseline(path)

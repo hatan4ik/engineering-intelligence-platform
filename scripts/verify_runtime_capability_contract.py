@@ -22,7 +22,13 @@ DEFAULT_DOCUMENT = ROOT / "docs" / "RUNTIME-CAPABILITY-CONTRACT.md"
 _ID = re.compile(r"^EIP-RUNTIME-[A-Z0-9-]+$")
 _ENV = re.compile(r"^[A-Z][A-Z0-9_]+$")
 _CHART_ENV = re.compile(r"^\s*-\s+name:\s+([A-Z][A-Z0-9_]+)\s*$", re.MULTILINE)
-_STATES = frozenset({"chart-exposed-reference", "code-reference-only"})
+_STATES = frozenset(
+    {
+        "chart-exposed-reference",
+        "code-reference-only",
+        "process-composed-reference",
+    }
+)
 
 
 class RuntimeCapabilityContractError(ValueError):
@@ -168,6 +174,10 @@ def load_baseline(path: Path = DEFAULT_BASELINE) -> RuntimeCapabilityBaseline:
             raise RuntimeCapabilityContractError(
                 f"capabilities[{index}] code-reference-only must name omitted chart variables only"
             )
+        if state == "process-composed-reference" and (chart.exposes or chart.omits):
+            raise RuntimeCapabilityContractError(
+                f"capabilities[{index}] process-composed-reference cannot declare chart variables"
+            )
         capabilities.append(
             RuntimeCapability(
                 capability_id=capability_id,
@@ -247,11 +257,14 @@ def render_markdown(baseline: RuntimeCapabilityBaseline) -> str:
         "|---|---|---|---|---|---|",
     ]
     for capability in baseline.capabilities:
-        chart = (
-            "exposes " + ", ".join(f"`{item}`" for item in capability.chart.exposes)
-            if capability.chart.exposes
-            else "intentionally omits " + ", ".join(f"`{item}`" for item in capability.chart.omits)
-        )
+        if capability.chart.exposes:
+            chart = "exposes " + ", ".join(f"`{item}`" for item in capability.chart.exposes)
+        elif capability.chart.omits:
+            chart = "intentionally omits " + ", ".join(
+                f"`{item}`" for item in capability.chart.omits
+            )
+        else:
+            chart = "no chart configuration"
         terraform = ", ".join(f"`{item}`" for item in capability.terraform_markers) or "none declared"
         rows.append(
             f"| {capability.capability_id} | {capability.name} | {capability.state} | {chart} | {terraform} | {capability.evidence_status} |"
