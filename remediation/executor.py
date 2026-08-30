@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Mapping, Protocol
 
+from control_plane.runtime import REFERENCE_MODE, control_plane_mode
 from resilience.certification import (
     L4CertificationRecord,
     certification_refusal,
@@ -33,6 +34,11 @@ KILL_SWITCH_ENV = "EIP_AUTONOMY_KILL_SWITCH"
 #: operator can grep for it and a dashboard can count it.
 KILL_SWITCH_REASON = "kill-switch"
 
+#: A non-reference process must not silently fall back to the in-process
+#: evaluator. This variable may make the reference process stricter, but may
+#: never make a Temporal or disabled control-plane mode less strict.
+REQUIRE_OPA_ENV = "EIP_REQUIRE_OPA"
+
 #: Prefix on refusals that come from the declared autonomy level itself.
 AUTONOMY_LEVEL_CHECK = "autonomy-level"
 
@@ -46,6 +52,21 @@ def autonomy_kill_switch_engaged(environ: Mapping[str, str] | None = None) -> bo
 
     source = os.environ if environ is None else environ
     return str(source.get(KILL_SWITCH_ENV, "false")).strip().lower() == "true"
+
+
+def opa_evaluator_required(environ: Mapping[str, str] | None = None) -> bool:
+    """Whether this runtime refuses an absent external OPA evaluator.
+
+    The local evaluator is an offline/reference implementation only. Any
+    non-reference control-plane mode requires the OPA boundary even when the
+    environment accidentally sets ``EIP_REQUIRE_OPA=false``. Reference mode
+    may opt in to the same strictness for integration testing.
+    """
+
+    source = os.environ if environ is None else environ
+    if control_plane_mode(source) != REFERENCE_MODE:
+        return True
+    return str(source.get(REQUIRE_OPA_ENV, "false")).strip().lower() == "true"
 
 
 class ActionAdapter(Protocol):
@@ -258,7 +279,7 @@ def execute_control_loop(
             policy=PolicyDecision(False, level_refusal),
             error=level_refusal,
         )
-    if evaluator is None and os.getenv("EIP_REQUIRE_OPA", "false").lower() == "true":
+    if evaluator is None and opa_evaluator_required(environ):
         decision = PolicyDecision(False, "OPA policy evaluator is required but not configured")
         return ExecutionResult(status="denied", policy=decision)
     evaluator = evaluator or LocalReferenceEvaluator()

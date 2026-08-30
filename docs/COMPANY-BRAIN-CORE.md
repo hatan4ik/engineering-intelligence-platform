@@ -74,10 +74,14 @@ This is the integration pattern for subsequent Company Brain products: consume a
 authorized context; emit a reviewable outcome; then return explicit feedback and independently
 correlated outcomes to governed organizational memory.
 
-[`CompanyBrainFeedbackProjector`](../company_brain/feedback.py) records typed PR findings and
-explicit reviewer outcomes as `finding` and `outcome` entities. It does **not** copy product
-evidence references into the Brain because those references do not carry the original source ACL;
-the source evidence must first enter through a governed projector.
+[`company_brain/product_contracts.py`](../company_brain/product_contracts.py) is the small,
+product-neutral Evidence / Finding / Outcome / provenance vocabulary. PR Guardian translates its
+local records at [`product/pr_guardian/company_brain_records.py`](../product/pr_guardian/company_brain_records.py);
+future operational products must do the same rather than importing PR-specific classes.
+[`CompanyBrainFeedbackProjector`](../company_brain/feedback.py) then records those typed findings
+and explicit outcomes as `finding` and `outcome` entities. It does **not** copy product evidence
+references into the Brain because those references do not carry the original source ACL; the source
+evidence must first enter through a governed projector.
 
 ## Explicit non-goals
 

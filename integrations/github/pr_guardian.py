@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -56,16 +57,36 @@ class GitHubPRClient(Protocol):
     def publish_comment(self, *, repository: str, pr_number: int, body: str) -> None: ...
 
 
-def normalize_pull_request_event(payload: dict[str, object]) -> PullRequestEvent:
-    try:
-        repository = str(payload["repository"]["full_name"])  # type: ignore[index]
-        pr = payload["pull_request"]  # type: ignore[index]
-        number = int(payload["number"])
-        head_sha = str(pr["head"]["sha"])  # type: ignore[index]
-        action = str(payload["action"])
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError("invalid GitHub pull_request payload") from exc
-    return PullRequestEvent(repository=repository, number=number, head_sha=head_sha, action=action)
+def _object(value: object, label: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"GitHub pull_request {label} must be an object")
+    return value
+
+
+def _text(value: object, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"GitHub pull_request {label} must be a non-blank string")
+    return value.strip()
+
+
+def _positive_int(value: object, label: str) -> int:
+    if type(value) is not int or value < 1:
+        raise ValueError(f"GitHub pull_request {label} must be a positive integer")
+    return value
+
+
+def normalize_pull_request_event(payload: Mapping[str, object]) -> PullRequestEvent:
+    """Narrow an untrusted GitHub webhook object to the product event contract."""
+
+    repository = _object(payload.get("repository"), "repository")
+    pull_request = _object(payload.get("pull_request"), "pull_request")
+    head = _object(pull_request.get("head"), "pull_request.head")
+    return PullRequestEvent(
+        repository=_text(repository.get("full_name"), "repository.full_name"),
+        number=_positive_int(payload.get("number"), "number"),
+        head_sha=_text(head.get("sha"), "pull_request.head.sha"),
+        action=_text(payload.get("action"), "action"),
+    )
 
 
 class GitHubRestPRClient:

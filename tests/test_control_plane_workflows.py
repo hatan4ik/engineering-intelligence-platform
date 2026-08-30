@@ -1,4 +1,6 @@
 import asyncio
+import json
+import sqlite3
 
 from intelligence.risk import RiskAssessment, RiskFactor
 from orchestration.approvals import issue_approval
@@ -24,12 +26,18 @@ def test_pr_workflow_persists_policy_and_rejects_stale_approval(tmp_path):
             repository="acme/payments",
             pr_number=42,
             assessment=assessment,
+            correlation_id="github-delivery-42",
         )
     )
 
     assert policy.require_additional_approval
+    assert workflow.correlation_id == "github-delivery-42"
     assert workflow.plan_hash
     assert store.get_workflow(workflow.workflow_id).plan_hash == workflow.plan_hash
+    with sqlite3.connect(audit.path) as database:
+        row = database.execute("SELECT payload FROM audit_events").fetchone()
+    assert row is not None
+    assert json.loads(row[0])["correlation_id"] == "github-delivery-42"
     assert audit.verify_chain()
 
     stale = issue_approval(

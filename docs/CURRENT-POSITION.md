@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Current implementation state |
 | **Owner** | Platform Engineering |
-| **Reviewed** | 2026-08-26 at the revision that merged this file (Stage 0 in PR #75; Stage 1–6 engineering in the following pull request) |
+| **Reviewed** | 2026-08-28 against `origin/main` at `ac5c0a17` (the merge of PR #82); source-only contracts in this change must pass CI before they become a new baseline |
 | **Rule** | This is the one document that answers "where are we today". Every other planning document points here instead of restating a position. |
 
 ## Two yardsticks, stated explicitly
@@ -17,6 +17,11 @@ other is how a reference implementation gets mistaken for a product.
 | **Repository evidence** ([`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md), [`../architecture/MATURITY-SCORECARD.md`](../architecture/MATURITY-SCORECARD.md)) | Code, tests, and reference paths present at a revision | Reference implementations exist for most original capabilities; no capability row scores above 3.5 / 5 and none is production-capable |
 | **Operational readiness** ([`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md), [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md)) | Retained evidence from a named environment | **No evidence record exists.** No environment, secrets, or pilot repository is configured; nothing is deployed or production-proven |
 
+The [Runtime capability contract](RUNTIME-CAPABILITY-CONTRACT.md) checks the declared
+code, Helm, Terraform, and current-state boundaries for each exposed capability. It is a
+source-only, reference capability contract; it does not turn a rendered chart or Terraform
+resource into deployment evidence.
+
 ## Roadmap stage
 
 **Stage 0 — product truth and pilot foundation** of
@@ -26,15 +31,15 @@ request and the first observation record is retained.
 
 | Stage 0 exit item | State |
 |---|---|
-| Product contracts under test | Done — `product/pr_guardian/contracts.py`, `tests/test_pr_guardian_contracts.py` |
+| Product contracts under test | Done in this source contract — `product/pr_guardian/contracts.py`, `company_brain/product_contracts.py`, and their contract tests |
 | Documentation links/anchors gated in CI | Done — `check_links.py`, `check_anchors.py` in `ci.yml` |
-| Reference CI green on `main` | **Open** — 13 tests currently fail after the partial async Temporal migration changed synchronous workflow/service APIs without updating callers and tests; `main` protection remains a repository setting to enable |
+| Reference CI green on `main` | Done for the current upstream baseline — [Reference Implementation CI run 33156433876](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33156433876) succeeded at `ac5c0a17` (656 passed, 1 skipped). This records the checked baseline only; it is not deployment or pilot evidence. |
 | Every route in the release image works or is declared | Done — `/healthz` reports capabilities; startup fails closed when a capability is enabled but incomplete |
 | Release image import closure verified | Done — `app/import_closure.py` runs inside the built image in CI |
 | Legacy/unreferenced code retired | Done — `src/`, `providers/` deleted |
 | Reviewer labels created on the pilot repository | Done for this repository (`eip-pr-guardian/*`) |
 | Named pilot repository with service owner and non-enforcement configuration | **Open** — none named |
-| Baseline metrics collection plan | **Open** |
+| Baseline metrics collection plan | Target contract defined; **open** for a named pilot scope, owner, and retained measurements |
 
 ## Engineering built vs. evidence earned, per stage
 
@@ -46,7 +51,7 @@ when the environment it needs is absent.
 
 | Stage | Engineering present (this revision) | Evidence still required before exit |
 |---|---|---|
-| 1 — shadow PR Guardian | Report computes a real `decision` (`shadow-only` / `advisory-candidate`) with `blocking_authorized` fixed false; calibration section (recommendation only); closure workflow works with the Actions installation token; weekly report workflow — [`PR-GUARDIAN-SHADOW-REPORT.md`](PR-GUARDIAN-SHADOW-REPORT.md) | ≥30 observations, ≥30 reviewer classifications, ≥5 confirmed risks, precision ≥0.50, recall ≥0.80 on a named external repository |
+| 1 — shadow PR Guardian | Report computes a real `decision` (`shadow-only` / `advisory-candidate`) with `blocking_authorized` fixed false; calibration section (recommendation only); weekly report workflow. The [latest closed-PR write attempt](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33156433573) failed with GitHub `403` before artifact upload. This revision makes the retained outcome artifact fail-soft when only the calibration comment is refused, but that behavior remains unproven on GitHub — [`PR-GUARDIAN-SHADOW-REPORT.md`](PR-GUARDIAN-SHADOW-REPORT.md) | Verify least-privilege outcome retention on a real closed PR, resolve the comment permission/trust issue, then collect ≥30 observations, ≥30 reviewer classifications, ≥5 confirmed risks, precision ≥0.50, recall ≥0.80 on a named external repository |
 | 2 — advisory + knowledge plane | `ingestion/` has a runtime trigger (`scripts/ingest_repository.py`, `knowledge-ingest.yml`); integration proof fails closed on any of its 14 required variables and runs on a schedule when an `integration` environment exists; evidence registry (`docs/evidence/`, `scripts/record_evidence.py`) — [`KNOWLEDGE-INGEST-RUNBOOK.md`](KNOWLEDGE-INGEST-RUNBOOK.md), [`evidence/README.md`](evidence/README.md) | An Azure environment with secrets; 2–3 repositories indexed; the strategy's Advisory gate; the first retained evidence record |
 | 3 — selective enforcement + Architecture Guard | Repository-owned `.eip/pr-guardian.json` selects `shadow` / `advisory` / `enforce`; one deterministic rule with owner approval, expiry, waivers, and `EIP_PR_GUARDIAN_KILL_SWITCH`; the trusted publisher is the only writer and re-derives the condition; Architecture Guard on the PR path with honest coverage counts — [`PR-GUARDIAN-REPOSITORY-CONFIG.md`](PR-GUARDIAN-REPOSITORY-CONFIG.md) | A service owner enabling `enforce` in their repository, a monitored false-negative rate over a retained window, CODEOWNERS on `.github/workflows/` and `.eip/` |
 | 4 — operational intelligence L1/L2 | `POST /v1/events/deployment` and `/v1/events/incident` behind a shared secret; L2 proposals with `requires_human` fixed true; CLIs over fixture evidence — [`OPERATIONS-INTELLIGENCE-RUNBOOK.md`](OPERATIONS-INTELLIGENCE-RUNBOOK.md) | Azure Monitor / ADO wired to a real service; owner-confirmed outcomes; measured L2 acceptance |

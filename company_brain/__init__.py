@@ -50,6 +50,16 @@ from .world_model import (
     WorldModelError,
     WorldModelPolicy,
 )
+from .product_contracts import (
+    EvidenceBasis,
+    EvidenceBundle,
+    EvidenceReference,
+    FindingProvenance,
+    ProductContractError,
+    ProductFinding,
+    ProductOutcome,
+    ProductSubject,
+)
 
 __all__ = [
     "BrainEntity",
@@ -93,4 +103,12 @@ __all__ = [
     "WorldModelConflictKind",
     "WorldModelError",
     "WorldModelPolicy",
+    "EvidenceBasis",
+    "EvidenceBundle",
+    "EvidenceReference",
+    "FindingProvenance",
+    "ProductContractError",
+    "ProductFinding",
+    "ProductOutcome",
+    "ProductSubject",
 ]

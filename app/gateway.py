@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
+import math
 import re
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Mapping, Protocol
 
 
 @dataclass(frozen=True)
@@ -33,6 +33,12 @@ class GatewayPolicyError(PermissionError):
     pass
 
 
+class PrincipalAuthenticator(Protocol):
+    """The narrow identity port required by gateway policy."""
+
+    def authenticate(self, credential: str | None) -> GatewayPrincipal: ...
+
+
 class ApiKeyPrincipalStore:
     """Reference identity adapter.
 
@@ -44,8 +50,9 @@ class ApiKeyPrincipalStore:
         self.records = records
 
     @classmethod
-    def from_environment(cls) -> "ApiKeyPrincipalStore":
-        raw = os.getenv("EIP_API_KEY_PRINCIPALS", "{}")
+    def from_serialized(cls, raw: str) -> "ApiKeyPrincipalStore":
+        """Build the reference adapter from a configuration-bound JSON string."""
+
         parsed = json.loads(raw)
         if not isinstance(parsed, dict):
             raise ValueError("EIP_API_KEY_PRINCIPALS must be a JSON object")
@@ -61,14 +68,42 @@ class ApiKeyPrincipalStore:
         subject = str(claims.get("subject") or "")
         if not subject:
             raise GatewayAuthError("principal subject is missing")
-        groups_raw = claims.get("groups", [])
-        tiers_raw = claims.get("allowed_model_tiers", ["standard"])
         return GatewayPrincipal(
             subject=subject,
-            groups=tuple(sorted(str(v) for v in groups_raw if str(v).strip())),
-            max_request_usd=float(claims.get("max_request_usd", 0.25)),
-            allowed_model_tiers=tuple(str(v) for v in tiers_raw),
+            groups=_string_claims(claims.get("groups", []), field="groups"),
+            max_request_usd=_cost_claim(claims.get("max_request_usd", 0.25)),
+            allowed_model_tiers=_string_claims(
+                claims.get("allowed_model_tiers", ["standard"]),
+                field="allowed_model_tiers",
+            ),
         )
+
+
+def _string_claims(value: object, *, field: str) -> tuple[str, ...]:
+    """Narrow dynamic API-key claims before policy code consumes them."""
+
+    if not isinstance(value, list):
+        raise GatewayAuthError(f"principal {field} must be a JSON array")
+    values = tuple(sorted({str(item).strip() for item in value if str(item).strip()}))
+    if field == "allowed_model_tiers" and not values:
+        raise GatewayAuthError("principal allowed_model_tiers must not be empty")
+    return values
+
+
+def _cost_claim(value: object) -> float:
+    """Narrow the optional API-key cost ceiling and reject unsafe values."""
+
+    if isinstance(value, bool):
+        raise GatewayAuthError("principal max_request_usd must be a non-negative number")
+    if not isinstance(value, (int, float, str)):
+        raise GatewayAuthError("principal max_request_usd must be a non-negative number")
+    try:
+        cost = float(value)
+    except (TypeError, ValueError) as error:
+        raise GatewayAuthError("principal max_request_usd must be a non-negative number") from error
+    if not math.isfinite(cost) or cost < 0:
+        raise GatewayAuthError("principal max_request_usd must be a non-negative number")
+    return cost
 
 
 _SECRET_PATTERNS = (
@@ -111,7 +146,7 @@ def authorize_request(
     api_key: str | None,
     requested_model_tier: str | None,
     estimated_cost_usd: float,
-    store: ApiKeyPrincipalStore,
+    store: PrincipalAuthenticator,
 ) -> GatewayDecision:
     principal = store.authenticate(api_key)
     if estimated_cost_usd < 0 or estimated_cost_usd > principal.max_request_usd:

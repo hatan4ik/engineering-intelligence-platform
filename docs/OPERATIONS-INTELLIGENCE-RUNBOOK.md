@@ -29,6 +29,11 @@ Both routes require the shared secret `EIP_OPERATIONS_WEBHOOK_SECRET` in the
 `X-EIP-Operations-Secret` header. The comparison is constant-time
 (`hmac.compare_digest`).
 
+Callers may supply `X-Correlation-Id` to preserve an upstream ADO/monitor/request identifier.
+It accepts only a bounded identifier safe for audit and telemetry; an absent value is minted once
+at ingress. The response, workflow record, and audit event carry that same value. The two CLIs
+accept the equivalent optional `--correlation-id` flag.
+
 | Condition | Status |
 | --- | --- |
 | `EIP_OPERATIONS_WEBHOOK_SECRET` unset | `503` — capability is not configured |

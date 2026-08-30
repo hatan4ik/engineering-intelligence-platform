@@ -16,6 +16,7 @@ dependencies = [
   "azure-identity",
   "azure-search-documents",
   "azure-cosmos",
+  "azure-servicebus",
   "openai",
   "opentelemetry-api",
   "opentelemetry-sdk",
@@ -25,20 +26,38 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest==9.0.3"]
 
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
+# The release image deliberately ships implicit namespace packages. Make that
+# choice explicit so setuptools distribution discovery matches the image and
+# app.import_closure contract below.
+namespaces = true
 include = [
-  "app*", "company_brain*", "control_plane*", "feedback*", "finops*", 
-  "ingestion*", "integrations*", "intelligence*", "orchestration*", 
-  "portal*", "product*", "remediation*", "resilience*", "security*", 
-  "state*", "telemetry*", "topology*"
+  "app*", "company_brain*", "control_plane*", "feedback*", "finops*", "ingestion*",
+  "integrations*", "intelligence*", "orchestration*", "portal*", "product*", "remediation*",
+  "resilience*", "security*", "state*", "telemetry*", "topology*",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+# Start with undefined-name/import correctness.  Style and modernization rules
+# are intentionally introduced later, after their own measured baselines exist.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.mypy]
+python_version = "3.12"
+explicit_package_bases = true
+follow_imports = "silent"
+ignore_missing_imports = true
+warn_unused_configs = true

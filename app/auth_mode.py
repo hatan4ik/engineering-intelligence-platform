@@ -1,19 +1,31 @@
-"""Single source of truth for whether request-header identity is trusted.
+"""Pure compatibility helpers for header-identity policy.
 
 Header-asserted identity (``X-EIP-Groups`` / ``X-EIP-User``) is a local
 development affordance for the deterministic demo backend, which serves only a
 fixed in-repo corpus. It must never be trusted when the Azure backend is
 serving real, ACL-trimmed data — otherwise a caller chooses their own groups
 and reads anything indexed under them. That path is therefore fail-closed:
-with ``EIP_BACKEND=azure`` a valid Entra JWT or API key is always required,
-regardless of any flag.
+with an Azure backend a valid Entra JWT or API key is always required,
+regardless of any flag.  The live HTTP application uses ``QuerySettings``;
+these helpers remain pure for smaller callers and unit tests.
 """
 from __future__ import annotations
 
-import os
+from typing import Mapping
 
 
-def header_identity_permitted() -> tuple[bool, str | None]:
+BACKEND_ENV = "EIP_BACKEND"
+AZURE_BACKEND = "azure"
+DETERMINISTIC_BACKEND = "deterministic"
+
+
+def backend_mode(environ: Mapping[str, str]) -> str:
+    """Normalize the backend value supplied by an explicit configuration mapping."""
+
+    return str(environ.get(BACKEND_ENV, DETERMINISTIC_BACKEND)).strip().lower() or DETERMINISTIC_BACKEND
+
+
+def header_identity_permitted(environ: Mapping[str, str]) -> tuple[bool, str | None]:
     """Decide whether request-header identity may be used.
 
     Returns ``(allowed, refusal_reason)``. When ``allowed`` is False the caller
@@ -21,8 +33,7 @@ def header_identity_permitted() -> tuple[bool, str | None]:
     is populated only when header identity was affirmatively refused for the
     Azure backend so the caller can surface a clear error.
     """
-    backend = os.getenv("EIP_BACKEND", "deterministic").strip().lower()
-    if backend == "azure":
+    if backend_mode(environ) == AZURE_BACKEND:
         # Real data is served; header identity is never trusted here.
         return False, (
             "header identity is not permitted with the Azure backend; "
@@ -31,7 +42,7 @@ def header_identity_permitted() -> tuple[bool, str | None]:
     # Deterministic / demo backend: header identity is permitted by default
     # (no real data is served), but a deployment may require real auth by
     # setting EIP_ALLOW_HEADER_IDENTITY=false.
-    flag = os.getenv("EIP_ALLOW_HEADER_IDENTITY")
+    flag = environ.get("EIP_ALLOW_HEADER_IDENTITY")
     if flag is None:
         return True, None
     return flag.strip().lower() == "true", None

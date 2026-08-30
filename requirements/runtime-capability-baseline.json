@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "status": "reference-only",
+  "capabilities": [
+    {
+      "id": "EIP-RUNTIME-API-QUERY",
+      "name": "Azure-backed API query",
+      "state": "chart-exposed-reference",
+      "evidence_status": "not-collected",
+      "code": [
+        {"path": "app/auth_mode.py", "markers": ["BACKEND_ENV", "EIP_ALLOW_HEADER_IDENTITY"]},
+        {"path": "app/settings.py", "markers": ["EIP_BACKEND", "AzureRagSettings"]},
+        {"path": "app/query_api.py", "markers": ["AzureRagBackend", "settings_for_application"]}
+      ],
+      "chart": {
+        "template": "helm/eip/templates/deployment.yaml",
+        "exposes": [
+          "EIP_BACKEND",
+          "EIP_ALLOW_HEADER_IDENTITY",
+          "EIP_AUTH_MODE",
+          "EIP_ENTRA_TENANT_ID",
+          "EIP_ENTRA_AUDIENCE",
+          "AZURE_SEARCH_ENDPOINT",
+          "AZURE_SEARCH_INDEX",
+          "AZURE_OPENAI_ENDPOINT",
+          "AZURE_OPENAI_CHAT_DEPLOYMENT"
+        ],
+        "omits": []
+      },
+      "terraform_markers": [
+        "azurerm_search_service",
+        "azurerm_cognitive_account",
+        "azurerm_kubernetes_cluster",
+        "azurerm_user_assigned_identity"
+      ],
+      "documentation": [
+        {"path": "README.md", "markers": ["An Azure-backed request path is a reference integration"]},
+        {"path": "docs/CURRENT-POSITION.md", "markers": ["Runtime capability contract"]}
+      ]
+    },
+    {
+      "id": "EIP-RUNTIME-API-CONTROLS",
+      "name": "API safety-control reporting",
+      "state": "chart-exposed-reference",
+      "evidence_status": "not-collected",
+      "code": [
+        {"path": "app/runtime_wiring.py", "markers": ["control_report", "kill_switch_update"]},
+        {"path": "remediation/executor.py", "markers": ["EIP_REQUIRE_OPA", "EIP_AUTONOMY_KILL_SWITCH", "opa_evaluator_required"]},
+        {"path": "product/pr_guardian/enforcement.py", "markers": ["EIP_PR_GUARDIAN_KILL_SWITCH"]}
+      ],
+      "chart": {
+        "template": "helm/eip/templates/deployment.yaml",
+        "exposes": [
+          "EIP_CONTROL_PLANE_MODE",
+          "EIP_REQUIRE_OPA",
+          "EIP_AUTONOMY_KILL_SWITCH",
+          "EIP_PR_GUARDIAN_KILL_SWITCH"
+        ],
+        "omits": []
+      },
+      "terraform_markers": [],
+      "documentation": [
+        {"path": "docs/CURRENT-POSITION.md", "markers": ["Runtime capability contract", "No evidence record exists."]}
+      ]
+    },
+    {
+      "id": "EIP-RUNTIME-PR-GUARDIAN",
+      "name": "PR Guardian webhook product",
+      "state": "code-reference-only",
+      "evidence_status": "not-collected",
+      "code": [
+        {"path": "app/settings.py", "markers": ["EIP_PR_GUARDIAN_WEBHOOK", "EIP_SERVICE_GRAPH_ROOT", "EIP_GITHUB_WEBHOOK_SECRET"]},
+        {"path": "app/pr_guardian_api.py", "markers": ["verify_webhook_signature", "settings_for_application"]}
+      ],
+      "chart": {
+        "template": "helm/eip/templates/deployment.yaml",
+        "exposes": [],
+        "omits": ["EIP_PR_GUARDIAN_WEBHOOK", "EIP_GITHUB_WEBHOOK_SECRET", "GITHUB_TOKEN", "EIP_STATE_DIR"]
+      },
+      "terraform_markers": [],
+      "documentation": [
+        {"path": "docs/PR-GUARDIAN-SHADOW-PILOT.md", "markers": ["no pilot evidence has yet been collected", "non-blocking"]},
+        {"path": "docs/CURRENT-POSITION.md", "markers": ["Runtime capability contract"]}
+      ]
+    },
+    {
+      "id": "EIP-RUNTIME-OPERATIONS",
+      "name": "Operational-intelligence webhooks",
+      "state": "code-reference-only",
+      "evidence_status": "not-collected",
+      "code": [
+        {"path": "app/settings.py", "markers": ["EIP_OPERATIONS_WEBHOOK_SECRET", "EIP_OPERATIONS_EVIDENCE", "EIP_STATE_DIR"]},
+        {"path": "app/operations/capability.py", "markers": ["build_operations_capability", "OperationsSettings"]}
+      ],
+      "chart": {
+        "template": "helm/eip/templates/deployment.yaml",
+        "exposes": [],
+        "omits": ["EIP_OPERATIONS_WEBHOOK_SECRET", "EIP_OPERATIONS_EVIDENCE", "EIP_STATE_DIR"]
+      },
+      "terraform_markers": [],
+      "documentation": [
+        {"path": "docs/OPERATIONS-INTELLIGENCE-RUNBOOK.md", "markers": ["What this refuses to do", "requires_human: true"]},
+        {"path": "docs/CURRENT-POSITION.md", "markers": ["Runtime capability contract"]}
+      ]
+    },
+    {
+      "id": "EIP-RUNTIME-TEMPORAL-EVIDENCE",
+      "name": "Temporal evidence worker",
+      "state": "chart-exposed-reference",
+      "evidence_status": "not-collected",
+      "code": [
+        {"path": "control_plane/runtime.py", "markers": ["EIP_TEMPORAL_ENDPOINT", "EIP_TEMPORAL_TLS_CLIENT_KEY_PATH"]},
+        {"path": "orchestration/temporal_workflow.py", "markers": ["eip.control-plane-evidence.v1", "mutation_performed: bool = False"]},
+        {"path": "orchestration/temporal_worker.py", "markers": ["EIP_TEMPORAL_REMEDIATION_WORKFLOWS"]}
+      ],
+      "chart": {
+        "template": "helm/eip/templates/temporal-worker.yaml",
+        "exposes": [
+          "EIP_CONTROL_PLANE_MODE",
+          "EIP_TEMPORAL_ENDPOINT",
+          "EIP_TEMPORAL_NAMESPACE",
+          "EIP_TEMPORAL_TASK_QUEUE",
+          "EIP_TEMPORAL_TLS_SERVER_NAME",
+          "EIP_TEMPORAL_TLS_CA_CERT_PATH",
+          "EIP_TEMPORAL_TLS_CLIENT_CERT_PATH",
+          "EIP_TEMPORAL_TLS_CLIENT_KEY_PATH"
+        ],
+        "omits": ["EIP_TEMPORAL_REMEDIATION_WORKFLOWS"]
+      },
+      "terraform_markers": [
+        "azurerm_postgresql_flexible_server",
+        "temporal_postgresql_host"
+      ],
+      "documentation": [
+        {"path": "docs/TEMPORAL-WORKER-RUNBOOK.md", "markers": ["Evidence-worker boundary implemented; undeployed", "no business state"]},
+        {"path": "docs/CURRENT-POSITION.md", "markers": ["Runtime capability contract"]}
+      ]
+    },
+    {
+      "id": "EIP-RUNTIME-REMEDIATION",
+      "name": "Plan-bound remediation workflow",
+      "state": "code-reference-only",
+      "evidence_status": "not-collected",
+      "code": [
+        {"path": "orchestration/remediation_workflow.py", "markers": ["EIP_TEMPORAL_REMEDIATION_WORKFLOWS", "eip.remediation.v1"]},
+        {"path": "orchestration/control_plane_activities.py", "markers": ["EIP_REMEDIATION_APPROVAL_SECRET", "EIP_OPA_ENDPOINT"]}
+      ],
+      "chart": {
+        "template": "helm/eip/templates/temporal-worker.yaml",
+        "exposes": [],
+        "omits": [
+          "EIP_TEMPORAL_REMEDIATION_WORKFLOWS",
+          "EIP_REMEDIATION_APPROVAL_SECRET",
+          "EIP_OPA_ENDPOINT",
+          "EIP_REMEDIATION_SOURCE_NAMESPACE",
+          "EIP_REMEDIATION_POLICY_PATH",
+          "EIP_REMEDIATION_EVIDENCE_PROVIDER"
+        ]
+      },
+      "terraform_markers": [],
+      "documentation": [
+        {"path": "docs/TEMPORAL-WORKER-RUNBOOK.md", "markers": ["What it still refuses", "No production evidence source."]},
+        {"path": "docs/CURRENT-POSITION.md", "markers": ["Runtime capability contract"]}
+      ]
+    }
+  ]
+}

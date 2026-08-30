@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "status": "target",
+  "contracts": [
+    {
+      "id": "EIP-PERF-QUERY-001",
+      "workflow": "Authorized Company Brain query",
+      "surface": "POST /v1/query",
+      "autonomy_tier": "L0",
+      "implementation_state": "reference",
+      "promotion_decision": "real-data-pilot",
+      "execution_model": "synchronous",
+      "targets": {
+        "p95_latency_ms": 3000,
+        "p99_latency_ms": 6000,
+        "timeout_ms": 10000,
+        "minimum_rates": {
+          "success_rate": 0.99
+        },
+        "maximum_rejected_rate": 0.01,
+        "maximum_unit_cost_usd": 0.05
+      },
+      "steps": [
+        {
+          "name": "authenticate-and-authorize",
+          "p95_ms": 200,
+          "p99_ms": 500,
+          "timeout_ms": 1000
+        },
+        {
+          "name": "retrieve-and-ground-or-refuse",
+          "p95_ms": 2500,
+          "p99_ms": 5000,
+          "timeout_ms": 8000
+        },
+        {
+          "name": "render-response",
+          "p95_ms": 300,
+          "p99_ms": 500,
+          "timeout_ms": 1000
+        }
+      ],
+      "load": {
+        "sustained_per_minute": 60,
+        "max_in_flight": 12,
+        "max_queue_depth": 0,
+        "max_queue_age_seconds": 0,
+        "load_shed": "Reject before retrieval with an explicit overloaded or dependency-unavailable result."
+      },
+      "lease": null,
+      "evidence": {
+        "minimum_samples": 500,
+        "minimum_window_minutes": 60,
+        "required_metrics": [
+          "p50_latency_ms",
+          "p95_latency_ms",
+          "p99_latency_ms",
+          "max_latency_ms",
+          "success_rate",
+          "peak_in_flight",
+          "rejected_count",
+          "unit_cost_usd"
+        ]
+      }
+    },
+    {
+      "id": "EIP-PERF-PRG-001",
+      "workflow": "PR Guardian shadow observation and trusted publication",
+      "surface": "pull_request -> workflow_run",
+      "autonomy_tier": "L1",
+      "implementation_state": "reference",
+      "promotion_decision": "pr-guardian-advisory",
+      "execution_model": "asynchronous",
+      "targets": {
+        "p95_latency_ms": 20000,
+        "p99_latency_ms": 45000,
+        "timeout_ms": 60000,
+        "minimum_rates": {
+          "success_rate": 0.99
+        },
+        "maximum_rejected_rate": 0.01,
+        "maximum_unit_cost_usd": 0.25
+      },
+      "steps": [
+        {
+          "name": "validate-event-and-authorize-context",
+          "p95_ms": 500,
+          "p99_ms": 1000,
+          "timeout_ms": 3000
+        },
+        {
+          "name": "collect-diff-and-assess-risk",
+          "p95_ms": 12000,
+          "p99_ms": 26000,
+          "timeout_ms": 35000
+        },
+        {
+          "name": "persist-observation-and-artifact",
+          "p95_ms": 3000,
+          "p99_ms": 7000,
+          "timeout_ms": 12000
+        },
+        {
+          "name": "trusted-neutral-publication",
+          "p95_ms": 4500,
+          "p99_ms": 10000,
+          "timeout_ms": 15000
+        }
+      ],
+      "load": {
+        "sustained_per_minute": 12,
+        "max_in_flight": 3,
+        "max_queue_depth": 50,
+        "max_queue_age_seconds": 300,
+        "load_shed": "Keep the evaluation non-blocking, record an explicit unavailable observation, and never make the check required."
+      },
+      "lease": null,
+      "evidence": {
+        "minimum_samples": 100,
+        "minimum_window_minutes": 10080,
+        "required_metrics": [
+          "p50_latency_ms",
+          "p95_latency_ms",
+          "p99_latency_ms",
+          "max_latency_ms",
+          "success_rate",
+          "peak_in_flight",
+          "peak_queue_depth",
+          "peak_queue_age_seconds",
+          "rejected_count",
+          "unit_cost_usd"
+        ]
+      }
+    },
+    {
+      "id": "EIP-PERF-OPS-001",
+      "workflow": "Operational intelligence evidence-to-L2 proposal",
+      "surface": "POST /v1/events/deployment and POST /v1/events/incident",
+      "autonomy_tier": "L2",
+      "implementation_state": "reference",
+      "promotion_decision": "real-data-pilot",
+      "execution_model": "asynchronous",
+      "targets": {
+        "p95_latency_ms": 15000,
+        "p99_latency_ms": 30000,
+        "timeout_ms": 45000,
+        "minimum_rates": {
+          "success_rate": 0.99
+        },
+        "maximum_rejected_rate": 0.01,
+        "maximum_unit_cost_usd": 0.1
+      },
+      "steps": [
+        {
+          "name": "authenticate-and-validate-event",
+          "p95_ms": 500,
+          "p99_ms": 1000,
+          "timeout_ms": 3000
+        },
+        {
+          "name": "collect-authorized-evidence",
+          "p95_ms": 8000,
+          "p99_ms": 15000,
+          "timeout_ms": 22000
+        },
+        {
+          "name": "correlate-and-build-l2-proposal",
+          "p95_ms": 4000,
+          "p99_ms": 9000,
+          "timeout_ms": 12000
+        },
+        {
+          "name": "record-and-return-proposal",
+          "p95_ms": 2000,
+          "p99_ms": 5000,
+          "timeout_ms": 8000
+        }
+      ],
+      "load": {
+        "sustained_per_minute": 6,
+        "max_in_flight": 2,
+        "max_queue_depth": 20,
+        "max_queue_age_seconds": 180,
+        "load_shed": "Reject or defer with an explicit insufficient-evidence/dependency result; never infer a service or execute a proposal."
+      },
+      "lease": null,
+      "evidence": {
+        "minimum_samples": 50,
+        "minimum_window_minutes": 10080,
+        "required_metrics": [
+          "p50_latency_ms",
+          "p95_latency_ms",
+          "p99_latency_ms",
+          "max_latency_ms",
+          "success_rate",
+          "peak_in_flight",
+          "peak_queue_depth",
+          "peak_queue_age_seconds",
+          "rejected_count",
+          "unit_cost_usd"
+        ]
+      }
+    },
+    {
+      "id": "EIP-PERF-L3-001",
+      "workflow": "Certified L3 remediation rehearsal",
+      "surface": "durable workflow after plan-bound human approval",
+      "autonomy_tier": "L3",
+      "implementation_state": "target",
+      "promotion_decision": "l3-remediation-pilot",
+      "execution_model": "durable",
+      "targets": {
+        "p95_latency_ms": 120000,
+        "p99_latency_ms": 210000,
+        "timeout_ms": 240000,
+        "minimum_rates": {
+          "success_rate": 0.99,
+          "audit_write_success_rate": 1.0,
+          "verification_success_rate": 0.99
+        },
+        "maximum_rejected_rate": 0.01,
+        "maximum_unit_cost_usd": 2.0
+      },
+      "steps": [
+        {
+          "name": "assemble-plan-and-authorized-evidence",
+          "p95_ms": 2000,
+          "p99_ms": 5000,
+          "timeout_ms": 10000
+        },
+        {
+          "name": "opa-policy-decision",
+          "p95_ms": 1000,
+          "p99_ms": 3000,
+          "timeout_ms": 5000
+        },
+        {
+          "name": "digital-twin-rehearsal",
+          "p95_ms": 45000,
+          "p99_ms": 90000,
+          "timeout_ms": 120000
+        },
+        {
+          "name": "bounded-execution",
+          "p95_ms": 25000,
+          "p99_ms": 50000,
+          "timeout_ms": 60000
+        },
+        {
+          "name": "independent-verification-and-audit",
+          "p95_ms": 30000,
+          "p99_ms": 60000,
+          "timeout_ms": 70000
+        }
+      ],
+      "load": {
+        "sustained_per_minute": 1,
+        "max_in_flight": 1,
+        "max_queue_depth": 5,
+        "max_queue_age_seconds": 900,
+        "load_shed": "Hold the request for human triage or reject it; no retry may bypass policy, approval, simulation, audit, or verification."
+      },
+      "lease": {
+        "lease_seconds": 300,
+        "heartbeat_interval_seconds": 30,
+        "approval_wait_outside_lease": true
+      },
+      "evidence": {
+        "minimum_samples": 30,
+        "minimum_window_minutes": 10080,
+        "required_metrics": [
+          "p50_latency_ms",
+          "p95_latency_ms",
+          "p99_latency_ms",
+          "max_latency_ms",
+          "success_rate",
+          "audit_write_success_rate",
+          "verification_success_rate",
+          "peak_in_flight",
+          "peak_queue_depth",
+          "peak_queue_age_seconds",
+          "rejected_count",
+          "unit_cost_usd"
+        ]
+      }
+    },
+    {
+      "id": "EIP-PERF-L4-001",
+      "workflow": "Bounded L4 remediation for a certified scope",
+      "surface": "durable workflow for one service/environment/runbook certification",
+      "autonomy_tier": "L4",
+      "implementation_state": "target",
+      "promotion_decision": "l4-promotion",
+      "execution_model": "durable",
+      "targets": {
+        "p95_latency_ms": 150000,
+        "p99_latency_ms": 270000,
+        "timeout_ms": 300000,
+        "minimum_rates": {
+          "success_rate": 0.99,
+          "audit_write_success_rate": 1.0,
+          "verification_success_rate": 0.99
+        },
+        "maximum_rejected_rate": 0.01,
+        "maximum_unit_cost_usd": 3.0
+      },
+      "steps": [
+        {
+          "name": "revalidate-scope-plan-and-error-budget",
+          "p95_ms": 3000,
+          "p99_ms": 7000,
+          "timeout_ms": 12000
+        },
+        {
+          "name": "opa-policy-and-certificate-check",
+          "p95_ms": 1000,
+          "p99_ms": 3000,
+          "timeout_ms": 5000
+        },
+        {
+          "name": "digital-twin-or-equivalent-required-rehearsal",
+          "p95_ms": 60000,
+          "p99_ms": 120000,
+          "timeout_ms": 150000
+        },
+        {
+          "name": "bounded-execution-or-rollback",
+          "p95_ms": 35000,
+          "p99_ms": 70000,
+          "timeout_ms": 90000
+        },
+        {
+          "name": "independent-verification-and-immutable-audit",
+          "p95_ms": 45000,
+          "p99_ms": 70000,
+          "timeout_ms": 90000
+        }
+      ],
+      "load": {
+        "sustained_per_minute": 1,
+        "max_in_flight": 1,
+        "max_queue_depth": 3,
+        "max_queue_age_seconds": 900,
+        "load_shed": "Fail closed into escalation; an autonomous action never waits indefinitely, widens scope, or bypasses a kill switch."
+      },
+      "lease": {
+        "lease_seconds": 360,
+        "heartbeat_interval_seconds": 30,
+        "approval_wait_outside_lease": true
+      },
+      "evidence": {
+        "minimum_samples": 100,
+        "minimum_window_minutes": 43200,
+        "required_metrics": [
+          "p50_latency_ms",
+          "p95_latency_ms",
+          "p99_latency_ms",
+          "max_latency_ms",
+          "success_rate",
+          "audit_write_success_rate",
+          "verification_success_rate",
+          "peak_in_flight",
+          "peak_queue_depth",
+          "peak_queue_age_seconds",
+          "rejected_count",
+          "unit_cost_usd"
+        ]
+      }
+    }
+  ]
+}

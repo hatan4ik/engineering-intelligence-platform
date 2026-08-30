@@ -99,8 +99,10 @@ def test_webhook_reviews_pull_request_and_emits_telemetry(monkeypatch, tmp_path)
         data = response.json()
         assert data["status"] == "reviewed"
         assert data["workflow_id"] == "pr:acme/platform:9"
+        assert data["correlation_id"] == "d-42"
         assert github.checks[0]["head_sha"] == "ff00"
         assert telemetry.events[0].operation == "pr-guardian-review"
+        assert telemetry.events[0].correlation_id == "d-42"
         assert telemetry.events[0].attributes["score"] == str(data["score"])
     finally:
         app.state.pr_guardian = None

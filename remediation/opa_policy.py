@@ -5,7 +5,7 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
-from typing import Any, Protocol
+from typing import Protocol
 
 from resilience.scope import parse_instant
 
@@ -43,6 +43,7 @@ class CertificationClaim:
 #: supervised L3. It is the exercise path -- the promotion rule makes supervised
 #: runs the *input* to certification, so they cannot require it.
 SUPERVISED_DOWNGRADE = "L3"
+AUTHORIZED_REASON = "authorized by OPA remediation policy"
 
 
 @dataclass(frozen=True)
@@ -143,7 +144,7 @@ def certification_denial(autonomy: AutonomyContext) -> str | None:
     if expires is None:
         return "l4-certification: certification expires_on is not a readable timestamp"
     if expires <= now:
-        return f"l4-certification: certification expired on {claim.expires_on}"
+        return "l4-certification: certification has expired"
     if not str(autonomy.scope_hash).strip():
         return "l4-certification: request carries no scope hash"
     if str(claim.scope_hash) != str(autonomy.scope_hash):
@@ -194,30 +195,14 @@ class OpaPolicyClient:
         control: PolicyControlState,
         autonomy: AutonomyContext | None = None,
     ) -> EvaluatedPolicyDecision:
-        context = autonomy or AutonomyContext.for_policy(policy)
-        payload: dict[str, Any] = {
-            "input": {
-                "runbook": {
-                    **asdict(runbook),
-                    "required_level": int(runbook.required_level),
-                },
-                "policy": {
-                    **asdict(policy),
-                    "level": int(policy.level),
-                },
-                "request": {
-                    **asdict(request),
-                    "approval_verified": approval_verified,
-                },
-                "control": asdict(control),
-                "autonomy_level": context.autonomy_level,
-                "scope": {"scope_hash": context.scope_hash},
-                "now": context.now,
-                "certification": (
-                    context.certification.as_input() if context.certification else None
-                ),
-            }
-        }
+        payload = opa_input(
+            runbook=runbook,
+            policy=policy,
+            request=request,
+            approval_verified=approval_verified,
+            control=control,
+            autonomy=autonomy,
+        )
         req = urllib.request.Request(
             self.endpoint + "/v1/data/engineering_intelligence/remediation/decision",
             method="POST",
@@ -239,6 +224,37 @@ class OpaPolicyClient:
         )
 
 
+def opa_input(
+    *,
+    runbook: Runbook,
+    policy: ServiceAutonomy,
+    request: ActionRequest,
+    approval_verified: bool,
+    control: PolicyControlState,
+    autonomy: AutonomyContext | None = None,
+) -> dict[str, object]:
+    """Serialize one typed policy decision to the Rego input contract.
+
+    The conformance suite uses this same builder, so the local reference
+    evaluator and OPA receive equivalent inputs rather than hand-maintained
+    lookalike dictionaries.
+    """
+
+    context = autonomy or AutonomyContext.for_policy(policy)
+    return {
+        "input": {
+            "runbook": {**asdict(runbook), "required_level": int(runbook.required_level)},
+            "policy": {**asdict(policy), "level": int(policy.level)},
+            "request": {**asdict(request), "approval_verified": approval_verified},
+            "control": asdict(control),
+            "autonomy_level": context.autonomy_level,
+            "scope": {"scope_hash": context.scope_hash},
+            "now": context.now,
+            "certification": context.certification.as_input() if context.certification else None,
+        }
+    }
+
+
 class LocalReferenceEvaluator:
     """Offline/CI reference evaluator matching the policy contract.
 
@@ -256,10 +272,9 @@ class LocalReferenceEvaluator:
         control: PolicyControlState,
         autonomy: AutonomyContext | None = None,
     ) -> EvaluatedPolicyDecision:
-        if not control.audit_available:
-            return EvaluatedPolicyDecision(False, "audit control unavailable", "local-reference")
-        if not control.verification_defined:
-            return EvaluatedPolicyDecision(False, "verification control unavailable", "local-reference")
+        # Keep the exact evaluation order in the Rego bundle. The reason is
+        # part of the authorization contract: a later unsafe condition must
+        # not replace the first deterministic refusal an operator receives.
         if policy.kill_switch:
             return EvaluatedPolicyDecision(False, "service kill switch is enabled", "local-reference")
         if request.service != policy.service or request.environment != policy.environment:
@@ -288,7 +303,11 @@ class LocalReferenceEvaluator:
         denial = certification_denial(context)
         if denial is not None:
             return EvaluatedPolicyDecision(False, denial, "local-reference")
-        return EvaluatedPolicyDecision(True, "authorized by local reference policy", "local-reference")
+        if not control.audit_available:
+            return EvaluatedPolicyDecision(False, "audit control unavailable", "local-reference")
+        if not control.verification_defined:
+            return EvaluatedPolicyDecision(False, "verification control unavailable", "local-reference")
+        return EvaluatedPolicyDecision(True, AUTHORIZED_REASON, "local-reference")
 
 
 def as_policy_decision(value: EvaluatedPolicyDecision) -> PolicyDecision:

@@ -42,7 +42,9 @@ production-certified.
 | [`../roadmap/technical-roadmap-24-months.md`](../roadmap/technical-roadmap-24-months.md) | Target proposal | Outcome-gated delivery sequence and promotion gates |
 | [`CURRENT-POSITION.md`](CURRENT-POSITION.md) | Current implementation state | The single answer to "where are we today", with both yardsticks stated |
 | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) | Current evidence contract | What must be retained to support a promotion claim |
+| [`PERFORMANCE-EVIDENCE-CONTRACT.md`](PERFORMANCE-EVIDENCE-CONTRACT.md) | Current design | Canonical target budgets and performance-observation artifact contract; not measured evidence |
 | [`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md) | Target promotion plan | Required sequence and gates |
+| [`APPLICATION-CONFIGURATION.md`](APPLICATION-CONFIGURATION.md) | Current implementation contract | Typed HTTP-process settings, startup validation, and capability composition |
 | [`../architecture/MATURITY-SCORECARD.md`](../architecture/MATURITY-SCORECARD.md) | Current repository assessment | Directional maturity, never production proof |
 | [`../architecture/ALIGNMENT-REVIEW.md`](../architecture/ALIGNMENT-REVIEW.md) | Historical review | Pre-corrective baseline only |
 | [`architecture-review-2026-08.md`](architecture-review-2026-08.md) | Historical review | Point-in-time assessment only |
@@ -65,12 +67,13 @@ production-certified.
 | [`reviews/skill-driven-doc-review.md`](reviews/skill-driven-doc-review.md) | Historical review | Point-in-time documentation audit |
 | [`PR-GUARDIAN-SHADOW-REPORT.md`](PR-GUARDIAN-SHADOW-REPORT.md) | Current implementation state | What the shadow report computes and does not authorize |
 | [`PR-GUARDIAN-REPOSITORY-CONFIG.md`](PR-GUARDIAN-REPOSITORY-CONFIG.md) | Current implementation state | Repository-owned modes, waivers, kill switch, threat model |
+| [`TYPE-SAFETY-BASELINE.md`](TYPE-SAFETY-BASELINE.md) | Current implementation-quality contract | Versioned Ruff/mypy/dynamic-typing ratchet for core product and control packages |
 | [`KNOWLEDGE-INGEST-RUNBOOK.md`](KNOWLEDGE-INGEST-RUNBOOK.md) | Current implementation state | Ingestion runner and workflow; Azure path requirements |
 | [`evidence/README.md`](evidence/README.md) | Current evidence contract | The evidence registry; an empty directory means not proven |
 | [`OPERATIONS-INTELLIGENCE-RUNBOOK.md`](OPERATIONS-INTELLIGENCE-RUNBOOK.md) | Current implementation state | L1/L2 routes, secret, evidence modes, what an L2 proposal is not |
 | [`L3-REHEARSAL-RUNBOOK.md`](L3-REHEARSAL-RUNBOOK.md) | Current implementation state | Exercise, soak, and readiness runners; rehearsal is not certification |
 | [`L4-PROMOTION-RUNBOOK.md`](L4-PROMOTION-RUNBOOK.md) | Current implementation state | Scoped certification record, what invalidates it, the platform cannot self-certify |
-| [`COMPANY-BRAIN-CORE.md`](COMPANY-BRAIN-CORE.md) | Target proposal | Company Brain feedback loop (merged from a parallel line; not reconciled with ADR-001) |
+| [`COMPANY-BRAIN-CORE.md`](COMPANY-BRAIN-CORE.md) | Current implementation contract | Product-neutral Evidence, Finding, Outcome, and provenance records; source-only reference behavior |
 | [`COMPANY-BRAIN-STORE.md`](COMPANY-BRAIN-STORE.md) | Target proposal | Company Brain reference store (merged from a parallel line) |
 | [`COMPANY-BRAIN-WORLD-MODEL.md`](COMPANY-BRAIN-WORLD-MODEL.md) | Target proposal | Company Brain world model (merged from a parallel line) |
 | [`COMPANY-BRAIN-MEMORY-SYNC.md`](COMPANY-BRAIN-MEMORY-SYNC.md) | Target proposal | Company Brain memory sync (merged from a parallel line) |

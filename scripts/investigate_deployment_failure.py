@@ -20,12 +20,13 @@ import json
 import os
 from pathlib import Path
 
-from app.operations_api import (
+from app.operations.capability import build_operations_capability
+from app.operations.presentation import deployment_report
+from app.operations.publishers import (
     GitHubDeploymentFailurePublisher,
-    build_operations_capability,
-    deployment_report,
     github_intelligence_client,
 )
+from app.settings import OperationsSettings
 from integrations.azure_devops.deployment_failure import normalize_service_hook
 
 
@@ -46,6 +47,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-dir", default=None, help="defaults to EIP_STATE_DIR, else .eip")
     parser.add_argument("--publish", choices=("none", "github"), default="none")
     parser.add_argument("--repository", default=None, help="owner/name, required by --publish github")
+    parser.add_argument("--correlation-id", default=None, help="preserve an upstream correlation id")
     return parser
 
 
@@ -70,10 +72,12 @@ def main(argv: list[str] | None = None) -> int:
         publisher = GitHubDeploymentFailurePublisher(_github_client(token), args.repository)
 
     capability = build_operations_capability(
-        environ, deployment_publisher=publisher, require_webhook_secret=False
+        OperationsSettings.from_mapping(environ),
+        deployment_publisher=publisher,
+        require_webhook_secret=False,
     )
-    result = asyncio.run(capability.deployment.investigate(event))
-    print(json.dumps(deployment_report(event, result), indent=2, sort_keys=True))
+    result = asyncio.run(capability.deployment.investigate(event, correlation_id=args.correlation_id))
+    print(json.dumps(deployment_report(event, result).model_dump(mode="json"), indent=2, sort_keys=True))
     return 0
 
 

@@ -171,7 +171,6 @@ class KubernetesActionAdapter:
         return result.stdout.strip() or f"kubectl:{runbook_id}:{deployment}"
 
     def verify(self, signal: str, request: ActionRequest) -> bool:
-        deployment = self._safe_name(request.service)
         if signal in {"deployment.available_replicas", "deployment.ready_replicas"}:
             payload = self._deployment(request)
             status = payload.get("status") or {}

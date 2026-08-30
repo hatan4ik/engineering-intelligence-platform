@@ -1,0 +1,4 @@
+# Development-only quality tools. Runtime dependencies remain in app/requirements.txt.
+# Versions are exact so an error-budget ratchet cannot silently change with a tool release.
+ruff==0.16.4
+mypy==2.3.1

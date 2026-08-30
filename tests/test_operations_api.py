@@ -67,13 +67,13 @@ def test_deployment_route_returns_analysis_and_l2_proposals(configured_env):
         response = client.post(
             "/v1/events/deployment",
             json=ADO_FAILED_RUN,
-            headers={"X-EIP-Operations-Secret": SECRET},
+            headers={"X-EIP-Operations-Secret": SECRET, "X-Correlation-Id": "ado-delivery-42"},
         )
 
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "investigated"
-    assert body["correlation_id"]
+    assert body["correlation_id"] == "ado-delivery-42"
     assert body["workflow_id"] == "deployment-failure:ado:Platform:7:42"
     assert body["analysis"]["deployment_id"] == "ado:Platform:7:42"
     assert body["analysis"]["hypotheses"]
@@ -91,11 +91,12 @@ def test_incident_route_returns_analysis_blast_radius_and_l2_proposals(configure
         response = client.post(
             "/v1/events/incident",
             json=COMMON_ALERT,
-            headers={"X-EIP-Operations-Secret": SECRET},
+            headers={"X-EIP-Operations-Secret": SECRET, "X-Correlation-Id": "monitor-alert-42"},
         )
 
     assert response.status_code == 200
     body = response.json()
+    assert body["correlation_id"] == "monitor-alert-42"
     assert body["workflow_id"] == "incident:INC-42"
     assert body["service"] == "payments"
     assert body["impacted_services"] == ["payments"]

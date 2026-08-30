@@ -26,6 +26,11 @@ What does not belong here: sample or illustrative records, records for runs that
 records copied from another environment, and anything that has to be edited after the fact
 (records are immutable — supersede, do not rewrite).
 
+For a latency, capacity, queue, or cost claim, validate the separate report against the
+[`../PERFORMANCE-EVIDENCE-CONTRACT.md`](../PERFORMANCE-EVIDENCE-CONTRACT.md) and link that
+retained report in this record's `artifacts`. The baseline's target numbers are not evidence and
+must not be copied here as if they were observed results.
+
 ## Record schema
 
 Every record carries the nine fields of the evidence-record table in

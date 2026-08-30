@@ -1,0 +1,2 @@
+# Test-only dependencies. Keep these out of the release image's runtime closure.
+pytest==9.0.3

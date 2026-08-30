@@ -50,7 +50,9 @@ class DeploymentFailureInvestigatorService:
         self.workflows = workflows
         self.publisher = publisher
 
-    async def investigate(self, event: DeploymentFailureEvent) -> DeploymentFailureResult:
+    async def investigate(
+        self, event: DeploymentFailureEvent, *, correlation_id: str | None = None
+    ) -> DeploymentFailureResult:
         events = self.evidence.evidence_for(event)
         analysis = investigate_deployment_failure(
             events,
@@ -60,6 +62,7 @@ class DeploymentFailureInvestigatorService:
         workflow = await self.workflows.start_deployment_failure(
             environment=event.environment,
             analysis=analysis,
+            correlation_id=correlation_id,
         )
         self.publisher.publish(event=event, analysis=analysis, evidence=tuple(events))
         return DeploymentFailureResult(

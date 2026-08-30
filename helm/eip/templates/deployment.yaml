@@ -12,6 +12,14 @@
 {{- if ne .Values.env.EIP_AUTH_MODE "entra" }}
 {{- fail "EIP_AUTH_MODE must be entra for a deployed workload" }}
 {{- end }}
+{{- if not (has .Values.controls.controlPlaneMode (list "disabled" "reference" "temporal")) }}
+{{- fail "controls.controlPlaneMode must be disabled, reference, or temporal" }}
+{{- end }}
+{{- range $name, $value := dict "controls.requireOpa" .Values.controls.requireOpa "controls.autonomyKillSwitch" .Values.controls.autonomyKillSwitch "controls.prGuardianKillSwitch" .Values.controls.prGuardianKillSwitch }}
+{{- if not (kindIs "bool" $value) }}
+{{- fail (printf "%s must be a boolean" $name) }}
+{{- end }}
+{{- end }}
 {{- $azureClientId := required "serviceAccount.azureClientId is required for Azure Workload Identity" .Values.serviceAccount.azureClientId }}
 {{- $tenantId := required "env.EIP_ENTRA_TENANT_ID is required" .Values.env.EIP_ENTRA_TENANT_ID }}
 {{- $audience := required "env.EIP_ENTRA_AUDIENCE is required" .Values.env.EIP_ENTRA_AUDIENCE }}
@@ -63,6 +71,14 @@ spec:
               value: {{ .Values.env.EIP_ALLOW_HEADER_IDENTITY | quote }}
             - name: EIP_AUTH_MODE
               value: {{ .Values.env.EIP_AUTH_MODE | quote }}
+            - name: EIP_CONTROL_PLANE_MODE
+              value: {{ .Values.controls.controlPlaneMode | quote }}
+            - name: EIP_REQUIRE_OPA
+              value: {{ ternary "true" "false" .Values.controls.requireOpa | quote }}
+            - name: EIP_AUTONOMY_KILL_SWITCH
+              value: {{ ternary "true" "false" .Values.controls.autonomyKillSwitch | quote }}
+            - name: EIP_PR_GUARDIAN_KILL_SWITCH
+              value: {{ ternary "true" "false" .Values.controls.prGuardianKillSwitch | quote }}
             - name: EIP_ENTRA_TENANT_ID
               value: {{ $tenantId | quote }}
             - name: EIP_ENTRA_AUDIENCE

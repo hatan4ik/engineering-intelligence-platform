@@ -1,6 +1,9 @@
 apiVersion: v2
 name: engineering-intelligence-platform
 description: Engineering Intelligence Platform API
+# The chart package has its own SemVer lifecycle. `appVersion` identifies the
+# Python application contract expected by this chart; release verification
+# keeps it aligned with `[project].version`.
 version: 0.2.0
-appVersion: "0.2.0"
+appVersion: "0.6.0"
 type: application

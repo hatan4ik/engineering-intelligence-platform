@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import os
 import time
 import uuid
 from dataclasses import dataclass
+from typing import cast
 
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
-from azure.search.documents.models import VectorizedQuery
+from azure.search.documents.models import VectorQuery, VectorizedQuery
 from openai import AzureOpenAI
 
 from app.observability import tracer
+from app.settings import AzureRagSettings
 from finops.rates import UsageRates
 from security.evidence import classify_evidence
 from telemetry.events import NullTelemetrySink, OperationEvent, TelemetrySink
@@ -23,19 +24,14 @@ class RetrievedDocument:
     score: float
 
 
-def _env_float(name: str) -> float:
-    try:
-        return float(os.getenv(name, "0"))
-    except ValueError:
-        return 0.0
+def rates_from_settings(settings: AzureRagSettings) -> UsageRates:
+    """Project the process configuration into the explicit FinOps value object."""
 
-
-def rates_from_environment() -> UsageRates:
     return UsageRates(
-        input_per_million_tokens_usd=_env_float("EIP_COST_INPUT_PER_MILLION_TOKENS_USD"),
-        output_per_million_tokens_usd=_env_float("EIP_COST_OUTPUT_PER_MILLION_TOKENS_USD"),
-        search_per_1000_queries_usd=_env_float("EIP_COST_SEARCH_PER_1000_QUERIES_USD"),
-        tool_call_usd=_env_float("EIP_COST_TOOL_CALL_USD"),
+        input_per_million_tokens_usd=settings.input_per_million_tokens_usd,
+        output_per_million_tokens_usd=settings.output_per_million_tokens_usd,
+        search_per_1000_queries_usd=settings.search_per_1000_queries_usd,
+        tool_call_usd=settings.tool_call_usd,
     )
 
 
@@ -50,23 +46,27 @@ class AzureRagBackend:
     def __init__(
         self,
         *,
+        settings: AzureRagSettings,
         deployment: str | None = None,
         telemetry: TelemetrySink | None = None,
         rates: UsageRates | None = None,
     ) -> None:
-        endpoint = os.environ["AZURE_SEARCH_ENDPOINT"]
-        index = os.environ["AZURE_SEARCH_INDEX"]
         self.credential = DefaultAzureCredential()
-        self.search = SearchClient(endpoint=endpoint, index_name=index, credential=self.credential)
+        self.search = SearchClient(
+            endpoint=settings.search_endpoint,
+            index_name=settings.search_index,
+            credential=self.credential,
+        )
         self.openai = AzureOpenAI(
-            azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
+            azure_endpoint=settings.openai_endpoint,
+            api_version=settings.openai_api_version,
             azure_ad_token_provider=self._token,
         )
-        self.deployment = deployment or os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT"]
-        self.embedding_deployment = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+        self.deployment = deployment or settings.chat_deployment
+        self.embedding_deployment = settings.embedding_deployment
         self.telemetry = telemetry or NullTelemetrySink()
-        self.rates = rates or rates_from_environment()
+        self.rates = rates or rates_from_settings(settings)
+        self.search_semantic_configuration = settings.search_semantic_configuration
         self.trace = tracer()
 
     def _token(self) -> str:
@@ -112,7 +112,19 @@ class AzureRagBackend:
             try:
                 vector = self._query_vector(question)
                 vector_queries = (
-                    [VectorizedQuery(vector=vector, k_nearest_neighbors=max(top * 2, top), fields="embedding")]
+                    # The Azure SDK's generated model is a runtime subclass of
+                    # VectorQuery, while the distributed stub does not express
+                    # that inheritance at this call site.
+                    cast(
+                        list[VectorQuery],
+                        [
+                            VectorizedQuery(
+                                vector=vector,
+                                k_nearest_neighbors=max(top * 2, top),
+                                fields="embedding",
+                            )
+                        ],
+                    )
                     if vector is not None
                     else None
                 )
@@ -120,7 +132,7 @@ class AzureRagBackend:
                     search_text=question,
                     vector_queries=vector_queries,
                     query_type="semantic",
-                    semantic_configuration_name=os.getenv("AZURE_SEARCH_SEMANTIC_CONFIG", "default"),
+                    semantic_configuration_name=self.search_semantic_configuration,
                     filter=" and ".join(filters),
                     select=["source", "content"],
                     top=top,
@@ -168,7 +180,7 @@ class AzureRagBackend:
         user: str | None = None,
     ) -> str:
         correlation = correlation_id or str(uuid.uuid4())
-        security = classify_evidence(docs)
+        security = classify_evidence(document for document in docs)
         suspicious = set(security.suspicious_sources)
         safe_docs = [d for d in docs if d.source not in suspicious]
         if not safe_docs:

@@ -16,6 +16,17 @@ class CapturedOutcome:
     inserted: bool
 
 
+@dataclass(frozen=True)
+class GitHubPullRequestOutcome:
+    """A terminal GitHub pull-request event narrowed at the webhook boundary."""
+
+    repository: str
+    pr_number: int
+    merged: bool
+    risk_signal: str
+    utility_signal: str
+
+
 class OutcomeFeedbackRecorder:
     def __init__(self, sink: FeedbackSink) -> None:
         self.sink = sink
@@ -98,32 +109,61 @@ class OutcomeFeedbackRecorder:
         return CapturedOutcome(event, self.sink.append(event))
 
 
-def normalize_github_pr_outcome(payload: Mapping[str, object]) -> dict[str, object] | None:
+def normalize_github_pr_outcome(
+    payload: Mapping[str, object],
+) -> GitHubPullRequestOutcome | None:
     """Extract terminal PR outcomes along with explicit reviewer labels (shadow pilot)."""
-    if str(payload.get("action", "")) != "closed":
+    if payload.get("action") != "closed":
         return None
     repository = payload.get("repository")
     pull_request = payload.get("pull_request")
     if not isinstance(repository, Mapping) or not isinstance(pull_request, Mapping):
         raise ValueError("invalid GitHub pull_request outcome payload")
-    full_name = str(repository.get("full_name", "")).strip()
-    number = int(payload.get("number", 0))
-    if not full_name or number <= 0:
+    full_name = repository.get("full_name")
+    number = payload.get("number")
+    merged = pull_request.get("merged")
+    if not isinstance(full_name, str) or not full_name.strip():
         raise ValueError("missing GitHub repository or PR number")
-        
-    raw_labels = pull_request.get("labels", [])
-    labels = [str(l.get("name", "")).lower() for l in raw_labels if isinstance(l, dict)]
-    
-    risk_labels = [l for l in labels if l in {"eip-pr-guardian/confirmed-risk", "eip-pr-guardian/false-positive"}]
-    utility_labels = [l for l in labels if l in {"eip-pr-guardian/useful", "eip-pr-guardian/not-useful"}]
-    
-    risk_signal = risk_labels[0].replace("eip-pr-guardian/", "") if risk_labels else "not-reviewed"
-    utility_signal = utility_labels[0].replace("eip-pr-guardian/", "") if utility_labels else "not-reviewed"
+    if type(number) is not int or number <= 0:
+        raise ValueError("missing GitHub repository or PR number")
+    if type(merged) is not bool:
+        raise ValueError("GitHub pull_request merged must be a boolean")
 
-    return {
-        "repository": full_name,
-        "pr_number": number,
-        "merged": bool(pull_request.get("merged", False)),
-        "risk_signal": risk_signal,
-        "utility_signal": utility_signal,
-    }
+    raw_labels = pull_request.get("labels", [])
+    if not isinstance(raw_labels, list):
+        raise ValueError("GitHub pull_request labels must be an array")
+    labels: list[str] = []
+    for label in raw_labels:
+        if not isinstance(label, Mapping):
+            raise ValueError("GitHub pull_request labels must contain objects")
+        name = label.get("name")
+        if not isinstance(name, str):
+            raise ValueError("GitHub pull_request label name must be a string")
+        labels.append(name.lower())
+
+    risk_labels = [
+        label
+        for label in labels
+        if label in {"eip-pr-guardian/confirmed-risk", "eip-pr-guardian/false-positive"}
+    ]
+    utility_labels = [
+        label
+        for label in labels
+        if label in {"eip-pr-guardian/useful", "eip-pr-guardian/not-useful"}
+    ]
+
+    return GitHubPullRequestOutcome(
+        repository=full_name.strip(),
+        pr_number=number,
+        merged=merged,
+        risk_signal=(
+            risk_labels[0].removeprefix("eip-pr-guardian/")
+            if risk_labels
+            else "not-reviewed"
+        ),
+        utility_signal=(
+            utility_labels[0].removeprefix("eip-pr-guardian/")
+            if utility_labels
+            else "not-reviewed"
+        ),
+    )

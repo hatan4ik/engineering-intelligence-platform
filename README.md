@@ -69,6 +69,7 @@ curl -s http://127.0.0.1:8000/v1/query \
 Run the repository reference checks that CI runs:
 
 ```bash
+pip install -r requirements/test.txt -r requirements/dev.txt
 pytest -q
 python -m eval.evaluate
 python -m demo.aks.scenario_runner
@@ -140,21 +141,46 @@ The portal is organized into:
 
 ## Repository map
 
-| Path | Plane | Contents |
+| Path | Responsibility | Contents |
 |---|---|---|
-| `ingestion/` | Knowledge | Source events, AST/text chunking, ACLs, index adapters, ledger/DLQ/replay, embedding contract |
-| `app/` | Gateway | FastAPI API, Azure RAG backend, webhook ingress, OTel bootstrap |
-| `intelligence/` | Intelligence | Service graph, change risk, PR Guardian, incident/deployment/drift analysis, SLO context |
-| `product/` `integrations/` `scripts/` | Intelligence | PR Guardian E2E: product service, GitHub REST/webhook adapters, CI runner |
-| `control_plane/` `state/` `orchestration/` | Control | Reference workflow/state/audit contracts; Temporal mTLS evidence-worker boundary and plan-bound approvals |
-| `remediation/` | Execution | Runbook catalog, deterministic policy, Kubernetes adapter, simulation, verify/rollback |
-| `security/` `resilience/` | Control | Adversarial/provenance controls, degraded-mode policy, L4 certification |
-| `telemetry/` `finops/` `portal/` | Observability | Operation events, cost attribution/outcomes, control-tower view models |
+| `app/` | Gateway | FastAPI composition, query API, webhook ingress, operational routes, Azure RAG adapter, and telemetry bootstrap |
+| `company_brain/` | Company Brain | Canonical organizational facts, evidence pointers, provenance, durable projections, and qualified world-model reads; never action authority |
+| `ingestion/` | Knowledge | Source events, AST/text chunking, ACLs, index adapters, ledger/DLQ/replay, and embedding contracts |
+| `intelligence/` | Reasoning | Change risk, PR Guardian analysis, incidents, deployments, drift, SLO context, and calibration |
+| `topology/` | Company Brain graph | Service/resource projections and blast-radius traversal over the engineering topology |
+| `product/` | Product workflows | PR Guardian and incident, deployment, drift, knowledge-maintenance, and self-healing service orchestration |
+| `integrations/` | Edge adapters | GitHub, Azure, Azure DevOps, and Azure Monitor translation layers; no product-policy ownership |
+| `feedback/` | Learning loop | Durable reviewer/outcome capture and shadow-pilot calibration reports |
+| `control_plane/` | Control | Workflow state-machine contracts, approval boundaries, and remediation coordination |
+| `state/` | Durable records | Lifecycle, audit, idempotency, and reference state-store adapters |
+| `orchestration/` | Durable execution | Temporal worker/client/workflow integration and reference job scheduling |
+| `remediation/` | Execution | Runbook catalog, deterministic/OPA policy, Kubernetes adapter, simulation, verification, and rollback |
+| `resilience/` | Autonomy assurance | Certification scope, exercise, and degraded-mode contracts |
+| `security/` | Security controls | Adversarial-input, provenance, and red-team checks |
+| `telemetry/` | Observability | Operation events, OTEL wiring, and control-plane telemetry contracts |
+| `finops/` | Economics | Cost attribution, outcome accounting, rate contracts, and control-tower metrics |
+| `portal/` | Presentation | Read-model/view contracts for operational and portfolio control towers |
 | `eval/` | Quality | Retrieval evaluation harness |
-| `infra/` | Infra | Terraform (Azure baseline + private AI foundation), OPA policy examples |
+| `validation/` | Evidence validation | Evidence registry, integration probes, soak checks, readiness evaluation, and deferred Temporal probes |
+| `supply_chain/` | Delivery integrity | Dependency, SBOM, and image-evidence verification used by CI |
+| `scripts/` | Operator tools | Versioned, reviewable maintenance, investigation, certification, and validation entry points |
+| `infra/` | Infrastructure | Terraform Azure baseline/private AI foundation and OPA policy bundle |
 | `helm/eip/` · `helm/temporal/` · `Dockerfile` | Deploy | Fail-closed API chart, pinned Temporal wrapper, and container image |
 | `demo/aks/` | Demo | Fault/remediation scenario runner |
-| `slides/` | Program | Board-deck generator |
+| `architecture/` · `docs/` · `governance/` · `roadmap/` | Product knowledge | Design decisions, evidence rules, operating model, and outcome-gated delivery plan |
+| `slides/` | Program communication | Board-deck generator and source material |
+
+## Version semantics
+
+The Python package's `[project].version` is the application contract version. The EIP Helm
+chart's `version` is the independently versioned chart package: change it when chart templates,
+defaults, or dependencies change. Its `appVersion` identifies the application contract the chart
+deploys and must match `[project].version`; the repository test enforces that relationship.
+
+Neither version authorizes a deployment. A reviewed, digest-pinned image is the runtime identity;
+the chart version and application version make that identity intelligible in release records. The
+Temporal chart's `appVersion` names the external Temporal server and is intentionally independent
+of the EIP application version.
 
 ## Development
 

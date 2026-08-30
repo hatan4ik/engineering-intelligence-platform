@@ -40,7 +40,14 @@ class IncidentIntelligenceService:
         self.workflows = workflows
         self.publisher = publisher
 
-    async def investigate(self, *, incident_id: str, service: str, environment: str) -> IncidentResult:
+    async def investigate(
+        self,
+        *,
+        incident_id: str,
+        service: str,
+        environment: str,
+        correlation_id: str | None = None,
+    ) -> IncidentResult:
         events = self.evidence.collect(incident_id=incident_id, service=service, environment=environment)
         analysis = analyze_incident(events, service=service)
         radius = self.topology.blast_radius({service})
@@ -50,6 +57,7 @@ class IncidentIntelligenceService:
             environment=environment,
             incident_id=incident_id,
             analysis=analysis,
+            correlation_id=correlation_id,
         )
         self.publisher.publish(
             incident_id=incident_id,

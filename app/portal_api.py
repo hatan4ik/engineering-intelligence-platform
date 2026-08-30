@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Protocol
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
-from app.auth_mode import header_identity_permitted
-from app.gateway import ApiKeyPrincipalStore, GatewayAuthError, GatewayPrincipal
+from app.authentication import configured_authenticator
+from app.gateway import GatewayAuthError, GatewayPrincipal
+from app.settings import ApplicationSettings, SettingsError, settings_for_application
 from portal.intelligence_view import ServiceIntelligenceView, to_dict as service_to_dict
 from portal.portfolio_view import PortfolioIntelligenceView, to_dict as portfolio_to_dict
 from portal.timeseries import MetricTrend, serialize_trend
@@ -36,28 +36,32 @@ router = APIRouter(prefix="/v1/portal", tags=["engineering-intelligence"])
 
 def _principal(
     *,
+    settings: ApplicationSettings,
     authorization: str | None,
     api_key: str | None,
     fallback_user: str | None,
     fallback_groups: str | None,
 ) -> PortalPrincipal:
-    header_ok, _ = header_identity_permitted()
-    if header_ok:
+    if settings.query.header_identity_permitted:
         groups = tuple(sorted(g.strip() for g in (fallback_groups or "engineering").split(",") if g.strip()))
         return PortalPrincipal(fallback_user or "local-demo", groups)
 
-    mode = os.getenv("EIP_AUTH_MODE", "entra").lower()
     try:
-        if mode == "entra":
-            from app.entra_identity import EntraPrincipalStore, EntraSettings
-            auth: GatewayPrincipal = EntraPrincipalStore(EntraSettings.from_environment()).authenticate(authorization)
-        elif mode == "api-key":
-            auth = ApiKeyPrincipalStore.from_environment().authenticate(api_key)
-        else:
-            raise GatewayAuthError("unsupported production auth mode")
-    except (GatewayAuthError, ValueError) as exc:
+        authenticator = configured_authenticator(settings.query.authentication)
+        credential = authorization if settings.query.authentication.mode == "entra" else api_key
+        auth: GatewayPrincipal = authenticator.authenticate(credential)
+    except GatewayAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except (SettingsError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"invalid application configuration: {exc}") from exc
     return PortalPrincipal(auth.subject, auth.groups)
+
+
+def _request_settings(request: Request) -> ApplicationSettings:
+    try:
+        return settings_for_application(request.app)
+    except SettingsError as exc:
+        raise HTTPException(status_code=503, detail=f"invalid application configuration: {exc}") from exc
 
 
 def _viewer(principal: PortalPrincipal) -> dict[str, object]:
@@ -74,6 +78,7 @@ def service_intelligence(
     x_eip_groups: str | None = Header(default=None),
 ) -> dict[str, object]:
     principal = _principal(
+        settings=_request_settings(request),
         authorization=authorization,
         api_key=x_eip_api_key,
         fallback_user=x_eip_user,
@@ -99,6 +104,7 @@ def portfolio_intelligence(
     x_eip_groups: str | None = Header(default=None),
 ) -> dict[str, object]:
     principal = _principal(
+        settings=_request_settings(request),
         authorization=authorization,
         api_key=x_eip_api_key,
         fallback_user=x_eip_user,
@@ -122,6 +128,7 @@ def portfolio_trend(
     x_eip_groups: str | None = Header(default=None),
 ) -> dict[str, object]:
     principal = _principal(
+        settings=_request_settings(request),
         authorization=authorization,
         api_key=x_eip_api_key,
         fallback_user=x_eip_user,
