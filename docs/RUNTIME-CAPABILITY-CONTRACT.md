@@ -26,6 +26,7 @@ isolation, or production readiness. Every row remains `not-collected` for operat
 |---|---|---|---|---|---|
 | EIP-RUNTIME-API-QUERY | Azure-backed API query | chart-exposed-reference | exposes `EIP_BACKEND`, `EIP_ALLOW_HEADER_IDENTITY`, `EIP_AUTH_MODE`, `EIP_ENTRA_TENANT_ID`, `EIP_ENTRA_AUDIENCE`, `AZURE_SEARCH_ENDPOINT`, `AZURE_SEARCH_INDEX`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_CHAT_DEPLOYMENT` | `azurerm_search_service`, `azurerm_cognitive_account`, `azurerm_kubernetes_cluster`, `azurerm_user_assigned_identity` | not-collected |
 | EIP-RUNTIME-API-CONTROLS | API safety-control reporting | chart-exposed-reference | exposes `EIP_CONTROL_PLANE_MODE`, `EIP_REQUIRE_OPA`, `EIP_AUTONOMY_KILL_SWITCH`, `EIP_PR_GUARDIAN_KILL_SWITCH` | none declared | not-collected |
+| EIP-RUNTIME-DEPENDENCY-RESILIENCE | Synchronous runtime dependency bounds | process-composed-reference | no chart configuration | none declared | not-collected |
 | EIP-RUNTIME-PR-GUARDIAN | PR Guardian webhook product | code-reference-only | intentionally omits `EIP_PR_GUARDIAN_WEBHOOK`, `EIP_GITHUB_WEBHOOK_SECRET`, `GITHUB_TOKEN`, `EIP_STATE_DIR` | none declared | not-collected |
 | EIP-RUNTIME-OPERATIONS | Operational-intelligence webhooks | code-reference-only | intentionally omits `EIP_OPERATIONS_WEBHOOK_SECRET`, `EIP_OPERATIONS_EVIDENCE`, `EIP_STATE_DIR` | none declared | not-collected |
 | EIP-RUNTIME-TEMPORAL-EVIDENCE | Temporal evidence worker | chart-exposed-reference | exposes `EIP_CONTROL_PLANE_MODE`, `EIP_TEMPORAL_ENDPOINT`, `EIP_TEMPORAL_NAMESPACE`, `EIP_TEMPORAL_TASK_QUEUE`, `EIP_TEMPORAL_TLS_SERVER_NAME`, `EIP_TEMPORAL_TLS_CA_CERT_PATH`, `EIP_TEMPORAL_TLS_CLIENT_CERT_PATH`, `EIP_TEMPORAL_TLS_CLIENT_KEY_PATH` | `azurerm_postgresql_flexible_server`, `temporal_postgresql_host` | not-collected |
@@ -46,6 +47,11 @@ their own approved secret/configuration surface before they can be enabled. The 
 is limited to the non-consequential evidence workflow; the plan-bound remediation workflow remains
 unconfigured, is not a deployed claim, and cannot obtain authority merely by adding environment
 variables.
+
+`process-composed-reference` means source code creates an in-process safety
+boundary without adding a deployable environment-variable surface. It is
+checked here so documentation cannot turn a local bulkhead/circuit breaker
+into a chart, Terraform, or operational-availability claim.
 
 Terraform markers identify a foundation that the source can consume; Terraform does not deploy
 the Helm release or prove any runtime integration. A new server, workload identity, secret,

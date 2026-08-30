@@ -45,6 +45,8 @@ production-certified.
 | [`PERFORMANCE-EVIDENCE-CONTRACT.md`](PERFORMANCE-EVIDENCE-CONTRACT.md) | Current design | Canonical target budgets and performance-observation artifact contract; not measured evidence |
 | [`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md) | Target promotion plan | Required sequence and gates |
 | [`APPLICATION-CONFIGURATION.md`](APPLICATION-CONFIGURATION.md) | Current implementation contract | Typed HTTP-process settings, startup validation, and capability composition |
+| [`RUNTIME-CAPABILITY-CONTRACT.md`](RUNTIME-CAPABILITY-CONTRACT.md) | Current implementation contract | Source-only agreement between code, chart, Terraform, and declared runtime scope |
+| [`DEPENDENCY-RESILIENCE.md`](DEPENDENCY-RESILIENCE.md) | Current implementation contract | Per-process synchronous dependency bounds and their explicit non-claims |
 | [`../architecture/MATURITY-SCORECARD.md`](../architecture/MATURITY-SCORECARD.md) | Current repository assessment | Directional maturity, never production proof |
 | [`reviews/ENGINEERING_REVIEW.md`](reviews/ENGINEERING_REVIEW.md) | Historical review with dated reconciliation | Baseline findings; use its stated revision and reconciliation scope only |
 | [`reviews/ENGINEERING_REVIEW_V2.md`](reviews/ENGINEERING_REVIEW_V2.md) | Current implementation review addendum | Evidence-backed correction to the post-quality-wave draft; not a second scorecard |

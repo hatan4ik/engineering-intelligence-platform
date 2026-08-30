@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Current design |
 | **Owner** | Security |
-| **Reviewed** | 2026-08-26 |
+| **Reviewed** | 2026-08-30 — source-control reconciliation; not a security audit |
 | **Assertions are** | threat model and required controls; not an audit result |
 | **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
 
@@ -47,7 +47,7 @@ This model separates a design requirement from the evidence that proves it.
 | Ground operational recommendations in evidence | Reference-implemented | typed evidence, finding, outcome, and provenance contracts; PR Guardian/operations presenters | A named pilot must prove citations are useful and complete for its source set. |
 | Separate reasoning from mutation with deterministic authorization | Reference-implemented | OPA contract, policy conformance corpus, plan-bound approval and allow-listed remediation path | No production policy-bundle distribution or live authorization evidence exists. |
 | Use managed/workload identity and least privilege | Reference-partial | Azure adapters use `DefaultAzureCredential`; IaC/chart contain reference workload-identity surfaces | No provisioned identity, role-assignment, network, or scope evidence exists. |
-| Bound synchronous dependency failures | Reference-implemented | explicit timeouts and per-process bulkheads/circuit breakers on runtime HTTP/SDK adapters | Not a fleet-wide rate limiter, SLO, chaos test, or recovery record; see the runtime dependency-resilience contract once merged. |
+| Bound synchronous dependency failures | Reference-implemented | explicit timeouts and per-process bulkheads/circuit breakers on runtime HTTP/SDK adapters | Not a fleet-wide rate limiter, SLO, chaos test, or recovery record; see the [runtime dependency-resilience contract](../docs/DEPENDENCY-RESILIENCE.md). |
 | Meter cost and admit requests by configured budget | Reference-partial | request-cost budget and model/search/tool cost telemetry primitives | Per-principal rate/concurrency enforcement, quota allocation, anomaly alerting, and measured cost control are not implemented. |
 | Preserve freshness, ownership, and provenance | Reference-partial | Company Brain provenance contracts and source catalog metadata | Source-quality weighting and full lifecycle evidence require actual source integrations. |
 | Record classification, purpose, retention, residency, legal hold, and deletion behavior | Planned | requirements/evidence schema states the required fields | No production source inventory or compliant retention/deletion operation exists. |

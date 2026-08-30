@@ -64,6 +64,27 @@
       ]
     },
     {
+      "id": "EIP-RUNTIME-DEPENDENCY-RESILIENCE",
+      "name": "Synchronous runtime dependency bounds",
+      "state": "process-composed-reference",
+      "evidence_status": "not-collected",
+      "code": [
+        {"path": "resilience/dependencies.py", "markers": ["class DependencyBoundary", "class DependencyUnavailable"]},
+        {"path": "app/rag/azure_backend.py", "markers": ["AzureRagBackendFactory", "AzureRagDependencyControls"]},
+        {"path": "remediation/opa_policy.py", "markers": ["opa-remediation-policy", "DependencyBoundary"]}
+      ],
+      "chart": {
+        "template": "helm/eip/templates/deployment.yaml",
+        "exposes": [],
+        "omits": []
+      },
+      "terraform_markers": [],
+      "documentation": [
+        {"path": "docs/DEPENDENCY-RESILIENCE.md", "markers": ["Runtime Dependency Resilience Contract", "Deliberate limits"]},
+        {"path": "docs/CURRENT-POSITION.md", "markers": ["Runtime capability contract"]}
+      ]
+    },
+    {
       "id": "EIP-RUNTIME-PR-GUARDIAN",
       "name": "PR Guardian webhook product",
       "state": "code-reference-only",
