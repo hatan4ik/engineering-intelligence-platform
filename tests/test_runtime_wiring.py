@@ -61,7 +61,8 @@ def test_healthz_reports_every_capability_as_unconfigured_by_default(monkeypatch
     monkeypatch.delenv("EIP_REQUIRE_OPA", raising=False)
     monkeypatch.delenv("EIP_AUTONOMY_KILL_SWITCH", raising=False)
     monkeypatch.delenv("EIP_PR_GUARDIAN_KILL_SWITCH", raising=False)
-    response = TestClient(app).get("/healthz")
+    with TestClient(app) as client:
+        response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json() == {
         "status": "ok",

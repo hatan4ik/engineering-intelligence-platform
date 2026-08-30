@@ -15,8 +15,8 @@ ban on `Any`; it is to narrow data immediately, make public contracts explicit, 
 static-analysis debt from growing while the existing code is improved.
 
 The baseline currently covers the product and control-path packages: `app`, `company_brain`,
-`intelligence`, `product`, `remediation`, `control_plane`, and `state`. It intentionally does
-not claim that every package or external SDK is fully type-checked yet.
+`intelligence`, `product`, `remediation`, `control_plane`, `state`, and `integrations`. It
+intentionally does not claim that every package or external SDK is fully type-checked yet.
 
 ## Ratchet
 

@@ -4,7 +4,8 @@ import json
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.application import create_app
+from app.settings import ApplicationSettings
 from control_plane.workflows import ControlPlaneWorkflows
 from integrations.github.pr_guardian import ChangedFile
 from integrations.github.webhook import verify_webhook_signature
@@ -63,6 +64,10 @@ def signed_headers(body: bytes, secret: str) -> dict:
     }
 
 
+def webhook_app(secret: str = "hooksecret"):
+    return create_app(ApplicationSettings.from_mapping({"EIP_GITHUB_WEBHOOK_SECRET": secret}))
+
+
 def test_signature_verification_fails_closed():
     secret, body = "s3cret", b"{}"
     sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
@@ -73,9 +78,8 @@ def test_signature_verification_fails_closed():
     assert not verify_webhook_signature(secret=secret, body=body, signature_header="sha1=abc")
 
 
-def test_webhook_rejects_bad_signature(monkeypatch):
-    monkeypatch.setenv("EIP_GITHUB_WEBHOOK_SECRET", "hooksecret")
-    client = TestClient(app)
+def test_webhook_rejects_bad_signature():
+    client = TestClient(webhook_app())
     body = json.dumps(payload()).encode()
     response = client.post(
         "/v1/events/github",
@@ -85,14 +89,14 @@ def test_webhook_rejects_bad_signature(monkeypatch):
     assert response.status_code == 401
 
 
-def test_webhook_reviews_pull_request_and_emits_telemetry(monkeypatch, tmp_path):
-    monkeypatch.setenv("EIP_GITHUB_WEBHOOK_SECRET", "hooksecret")
+def test_webhook_reviews_pull_request_and_emits_telemetry(tmp_path):
     guardian, github, telemetry = make_guardian(
         tmp_path, [ChangedFile(filename="infra/terraform/identity.tf", status="modified")]
     )
-    app.state.pr_guardian = guardian
+    application = webhook_app()
+    application.state.pr_guardian = guardian
     try:
-        client = TestClient(app)
+        client = TestClient(application)
         body = json.dumps(payload()).encode()
         response = client.post("/v1/events/github", content=body, headers=signed_headers(body, "hooksecret"))
         assert response.status_code == 200
@@ -105,30 +109,28 @@ def test_webhook_reviews_pull_request_and_emits_telemetry(monkeypatch, tmp_path)
         assert telemetry.events[0].correlation_id == "d-42"
         assert telemetry.events[0].attributes["score"] == str(data["score"])
     finally:
-        app.state.pr_guardian = None
+        application.state.pr_guardian = None
 
 
-def test_webhook_ignores_non_review_actions(monkeypatch):
-    monkeypatch.setenv("EIP_GITHUB_WEBHOOK_SECRET", "hooksecret")
-    client = TestClient(app)
+def test_webhook_ignores_non_review_actions():
+    client = TestClient(webhook_app())
     body = json.dumps(payload(action="labeled")).encode()
     response = client.post("/v1/events/github", content=body, headers=signed_headers(body, "hooksecret"))
     assert response.status_code == 200
     assert response.json()["status"] == "ignored"
 
 
-def test_webhook_503_when_guardian_not_configured(monkeypatch):
-    monkeypatch.setenv("EIP_GITHUB_WEBHOOK_SECRET", "hooksecret")
-    app.state.pr_guardian = None
-    client = TestClient(app)
+def test_webhook_503_when_guardian_not_configured():
+    application = webhook_app()
+    application.state.pr_guardian = None
+    client = TestClient(application)
     body = json.dumps(payload()).encode()
     response = client.post("/v1/events/github", content=body, headers=signed_headers(body, "hooksecret"))
     assert response.status_code == 503
 
 
-def test_webhook_ping(monkeypatch):
-    monkeypatch.setenv("EIP_GITHUB_WEBHOOK_SECRET", "hooksecret")
-    client = TestClient(app)
+def test_webhook_ping():
+    client = TestClient(webhook_app())
     body = b"{}"
     headers = signed_headers(body, "hooksecret")
     headers["X-GitHub-Event"] = "ping"

@@ -1,10 +1,18 @@
+import pytest
 from fastapi.testclient import TestClient
-from app.main import app
+from app.application import create_app
+from app.settings import ApplicationSettings
 
-client = TestClient(app)
+
+@pytest.fixture
+def client():
+    """Exercise the same lifespan-bound settings path as an ASGI process."""
+
+    with TestClient(create_app(ApplicationSettings.from_mapping({}))) as test_client:
+        yield test_client
 
 
-def test_healthz():
+def test_healthz(client):
     body = client.get('/healthz').json()
     assert body['status'] == 'ok'
     assert set(body['capabilities']) == {
@@ -12,7 +20,7 @@ def test_healthz():
     }
 
 
-def test_query_returns_citations():
+def test_query_returns_citations(client):
     r = client.post('/v1/query', json={'question': 'How should production remediation work?'})
     assert r.status_code == 200
     body = r.json()
@@ -20,7 +28,7 @@ def test_query_returns_citations():
     assert 'policy-authorized' in body['answer']
 
 
-def test_query_refuses_when_no_authorized_evidence():
+def test_query_refuses_when_no_authorized_evidence(client):
     r = client.post(
         '/v1/query',
         headers={'x-eip-groups': 'engineering'},
@@ -32,7 +40,7 @@ def test_query_refuses_when_no_authorized_evidence():
     assert r.json()['answer'] == 'I do not have enough authorized evidence to answer.'
 
 
-def test_query_filters_deterministic_evidence_by_group_and_repository():
+def test_query_filters_deterministic_evidence_by_group_and_repository(client):
     r = client.post(
         '/v1/query',
         headers={'x-eip-groups': 'finance'},
@@ -54,6 +62,6 @@ def test_query_filters_deterministic_evidence_by_group_and_repository():
     assert denied.json()['evidence'] == []
 
 
-def test_empty_question_rejected():
+def test_empty_question_rejected(client):
     r = client.post('/v1/query', json={'question': '   '})
     assert r.status_code == 400

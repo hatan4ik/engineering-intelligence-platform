@@ -7,7 +7,7 @@ import json
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.observability import tracer
-from control_plane.correlation import resolve_correlation_id
+from app.request_context import request_correlation_id
 from feedback.outcome_capture import normalize_github_pr_outcome
 from integrations.github.pr_guardian import normalize_pull_request_event
 from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
@@ -67,10 +67,7 @@ async def github_webhook(
     guardian = getattr(request.app.state, "pr_guardian", None)
     if guardian is None:
         raise HTTPException(status_code=503, detail="PR Guardian is not configured on this deployment")
-    try:
-        correlation_id = resolve_correlation_id(x_github_delivery)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    correlation_id = request_correlation_id(request)
     with trace.start_as_current_span("eip.pr_guardian") as span:
         span.set_attribute("eip.repo", event.repository)
         span.set_attribute("eip.pr", event.number)

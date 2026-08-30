@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from collections.abc import Awaitable, Callable
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from opentelemetry.trace import SpanKind
 
-from app.observability import configure_tracing
+from app.observability import configure_tracing, tracer
+from app.request_context import bind_request_context, request_trace_context
 from app.settings import observability_endpoint_from_environment
+from starlette.responses import Response
+from telemetry.trace_context import TraceContext
 
 # Configure before importing routers so their tracer handles bind to the
 # process provider when OTLP is enabled.
@@ -70,14 +76,51 @@ def create_app(settings: ApplicationSettings | None = None) -> FastAPI:
     )
     if settings is not None:
         application.state.eip_settings = settings
+
+    @application.middleware("http")
+    async def bind_observability_context(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        """Bind one correlation ID and W3C parent before any route can run."""
+
+        try:
+            correlation_id = bind_request_context(request)
+        except ValueError as error:
+            return JSONResponse(status_code=400, content={"detail": str(error)})
+        trace_context = request_trace_context(request)
+        with tracer().start_as_current_span(
+            "eip.http.request",
+            context=trace_context.otel_context(),
+            kind=SpanKind.SERVER,
+        ) as span:
+            span.set_attribute("eip.correlation_id", str(correlation_id))
+            span.set_attribute("http.request.method", request.method)
+            response = await call_next(request)
+            span.set_attribute("http.response.status_code", response.status_code)
+            route = request.scope.get("route")
+            path = getattr(route, "path", None)
+            if isinstance(path, str):
+                span.set_attribute("http.route", path)
+            response.headers.setdefault("x-correlation-id", str(correlation_id))
+            for name, value in TraceContext.current().headers().items():
+                response.headers.setdefault(name, value)
+            return response
+
     application.include_router(query_router)
     application.include_router(pr_guardian_router)
     application.include_router(portal_router)
     application.include_router(operations_router)
 
-    @application.get("/healthz")
-    def healthz() -> dict[str, object]:
-        effective_settings = settings_for_application(application)
+    @application.get("/healthz", response_model=None)
+    def healthz() -> dict[str, object] | JSONResponse:
+        try:
+            effective_settings = settings_for_application(application)
+        except SettingsError as error:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unavailable", "detail": str(error)},
+            )
         return {
             "status": "ok",
             "capabilities": capability_report(

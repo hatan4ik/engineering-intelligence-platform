@@ -13,8 +13,8 @@ from pydantic import BaseModel
 from app.authentication import configured_authenticator
 from app.gateway import GatewayAuthError, GatewayPolicyError, authorize_request
 from app.observability import tracer
+from app.request_context import request_correlation_id
 from app.settings import ApplicationSettings, SettingsError, settings_for_application
-from control_plane.correlation import resolve_correlation_id
 
 
 router = APIRouter(prefix="/v1", tags=["governed-query"])
@@ -165,7 +165,6 @@ def query(
     request: Request,
     authorization: str | None = Header(default=None),
     x_eip_groups: str | None = Header(default=None),
-    x_correlation_id: str | None = Header(default=None),
     x_eip_user: str | None = Header(default=None),
     x_eip_api_key: str | None = Header(default=None),
     x_eip_model_tier: str | None = Header(default=None),
@@ -185,10 +184,7 @@ def query(
         fallback_groups=x_eip_groups,
         fallback_user=x_eip_user,
     )
-    try:
-        correlation_id = resolve_correlation_id(x_correlation_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    correlation_id = request_correlation_id(request)
 
     with trace.start_as_current_span("eip.query") as span:
         span.set_attribute("eip.correlation_id", correlation_id)

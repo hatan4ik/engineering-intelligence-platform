@@ -5,11 +5,17 @@
 | **Classification** | Current design |
 | **Owner** | Platform Engineering |
 | **Reviewed** | 2026-08-26 |
-| **Assertions are** | design; OTLP export is configured only when an endpoint is set |
+| **Assertions are** | source-level reference contract; OTLP export is configured only when an endpoint is set |
 | **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
 
 
-Every material Engineering Intelligence operation carries a correlation ID across retrieval, model synthesis, tool/runbook execution, workflow state and audit events.
+Every material Engineering Intelligence operation is designed to carry a
+correlation ID across retrieval, model synthesis, tool/runbook execution,
+workflow state and audit events. The implemented HTTP boundary validates and
+returns one correlation ID per request, accepts a valid W3C parent trace, and
+emits a child trace context. The non-consequential Temporal proof workflow has
+an explicit trace-context carrier. This is not evidence that a deployed
+collector joins every production service trace yet.
 
 ## Runtime event contract
 
@@ -42,3 +48,16 @@ Query-time ACL trimming still happens before this step. Content classification i
 - AI recommendation acceptance, rejection and revert rates.
 
 OTel spans and cost events must use the same correlation identity as authoritative workflow/audit records.
+
+## Trace propagation boundary
+
+`telemetry.trace_context.TraceContext` is the serializable contract at an
+integration edge. It canonicalizes valid `traceparent`/`tracestate` pairs with
+the OpenTelemetry propagator and drops invalid metadata. `app.application`
+binds it before any route runs; `app.request_context` supplies the separately
+validated correlation ID to the route and durable workflow callers. Neither
+trace headers nor correlation headers grant access or change a policy decision.
+
+The next operational step is collector/dashboard wiring and a retained
+trace-to-audit reconciliation record for a named environment. Do not infer
+that evidence from the unit tests or response headers.
