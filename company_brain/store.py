@@ -255,7 +255,26 @@ class SqliteCompanyBrainStore(SqliteReferenceDatabase):
     def __init__(self, path: str | Path = "company-brain.db") -> None:
         require_reference_storage(type(self).__name__)
         self.path = str(path)
+        self._read_only = False
         self._init_schema()
+
+    @classmethod
+    def open_read_only(cls, path: str | Path) -> "SqliteCompanyBrainStore":
+        """Open an existing reference database without schema setup or write access.
+
+        Maintenance and reporting paths use this constructor so merely reading
+        Company Brain memory cannot create a database, run DDL, or change a
+        source-of-record row.
+        """
+
+        require_reference_storage(cls.__name__)
+        database_path = Path(path)
+        if not database_path.is_file():
+            raise CompanyBrainStoreError("read-only Company Brain database does not exist")
+        store = object.__new__(cls)
+        store.path = str(database_path.resolve())
+        store._read_only = True
+        return store
 
     def _init_schema(self) -> None:
         with self._connect() as db:

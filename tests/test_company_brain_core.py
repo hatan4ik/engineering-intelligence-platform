@@ -86,13 +86,14 @@ def test_knowledge_documents_add_governance_and_only_explicit_causal_edges():
     brain = CompanyBrain()
     projector = CompanyBrainProjector(brain)
     projector.project_file_change(change(service="payments", owner="team-payments", path="services/payments/app.yaml"))
+    runbook_updated_at = datetime(2026, 8, 30, 8, 15, tzinfo=timezone.utc)
     runbook = projector.project_knowledge_document(
         KnowledgeDocument(
             identity=KnowledgeIdentity("confluence", KnowledgeSourceType.RUNBOOK, "restart-payments"),
             title="Restart payments",
             body="Runbook body",
             revision="7",
-            updated_at=datetime.now(timezone.utc),
+            updated_at=runbook_updated_at,
             service="payments",
             acl=ACL(groups=("engineering",)),
         )
@@ -113,6 +114,7 @@ def test_knowledge_documents_add_governance_and_only_explicit_causal_edges():
 
     assert runbook.unresolved_relationships == ()
     assert incident.unresolved_relationships == ()
+    assert brain.entities["runbook:confluence:restart-payments"].metadata["source_updated_at"] == runbook_updated_at.isoformat()
     kinds = {(item.source_id, item.target_id, item.kind) for item in brain.relationships}
     assert (change_id, "incident:confluence:inc-123", RelationshipKind.CAUSED) in kinds
     assert ("incident:confluence:inc-123", "runbook:confluence:restart-payments", RelationshipKind.RESOLVED_BY) in kinds

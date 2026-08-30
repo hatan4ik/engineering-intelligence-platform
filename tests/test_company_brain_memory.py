@@ -174,6 +174,7 @@ def test_knowledge_pipeline_replays_missing_projection_and_propagates_deletion(t
     assert indexed["status"] == "indexed"
     assert replay["status"] == "duplicate"
     assert "adr:confluence:adr-42" in store.snapshot(TENANT).entities
+    assert store.get_entity(TENANT, "adr:confluence:adr-42").entity.metadata["source_updated_at"] == document.updated_at.isoformat()
     deleted = pipeline.process(KnowledgeChange(ChangeType.DELETE, document), event_id="knowledge-2")
     projection = journal.get(TENANT, f"knowledge:{document.identity.document_id}")
     assert deleted["status"] == "deleted"

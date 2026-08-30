@@ -60,6 +60,12 @@ authorization before calculating repository scope, blast radius, or ownership. S
 low-confidence, unauthorized, or directly conflicting links become explicit limitations rather
 than hidden decision inputs.
 
+[`Company Brain Memory Maintenance`](COMPANY-BRAIN-MAINTENANCE.md) adds the first bounded
+`dreaming & pruning` loop over this durable memory. It derives tenant-scoped, deterministic,
+human-review-only proposals for stale, ownerless, conflicting, or freshness-unknown ADRs,
+runbooks, and documents. It reads the original source timestamp and canonical ownership edge; it
+does not use projection-write time as a freshness proxy or mutate a source, ticket, or Brain fact.
+
 ## Safe product use
 
 [`PRGuardianWorldModelAdapter`](../product/pr_guardian/company_brain.py) now converts the durable,
