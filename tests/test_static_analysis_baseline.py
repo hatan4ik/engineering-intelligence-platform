@@ -31,6 +31,7 @@ def test_checked_in_baseline_has_the_expected_core_scope_and_tool_versions():
         "remediation",
         "control_plane",
         "state",
+        "integrations",
     )
     assert [(tool.name, tool.version) for tool in baseline.tools] == [
         ("ruff", "0.16.4"),

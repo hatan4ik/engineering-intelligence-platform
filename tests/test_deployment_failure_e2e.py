@@ -1,6 +1,8 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from control_plane.workflows import ControlPlaneWorkflows
 from integrations.azure_devops.deployment_failure import DeploymentFailureEvent, normalize_service_hook
 from intelligence.incidents import EvidenceEvent, EvidenceKind
@@ -59,6 +61,37 @@ def test_normalize_failed_ado_run():
     assert event.deployment_id == "ado:Platform:7:42"
     assert event.service == "payments"
     assert event.commit_sha == "abc123"
+
+
+def test_normalize_failed_ado_run_accepts_definition_id_fallback_without_coercing_payloads():
+    event = normalize_service_hook(
+        {
+            "resource": {
+                "id": "42",
+                "result": "partiallySucceeded",
+                "project": {"name": "Platform"},
+                "definitionId": 7,
+            }
+        }
+    )
+
+    assert event.pipeline_id == "7"
+    assert event.service == "unknown"
+    assert event.commit_sha is None
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        {"resource": {"id": 42, "result": "failed", "project": {"name": "Platform"}}},
+        {"resource": {"id": True, "result": "failed", "project": {"name": "Platform"}, "definitionId": 7}},
+        {"resource": {"id": 42, "result": "failed", "project": {"name": 9}, "definitionId": 7}},
+        {"resource": {"id": 42, "result": ["failed"], "project": {"name": "Platform"}, "definitionId": 7}},
+    ),
+)
+def test_normalize_failed_ado_run_rejects_ambiguous_external_shapes(payload):
+    with pytest.raises(ValueError):
+        normalize_service_hook(payload)
 
 
 def test_investigator_persists_analysis_and_publishes(tmp_path):
