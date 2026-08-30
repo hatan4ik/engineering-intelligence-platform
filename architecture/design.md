@@ -8,6 +8,7 @@
 | **Product decision** | [`../docs/PRODUCT-STRATEGY.md`](../docs/PRODUCT-STRATEGY.md) |
 | **NFRs and production evidence** | [`non-functional-requirements.md`](non-functional-requirements.md) · [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 | **Threat model** | [`../governance/security-threat-model.md`](../governance/security-threat-model.md) |
+| **Runtime ownership/recovery** | [`adr/003-company-brain-runtime-topology-and-recovery.md`](adr/003-company-brain-runtime-topology-and-recovery.md) |
 | **Diagrams** | Generated light/dark SVGs — [`../docs/diagrams/build_diagrams.py`](../docs/diagrams/build_diagrams.py) |
 
 ## Contents
@@ -102,7 +103,7 @@ design regression, not a trade-off.
 | I3 | Production mutation is restricted to **allow-listed, reversible runbooks** | Typed catalog in `remediation/catalog.py` |
 | I4 | Every answer/action carries **evidence and an audit trail** | Plan hashes + `state/audit.py` hash chain |
 | I5 | **Verification is mandatory**; failed remediation escalates, never loops | `remediation/executor.py`; control-loop `VERIFY → ESCALATE` path |
-| I6 | Retrieved content is **data, never instructions** | Injection detection (`security/adversarial.py`); post-generation allow-list checks |
+| I6 | Retrieved content is **data, never instructions** | Evidence delimiting and suspicious-evidence quarantine are reference controls; the dedicated Guardrail SLM remains planned |
 | I7 | **Kill switch and human override** exist at every autonomy level | Autonomy policy (`resilience/policy.py`), approval gates |
 | I8 | Autonomy is **earned per service/environment/runbook** with exercised evidence | L4 certification (`resilience/exercises.py`) |
 
@@ -258,14 +259,14 @@ Threat-to-control mapping (full model in
 
 | Threat | Control |
 |---|---|
-| Prompt injection via retrieved content | Evidence delimited as data (I6); injection scoring in `security/adversarial.py`; proposals validated against the closed catalog **after** generation |
+| Prompt injection via retrieved content | Evidence delimiting/quarantine plus closed-catalog validation after generation; a dedicated Guardrail SLM is a planned gap, not a present control |
 | Cross-team data exfiltration | ACL filter compiled into every search request (I1) |
 | Forged webhooks | Fail-closed HMAC `X-Hub-Signature-256` verification |
 | Approval replay / confused deputy | Plan-hash-bound, expiring HMAC approvals |
 | Hallucinated remediation | Closed runbook catalog; deterministic policy; mandatory independent verification |
 | Automation loops repeating harm | Bounded retries, DLQ, escalation instead of retry-forever (I5) |
 | Audit tampering | Hash-chained append-only log with chain verification |
-| Model/token abuse | Per-operation cost telemetry (`telemetry/events.py`); budgets are tracked FinOps work |
+| Model/token abuse | Per-operation cost telemetry and request-budget contracts; per-principal rate/concurrency enforcement and anomaly alerting remain planned |
 
 ### Autonomy ladder
 
@@ -292,14 +293,16 @@ Threat-to-control mapping (full model in
 
 System-of-record rule: **Azure AI Search is never the system of record** for services,
 workflows, approvals, or audit — those live in the authoritative state store; the index is
-a rebuildable projection.
+a rebuildable projection. The target Cosmos/Temporal/audit ownership and recovery split is
+defined by [ADR-003](adr/003-company-brain-runtime-topology-and-recovery.md); source adapters
+do not mean that target topology is deployed.
 
 ## 8. Failure modes
 
 | Failure | Behavior | Recovery |
 |---|---|---|
 | Search index unavailable during ingestion | Event fails → ledger marks failed → DLQ with error | `replay.py` after dependency recovers; idempotent by event ID |
-| Search unavailable at query time | Explicit error; never silent fallback to ungrounded answers | Retry; deterministic mode for local/CI |
+| Search unavailable at query time | Explicit error; never silent fallback to ungrounded answers | Fail fast through the dependency boundary; retry only through an operation-specific, idempotency-reviewed policy; deterministic mode is local/CI only |
 | Empty authorized retrieval | Explicit insufficient-evidence answer (by design, not a failure) | — |
 | Worker crash holding a job lease | Lease expires → job reclaimed by next worker | Automatic; attempts counted toward DLQ bound |
 | Poisoned event crash-looping | Bounded attempts → dead-letter, never infinite retry | Operator replay after fix |
@@ -310,9 +313,9 @@ a rebuildable projection.
 
 ## 9. Observability and FinOps
 
-- **Tracing & LLMOps**: Standard OpenTelemetry spans (`app/observability.py`) capture latency and API boundaries. However, for non-deterministic AI models, the platform integrates **LLMOps tracing (e.g., LangSmith, Phoenix)**. This captures the exact prompt sent, the raw retrieved vector chunks (with relevance scores), and the generated output, enabling on-call engineers to step-by-step debug AI hallucinations.
-- **Implicit Human Feedback**: Beyond latency, the platform captures user behavior as primary telemetry. If an AI leaves a PR comment and a developer ignores it, it is logged as a "False Positive". If they apply the suggested fix, it is a "True Positive". This implicit feedback is piped back into a data warehouse to continuously refine the evaluation datasets.
-- **Operation telemetry**: Every agent operation emits an `OperationEvent` with token counts, model/search/tool cost, and SLA adherence—driving unit-economics (`finops/attribution.py`) and outcome ROI (`finops/outcomes.py`).
+- **Tracing**: The HTTP boundary carries a correlation ID and valid W3C trace context; OTLP export is configured only when an endpoint is supplied. Full cross-process collector/dashboard evidence is not yet retained.
+- **Implicit Human Feedback**: PR Guardian has a source-level outcome/disposition path. It does not prove that ignored advice is a false positive, that an applied fix is a true positive, or that a production data warehouse is populated; pilot review is required for those inferences.
+- **Operation telemetry**: Reference operations emit `OperationEvent` cost/latency fields. Alerting, service-level objectives, and measured unit economics remain operational-evidence work.
 - **Audit ≠ telemetry**: Audit is the tamper-evident record of decisions; telemetry is the operational/cost signal. They share correlation IDs so any decision can be joined to its cost, latency, and full LLM trace.
 
 ## 10. Testing strategy
@@ -326,7 +329,7 @@ a rebuildable projection.
 | Policy | Deterministic scenario tables | autonomy gates, L4 certification evidence |
 | Infra | `terraform fmt/validate`, `helm lint`, container build in CI | — |
 | **AI Evals** | **Evals-as-Code** over a Golden Dataset | semantic similarity, precision/recall, and hallucination rate tracking for prompt/model changes |
-| **Chaos Eng.** | **Fault Injection** via Chaos Mesh / Gremlin | randomly terminating K8s nodes in staging to measure AI's Mean Time To Remediate (MTTR) |
+| **Chaos engineering** | Planned scoped fault injection | requires an approved non-production environment and retained recovery evidence before it can support an MTTR claim |
 
 CI gates every PR (`ci.yml`); the PR Guardian workflow additionally reviews every PR's own diff. 
 Crucially, new AI agents or prompt modifications are never deployed directly to production. They are deployed via **Shadow Launching (Dark Traffic)**: the new agent runs invisibly alongside the live agent on production events, logging its intended actions for asynchronous diffing against human behavior before being granted active execution rights.

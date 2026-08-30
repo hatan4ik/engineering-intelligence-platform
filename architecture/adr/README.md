@@ -33,6 +33,16 @@ ADRs capture decisions that constrain the Engineering Intelligence Platform. Use
 6. **Azure is the reference implementation, not the domain contract.** Provider adapters isolate cloud-specific APIs.
 7. **Offline deterministic mode remains first-class.** CI and core safety tests cannot require live model/cloud credentials.
 
+## Recorded decisions
+
+- [ADR-001: Temporal with private PostgreSQL](001-temporal-control-plane.md)
+  defines the target durable workflow engine and its independent persistence.
+- [ADR-002: Prompt injection guardrails and semantic cache lifecycle](002-prompt-injection-and-caching.md)
+  is a proposed RAG security/caching decision; it is not implementation evidence.
+- [ADR-003: Company Brain systems of record and recovery boundaries](003-company-brain-runtime-topology-and-recovery.md)
+  assigns canonical state, rebuildable projections, workflow history, audit
+  evidence, and broker ownership before a durable runtime is built.
+
 ## Naming
 
 Use `NNNN-short-decision-title.md`, e.g. `0001-llm-not-authorization-boundary.md`.

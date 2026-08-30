@@ -12,6 +12,11 @@ The Engineering Intelligence Platform separates **authoritative operational stat
 retrieval projections. Azure AI Search is never the system of record for services, workflows,
 approvals, or audit history; its indexes are rebuildable projections.
 
+The target ownership split among Company Brain state, Azure AI Search, Temporal/PostgreSQL,
+and immutable audit export — including recovery responsibilities — is fixed in
+[ADR-003](adr/003-company-brain-runtime-topology-and-recovery.md). This repository's adapter
+interfaces do not prove that the target stores or recovery procedures are deployed.
+
 ## Canonical lifecycle contract
 
 `WorkflowLifecycleEvent` is schema-versioned and contains the event and idempotency IDs,
