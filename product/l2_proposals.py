@@ -24,7 +24,7 @@ from intelligence.incidents import EvidenceEvent, EvidenceKind, Hypothesis, Inci
 ProposalKind = Literal["runbook", "corrective-pr", "ticket"]
 
 #: L2 never executes. This is a constant, not a policy input.
-REQUIRES_HUMAN: Final[bool] = True
+REQUIRES_HUMAN: Final[Literal[True]] = True
 
 #: Attribute keys that may carry the commit a deployment shipped.
 _COMMIT_KEYS: Final[tuple[str, ...]] = ("commit", "commit_sha", "sourceVersion", "source_version")
@@ -78,7 +78,7 @@ class L2Proposal:
     evidence_refs: tuple[str, ...] = ()
 
     @property
-    def requires_human(self) -> bool:
+    def requires_human(self) -> Literal[True]:
         return REQUIRES_HUMAN
 
     def to_dict(self) -> dict[str, object]:

@@ -8,6 +8,7 @@
 | **Review sources** | Primary architecture/code review; independently evidenced code review at the same baseline; skill-driven documentation/process audit. Older or externally cited audit claims are marked for revalidation, not treated as implementation facts. |
 | **Product truth** | Company Brain is the product; PR Guardian is its first, deliberately narrow, non-blocking wedge. |
 | **Evidence rule** | Repository code and CI demonstrate reference behavior. They do not demonstrate a deployed pilot, production readiness, or autonomy certification. |
+| **Implementation reconciliation** | `origin/main` at `83f4ca3` (2026-08-30), limited to the delivery rows below. The historical scorecard remains scoped to `fc3b885`. |
 
 ## Executive verdict
 
@@ -23,6 +24,35 @@ evidence, deployed Temporal business workflow, or certified remediation scope. T
 needs a focused round of Python type-boundary, module-boundary, and packaging cleanup before
 new product surfaces are added. Those are normal and tractable next steps, not a reason to
 broaden the architecture or claim a premature platform completion.
+
+## Current implementation reconciliation
+
+This section reconciles the historical review with the current source tree at `83f4ca3`. It
+supersedes the stale completion annotations on `refactor/pr-guardian-decomposition`: that branch
+was based on the already-merged PR Guardian decomposition and its only unmerged change was a
+review-status edit. **Source implemented** means the named contract and regression coverage are
+present in the repository. It never means deployed, pilot-proven, or autonomy-certified.
+
+The reconciliation also found one type-contract regression in the current source: the L2 proposal
+API promised `requires_human: Literal[True]`, while the domain property was annotated as `bool`.
+The associated patch narrows the domain invariant to `Literal[True]`; the static-analysis ratchet
+must pass in CI before this is treated as a green-main result.
+
+| Delivery row | Current repository evidence | Reconciled status and limit |
+|---|---|---|
+| **P0.0** Operable safety controls | `app/settings.py`, `app/runtime_wiring.py`, `remediation/executor.py`, and `helm/eip/` | Source implemented and tested. It remains a configuration/runtime contract, not a live-control or deployment proof. |
+| **P0.1** Portfolio focus | [`../PRODUCT-STRATEGY.md`](../PRODUCT-STRATEGY.md) | Current product decision: PR Guardian stays the narrow non-blocking wedge until outcome evidence earns expansion. |
+| **P0.2** Package truth | `pyproject.toml`, `requirements/build.txt`, `scripts/verify_package_inventory.py`, `tests/test_package_inventory.py` | Source implemented. CI installs the exact declared build backend before its intentionally non-isolated built-wheel/image/import-closure check. |
+| **P0.3** Truthful current state and feedback path | [`../CURRENT-POSITION.md`](../CURRENT-POSITION.md), `scripts/capture_pr_guardian_shadow_outcome.py`, `tests/test_capture_pr_guardian_shadow_outcome.py`, `tests/test_pr_guardian_publish_workflow.py` | Source implemented. A real GitHub artifact-retention path and named pilot outcomes remain open. |
+| **P0.4** Maintainable product core | `product/pr_guardian_service.py`, `product/pr_guardian/review_pipeline.py`, `finding_factory.py`, `publication.py`, `telemetry.py` | Source implemented by merged PR #86 and preserved on current `main`; behavior is reference-tested, not pilot-proven. |
+| **P0.5** Maintainable operations entrypoint | `app/application.py`, `app/operations/`, `app/operations_api.py`, `tests/test_operations_api.py` | Source implemented: composition, typed DTOs, presenters, publishers, and routes are separated. External event delivery remains unproven. |
+| **P1.1** Type/configuration/trace baseline | `app/settings.py`, `control_plane/correlation.py`, `requirements/static-analysis-baseline.json`, `scripts/verify_static_analysis_baseline.py` | Source implemented with an explicit non-increasing debt budget. The `Literal[True]` repair above restores the 36-error mypy ceiling; CI is the acceptance authority. |
+| **P1.2** Engineering and governance traceability | [`../REQUIREMENTS-TRACEABILITY.md`](../REQUIREMENTS-TRACEABILITY.md), `requirements/baseline.json` | Source contract implemented: 10 requirements include sensitivity, impact, owner, tests, and operational-evidence state. Evidence remains `not-collected`. |
+| **P1.2b** Policy conformance | `remediation/policy_conformance.py`, `scripts/verify_remediation_policy_conformance.py`, `tests/test_remediation_policy_conformance.py` | Source/CI conformance corpus implemented. A passing local/reference policy comparison is not a production authorization. |
+| **P1.3** Runtime/IaC and repository hygiene | [`../RUNTIME-CAPABILITY-CONTRACT.md`](../RUNTIME-CAPABILITY-CONTRACT.md), `scripts/verify_runtime_capability_contract.py`, `tests/test_repository_hygiene.py` | Source contract implemented. It describes and checks declared capability shape; it does not establish a deployed environment. |
+| **P1.4** Performance and evidence plan | [`../PERFORMANCE-EVIDENCE-CONTRACT.md`](../PERFORMANCE-EVIDENCE-CONTRACT.md), `requirements/performance-baseline.json`, `validation/performance_contract.py` | Target budget and artifact schema implemented. No measured performance evidence exists. |
+| **P2.1** Company Brain contract | `company_brain/product_contracts.py`, `product/pr_guardian/company_brain_records.py`, `tests/test_company_brain_product_contracts.py` | Product-neutral Evidence, Finding, Outcome, and provenance contracts are source implemented. A second product must adopt them before reuse is demonstrated. |
+| **P2.2 / P3 / P4** Pilot, advisory evidence, and later autonomy | [`../PR-GUARDIAN-SHADOW-PILOT.md`](../PR-GUARDIAN-SHADOW-PILOT.md), [`../PRODUCTION-EVIDENCE.md`](../PRODUCTION-EVIDENCE.md) | Open by design: they require named owners, retained pilot outcomes, scoped drills, and independent evidence. No code-only PR may mark them complete. |
 
 ### Scorecard
 

@@ -29,7 +29,9 @@ dependencies = [
 test = ["pytest==9.0.3"]
 
 [build-system]
-requires = ["setuptools>=69"]
+# This exact pin is installed by requirements/build.txt before CI runs its
+# intentionally non-isolated wheel inventory check.
+requires = ["setuptools==75.8.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

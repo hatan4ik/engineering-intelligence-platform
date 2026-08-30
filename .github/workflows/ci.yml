@@ -18,6 +18,7 @@ jobs:
       - run: pip install -r app/requirements.txt
       - run: pip install -r requirements/test.txt
       - run: pip install -r requirements/dev.txt
+      - run: pip install -r requirements/build.txt
       - name: Validate tracked documentation links and anchors
         run: |
           python check_links.py

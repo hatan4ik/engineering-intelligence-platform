@@ -49,8 +49,21 @@ def test_ci_builds_a_wheel_and_runs_the_inventory_verifier():
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
     assert "pip install -r requirements/test.txt" in workflow
+    assert "pip install -r requirements/build.txt" in workflow
     assert "python -m pip wheel --no-deps --no-build-isolation" in workflow
     assert "python scripts/verify_package_inventory.py /tmp/eip-wheel/*.whl" in workflow
+
+
+def test_non_isolated_wheel_check_installs_the_exact_declared_build_backend():
+    metadata = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    build_requirements = (ROOT / "requirements" / "build.txt").read_text(encoding="utf-8").splitlines()
+
+    assert metadata["build-system"]["requires"] == ["setuptools==75.8.0"]
+    assert build_requirements == [
+        "# Build-only dependency for the intentionally non-isolated wheel inventory check.",
+        "# Keep this pin synchronized with pyproject.toml's [build-system].requires.",
+        "setuptools==75.8.0",
+    ]
 
 
 def test_runtime_manifest_and_project_metadata_describe_the_same_dependencies():

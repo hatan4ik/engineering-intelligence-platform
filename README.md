@@ -69,7 +69,7 @@ curl -s http://127.0.0.1:8000/v1/query \
 Run the repository reference checks that CI runs:
 
 ```bash
-pip install -r requirements/test.txt -r requirements/dev.txt
+pip install -r requirements/test.txt -r requirements/dev.txt -r requirements/build.txt
 pytest -q
 python -m eval.evaluate
 python -m demo.aks.scenario_runner
