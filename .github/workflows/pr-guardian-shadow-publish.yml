@@ -56,6 +56,10 @@ jobs:
         with:
           name: pr-guardian-shadow-result
           path: shadow-input
+          # A different workflow run is the source. `github-token` switches
+          # download-artifact from its current-run scope to the permitted
+          # actions:read cross-run lookup.
+          github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id }}
       - name: Record an unavailable evaluation artifact
         if: steps.download_observation.outcome == 'failure'
