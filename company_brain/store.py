@@ -11,15 +11,25 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, Protocol
+from typing import Mapping, Protocol
 
 from control_plane.runtime import require_reference_storage
 
 from .model import BrainEntity, BrainEvidence, BrainRelationship, CompanyBrain, EntityKind, RelationshipKind
+from .serialization import (
+    payload_from_json,
+    provenance_fields,
+    provenance_payload as _provenance_payload,
+    relationship_from_payload as _relationship_from_payload,
+    relationship_payload as _relationship_payload,
+    required_text,
+    text_pairs,
+    text_sequence,
+)
+from .sqlite import SqliteReferenceDatabase
 
 
 class CompanyBrainStoreError(RuntimeError):
@@ -234,7 +244,7 @@ class CompanyBrainStore(Protocol):
     ) -> StoredRelationship: ...
 
 
-class SqliteCompanyBrainStore:
+class SqliteCompanyBrainStore(SqliteReferenceDatabase):
     """SQLite reference backend with tenant-scoped CAS and tombstone semantics.
 
     SQLite is intentionally not a production fallback.  Every lookup has a
@@ -246,22 +256,6 @@ class SqliteCompanyBrainStore:
         require_reference_storage(type(self).__name__)
         self.path = str(path)
         self._init_schema()
-
-    def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA busy_timeout=30000")
-        return db
-
-    @contextmanager
-    def _immediate(self, db: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
-        db.execute("BEGIN IMMEDIATE")
-        try:
-            yield db
-            db.execute("COMMIT")
-        except BaseException:
-            db.execute("ROLLBACK")
-            raise
 
     def _init_schema(self) -> None:
         with self._connect() as db:
@@ -672,16 +666,16 @@ class SqliteCompanyBrainStore:
     def snapshot(self, tenant_id: str) -> CompanyBrain:
         """Rebuild an active model snapshot for read-only product context assembly."""
         brain = CompanyBrain()
-        for item in self.list_entities(tenant_id):
-            brain.upsert_entity(item.entity)
-        for item in self.list_evidence(tenant_id):
-            brain.evidence[item.evidence.evidence_id] = item.evidence
-        for item in self.list_relationships(tenant_id):
+        for stored_entity in self.list_entities(tenant_id):
+            brain.upsert_entity(stored_entity.entity)
+        for stored_evidence in self.list_evidence(tenant_id):
+            brain.evidence[stored_evidence.evidence.evidence_id] = stored_evidence.evidence
+        for stored_relationship in self.list_relationships(tenant_id):
             brain.relate(
-                source_id=item.relationship.source_id,
-                target_id=item.relationship.target_id,
-                kind=item.relationship.kind,
-                evidence_ids=item.relationship.evidence_ids,
+                source_id=stored_relationship.relationship.source_id,
+                target_id=stored_relationship.relationship.target_id,
+                kind=stored_relationship.relationship.kind,
+                evidence_ids=stored_relationship.relationship.evidence_ids,
             )
         return brain
 
@@ -989,9 +983,11 @@ class SqliteCompanyBrainStore:
     def _entity_from_row(row: sqlite3.Row) -> StoredEntity:
         return StoredEntity(
             tenant_id=str(row["tenant_id"]),
-            entity=_entity_from_payload(json.loads(row["payload"])),
+            entity=_entity_from_payload(payload_from_json(str(row["payload"]), label="stored entity")),
             version=int(row["version"]),
-            provenance=_provenance_from_payload(json.loads(row["provenance"])),
+            provenance=_provenance_from_payload(
+                payload_from_json(str(row["provenance"]), label="stored entity provenance")
+            ),
             retention=RetentionPolicy(
                 retain_until=_parse_timestamp(row["retain_until"]) if row["retain_until"] else None,
                 legal_hold=bool(row["legal_hold"]),
@@ -1006,9 +1002,11 @@ class SqliteCompanyBrainStore:
     def _evidence_from_row(row: sqlite3.Row) -> StoredEvidence:
         return StoredEvidence(
             tenant_id=str(row["tenant_id"]),
-            evidence=_evidence_from_payload(json.loads(row["payload"])),
+            evidence=_evidence_from_payload(payload_from_json(str(row["payload"]), label="stored evidence")),
             version=int(row["version"]),
-            provenance=_provenance_from_payload(json.loads(row["provenance"])),
+            provenance=_provenance_from_payload(
+                payload_from_json(str(row["provenance"]), label="stored evidence provenance")
+            ),
             retention=RetentionPolicy(
                 retain_until=_parse_timestamp(row["retain_until"]) if row["retain_until"] else None,
                 legal_hold=bool(row["legal_hold"]),
@@ -1023,9 +1021,13 @@ class SqliteCompanyBrainStore:
     def _relationship_from_row(row: sqlite3.Row) -> StoredRelationship:
         return StoredRelationship(
             tenant_id=str(row["tenant_id"]),
-            relationship=_relationship_from_payload(json.loads(row["payload"])),
+            relationship=_relationship_from_payload(
+                payload_from_json(str(row["payload"]), label="stored relationship")
+            ),
             version=int(row["version"]),
-            provenance=_provenance_from_payload(json.loads(row["provenance"])),
+            provenance=_provenance_from_payload(
+                payload_from_json(str(row["provenance"]), label="stored relationship provenance")
+            ),
             retention=RetentionPolicy(
                 retain_until=_parse_timestamp(row["retain_until"]) if row["retain_until"] else None,
                 legal_hold=bool(row["legal_hold"]),
@@ -1046,7 +1048,9 @@ class SqliteCompanyBrainStore:
             operation=str(row["operation"]),
             version=int(row["version"]),
             occurred_at=_parse_timestamp(row["occurred_at"]),
-            provenance=_provenance_from_payload(json.loads(row["provenance"])),
+            provenance=_provenance_from_payload(
+                payload_from_json(str(row["provenance"]), label="stored audit provenance")
+            ),
             deletion_reason=row["deletion_reason"],
         )
 
@@ -1060,12 +1064,12 @@ def _entity_payload(entity: BrainEntity) -> dict[str, object]:
     }
 
 
-def _entity_from_payload(payload: dict[str, object]) -> BrainEntity:
+def _entity_from_payload(payload: Mapping[str, object]) -> BrainEntity:
     return BrainEntity(
-        entity_id=str(payload["entity_id"]),
-        kind=EntityKind(str(payload["kind"])),
-        label=str(payload["label"]),
-        attributes=tuple((str(key), str(value)) for key, value in payload.get("attributes", [])),
+        entity_id=required_text(payload, "entity_id", label="entity"),
+        kind=EntityKind(required_text(payload, "kind", label="entity")),
+        label=required_text(payload, "label", label="entity"),
+        attributes=text_pairs(payload, "attributes", label="entity"),
     )
 
 
@@ -1080,50 +1084,23 @@ def _evidence_payload(evidence: BrainEvidence) -> dict[str, object]:
     }
 
 
-def _evidence_from_payload(payload: dict[str, object]) -> BrainEvidence:
+def _evidence_from_payload(payload: Mapping[str, object]) -> BrainEvidence:
     return BrainEvidence(
-        evidence_id=str(payload["evidence_id"]),
-        source_kind=str(payload["source_kind"]),
-        citation=str(payload["citation"]),
-        revision=str(payload["revision"]),
-        acl_groups=tuple(str(item) for item in payload.get("acl_groups", [])),
-        acl_users=tuple(str(item) for item in payload.get("acl_users", [])),
+        evidence_id=required_text(payload, "evidence_id", label="evidence"),
+        source_kind=required_text(payload, "source_kind", label="evidence"),
+        citation=required_text(payload, "citation", label="evidence"),
+        revision=required_text(payload, "revision", label="evidence"),
+        acl_groups=text_sequence(payload, "acl_groups", label="evidence"),
+        acl_users=text_sequence(payload, "acl_users", label="evidence"),
     )
 
 
-def _relationship_payload(relationship: BrainRelationship) -> dict[str, object]:
-    return {
-        "source_id": relationship.source_id,
-        "target_id": relationship.target_id,
-        "kind": relationship.kind.value,
-        "evidence_ids": list(relationship.evidence_ids),
-    }
-
-
-def _relationship_from_payload(payload: dict[str, object]) -> BrainRelationship:
-    return BrainRelationship(
-        source_id=str(payload["source_id"]),
-        target_id=str(payload["target_id"]),
-        kind=RelationshipKind(str(payload["kind"])),
-        evidence_ids=tuple(str(item) for item in payload.get("evidence_ids", [])),
-    )
-
-
-def _provenance_payload(provenance: BrainProvenance) -> dict[str, object]:
-    return {
-        "source_system": provenance.source_system,
-        "source_record_id": provenance.source_record_id,
-        "source_revision": provenance.source_revision,
-        "observed_at": _timestamp_text(provenance.observed_at),
-        "event_id": provenance.event_id,
-    }
-
-
-def _provenance_from_payload(payload: dict[str, object]) -> BrainProvenance:
+def _provenance_from_payload(payload: Mapping[str, object]) -> BrainProvenance:
+    fields = provenance_fields(payload)
     return BrainProvenance(
-        source_system=str(payload["source_system"]),
-        source_record_id=str(payload["source_record_id"]),
-        source_revision=str(payload["source_revision"]),
-        observed_at=_parse_timestamp(str(payload["observed_at"])),
-        event_id=str(payload["event_id"]) if payload.get("event_id") is not None else None,
+        source_system=fields.source_system,
+        source_record_id=fields.source_record_id,
+        source_revision=fields.source_revision,
+        observed_at=fields.observed_at,
+        event_id=fields.event_id,
     )
