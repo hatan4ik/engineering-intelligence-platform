@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Mapping, Protocol
 
 from resilience.scope import parse_instant
+from resilience.dependencies import DependencyBoundary, DependencyLimits, DependencyUnavailable
 
 from .catalog import Runbook
 from .policy_contract import PolicyReason
@@ -182,9 +183,21 @@ class OpaPolicyClient:
     callers never fall back to model output or silently permit the mutation.
     """
 
-    def __init__(self, endpoint: str, *, timeout_seconds: float = 3.0) -> None:
+    def __init__(
+        self,
+        endpoint: str,
+        *,
+        timeout_seconds: float = 3.0,
+        dependency: DependencyBoundary | None = None,
+    ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
         self.endpoint = endpoint.rstrip("/")
         self.timeout_seconds = timeout_seconds
+        self._dependency = dependency or DependencyBoundary(
+            "opa-remediation-policy",
+            DependencyLimits(max_in_flight=16, failure_threshold=3, recovery_seconds=15),
+        )
 
     def evaluate(
         self,
@@ -223,10 +236,13 @@ class OpaPolicyClient:
             data=json.dumps(request_payload).encode(),
             headers={"Content-Type": "application/json"},
         )
-        try:
+        def send() -> object:
             with urllib.request.urlopen(req, timeout=self.timeout_seconds) as response:
-                body: object = json.load(response)
-        except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+                return json.load(response)
+
+        try:
+            body = self._dependency.call(send, is_transient=_transient_opa_error)
+        except (DependencyUnavailable, OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
             return EvaluatedPolicyDecision(False, f"OPA unavailable or invalid: {type(exc).__name__}", "unknown")
         result = body.get("result") if isinstance(body, dict) else None
         if not isinstance(result, dict):
@@ -350,3 +366,11 @@ def opa_input(
 
 def as_policy_decision(value: EvaluatedPolicyDecision) -> PolicyDecision:
     return PolicyDecision(value.allowed, f"{value.reason} [policy={value.policy_revision}]")
+
+
+def _transient_opa_error(error: Exception) -> bool:
+    """Treat connectivity, malformed responses, throttling, and 5xx OPA failures as transient."""
+
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or error.code >= 500
+    return isinstance(error, (OSError, urllib.error.URLError, json.JSONDecodeError))

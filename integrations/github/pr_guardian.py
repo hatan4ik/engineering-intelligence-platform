@@ -7,6 +7,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
+from resilience.dependencies import DependencyBoundary, DependencyLimits, DependencyUnavailable
+
 
 COMMENT_MARKER = "<!-- eip-pr-guardian -->"
 
@@ -90,9 +92,23 @@ def normalize_pull_request_event(payload: Mapping[str, object]) -> PullRequestEv
 
 
 class GitHubRestPRClient:
-    def __init__(self, token: str, api_url: str = "https://api.github.com") -> None:
+    def __init__(
+        self,
+        token: str,
+        api_url: str = "https://api.github.com",
+        *,
+        timeout_seconds: float = 20.0,
+        dependency: DependencyBoundary | None = None,
+    ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
         self.token = token
         self.api_url = api_url.rstrip("/")
+        self.timeout_seconds = timeout_seconds
+        self._dependency = dependency or DependencyBoundary(
+            "github-rest",
+            DependencyLimits(max_in_flight=8, failure_threshold=3, recovery_seconds=30),
+        )
         self._actor_login: str | None = None
 
     def _request(self, method: str, path: str, payload: dict[str, object] | None = None) -> object:
@@ -108,15 +124,32 @@ class GitHubRestPRClient:
                 "Content-Type": "application/json",
             },
         )
+        def send() -> object:
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                    raw = response.read()
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode(errors="replace")
+                raise GitHubAPIError(
+                    f"GitHub API {method} {path} failed: {exc.code}: {detail}", exc.code
+                ) from exc
+            except (OSError, urllib.error.URLError) as exc:
+                raise GitHubAPIError(
+                    f"GitHub API {method} {path} is unavailable: {type(exc).__name__}", 503
+                ) from exc
+            try:
+                return json.loads(raw) if raw else None
+            except json.JSONDecodeError as exc:
+                raise GitHubAPIError(
+                    f"GitHub API {method} {path} returned invalid JSON", 503
+                ) from exc
+
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
-                raw = response.read()
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode(errors="replace")
+            return self._dependency.call(send, is_transient=_transient_github_error)
+        except DependencyUnavailable as exc:
             raise GitHubAPIError(
-                f"GitHub API {method} {path} failed: {exc.code}: {detail}", exc.code
+                f"GitHub API {method} {path} is unavailable: {exc.reason}", 503
             ) from exc
-        return json.loads(raw) if raw else None
 
     def list_changed_files(self, repository: str, pr_number: int) -> list[ChangedFile]:
         files: list[ChangedFile] = []
@@ -273,3 +306,11 @@ class GitHubRestPRClient:
         if not isinstance(created, dict) or "number" not in created:
             raise RuntimeError("GitHub issue creation did not return an issue number")
         return int(created["number"])
+
+
+def _transient_github_error(error: Exception) -> bool:
+    """Count only retryable GitHub failure classes toward the circuit breaker."""
+
+    return isinstance(error, GitHubAPIError) and (
+        error.status == 429 or error.status >= 500
+    )

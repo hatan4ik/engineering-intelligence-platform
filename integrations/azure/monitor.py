@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from datetime import datetime, timezone
 from azure.identity import DefaultAzureCredential
 
 from intelligence.incidents import EvidenceEvent, EvidenceKind
+from resilience.dependencies import DependencyBoundary, DependencyLimits, DependencyUnavailable
 
 
 @dataclass(frozen=True)
@@ -26,8 +28,21 @@ class AzureMonitorEvidenceClient:
     incident engine is independent from Azure response shape.
     """
 
-    def __init__(self, credential: DefaultAzureCredential | None = None) -> None:
+    def __init__(
+        self,
+        credential: DefaultAzureCredential | None = None,
+        *,
+        timeout_seconds: float = 30.0,
+        dependency: DependencyBoundary | None = None,
+    ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
         self.credential = credential or DefaultAzureCredential()
+        self.timeout_seconds = timeout_seconds
+        self._dependency = dependency or DependencyBoundary(
+            "azure-monitor-logs",
+            DependencyLimits(max_in_flight=8, failure_threshold=3, recovery_seconds=30),
+        )
 
     def _token(self) -> str:
         return self.credential.get_token("https://api.loganalytics.io/.default").token
@@ -47,11 +62,22 @@ class AzureMonitorEvidenceClient:
                 "Content-Type": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=30) as response:
-            raw: object = json.load(response)
-        if not isinstance(raw, dict):
-            raise RuntimeError("Azure Monitor query response must be a JSON object")
-        return {str(key): value for key, value in raw.items()}
+        def send() -> dict[str, object]:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as response:
+                raw: object = json.load(response)
+            if not isinstance(raw, dict):
+                raise ValueError("Azure Monitor query response must be a JSON object")
+            return {str(key): value for key, value in raw.items()}
+
+        try:
+            raw = self._dependency.call(send, is_transient=_transient_azure_monitor_error)
+        except DependencyUnavailable:
+            raise
+        except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError) as error:
+            raise DependencyUnavailable(
+                "azure-monitor-logs", f"request failed: {type(error).__name__}"
+            ) from error
+        return raw
 
     def query(self, query: AzureMonitorQuery) -> list[EvidenceEvent]:
         payload = self._post(query)
@@ -134,3 +160,11 @@ def _severity(value: object) -> int:
     else:
         return 1
     return max(1, min(5, raw))
+
+
+def _transient_azure_monitor_error(error: Exception) -> bool:
+    """Classify only transport, throttle, service, or response-shape failures."""
+
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code == 429 or error.code >= 500
+    return isinstance(error, (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError))
