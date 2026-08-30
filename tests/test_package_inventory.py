@@ -58,12 +58,13 @@ def test_non_isolated_wheel_check_installs_the_exact_declared_build_backend():
     metadata = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     build_requirements = (ROOT / "requirements" / "build.txt").read_text(encoding="utf-8").splitlines()
 
-    assert metadata["build-system"]["requires"] == ["setuptools==75.8.0"]
-    assert build_requirements == [
+    assert build_requirements[:2] == [
         "# Build-only dependency for the intentionally non-isolated wheel inventory check.",
         "# Keep this pin synchronized with pyproject.toml's [build-system].requires.",
-        "setuptools==75.8.0",
     ]
+    assert len(build_requirements) == 3
+    assert re.fullmatch(r"setuptools==[^\s]+", build_requirements[2])
+    assert metadata["build-system"]["requires"] == [build_requirements[2]]
 
 
 def test_runtime_manifest_and_project_metadata_describe_the_same_dependencies():
