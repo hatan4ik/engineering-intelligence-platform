@@ -16,7 +16,7 @@
     },
     "mypy": {
       "version": "2.3.1",
-      "maximum_errors": 36
+      "maximum_errors": 23
     }
   },
   "dynamic_typing": {

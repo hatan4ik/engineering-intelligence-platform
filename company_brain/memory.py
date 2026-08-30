@@ -11,12 +11,11 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
-from typing import Iterator, Protocol
+from typing import Mapping, Protocol
 
 from control_plane.runtime import require_reference_storage
 from ingestion.catalog import change_fingerprint
@@ -25,6 +24,18 @@ from ingestion.models import ChangeType, FileChange
 
 from .model import BrainEntity, BrainEvidence, BrainRelationship, CompanyBrain, EntityKind, RelationshipKind
 from .projector import CompanyBrainProjector
+from .serialization import (
+    payload_from_json,
+    payload_from_value,
+    provenance_fields,
+    provenance_payload as _provenance_payload,
+    relationship_from_payload as _relationship_from_payload,
+    relationship_payload as _relationship_payload,
+    required_object_sequence,
+    required_text_sequence,
+    parse_timestamp,
+)
+from .sqlite import SqliteReferenceDatabase
 from .store import BrainProvenance, StoredEntity, StoredEvidence, StoredRelationship
 
 
@@ -151,7 +162,7 @@ class CompanyBrainProjectionStore(Protocol):
     ) -> StoredRelationship: ...
 
 
-class SqliteBrainProjectionJournal:
+class SqliteBrainProjectionJournal(SqliteReferenceDatabase):
     """Local durable projection membership journal.
 
     The journal contains identifiers, fingerprints, and provenance only. It
@@ -163,22 +174,6 @@ class SqliteBrainProjectionJournal:
         require_reference_storage(type(self).__name__)
         self.path = str(path)
         self._init_schema()
-
-    def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA busy_timeout=30000")
-        return db
-
-    @contextmanager
-    def _immediate(self, db: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
-        db.execute("BEGIN IMMEDIATE")
-        try:
-            yield db
-            db.execute("COMMIT")
-        except BaseException:
-            db.execute("ROLLBACK")
-            raise
 
     def _init_schema(self) -> None:
         with self._connect() as db:
@@ -238,19 +233,26 @@ class SqliteBrainProjectionJournal:
 
     @staticmethod
     def _from_row(row: sqlite3.Row) -> BrainSourceProjection:
-        raw = json.loads(row["payload"])
+        raw = payload_from_json(str(row["payload"]), label="source projection")
         return BrainSourceProjection(
             tenant_id=str(row["tenant_id"]),
             source_key=str(row["source_key"]),
             source_kind=str(row["source_kind"]),
             state=ProjectionState(str(row["state"])),
             fingerprint=str(row["fingerprint"]),
-            provenance=_provenance_from_payload(json.loads(row["provenance"])),
-            entity_ids=tuple(str(item) for item in raw["entity_ids"]),
-            owned_entity_ids=tuple(str(item) for item in raw["owned_entity_ids"]),
-            evidence_ids=tuple(str(item) for item in raw["evidence_ids"]),
-            relationships=tuple(_relationship_from_payload(item) for item in raw["relationships"]),
-            updated_at=datetime.fromisoformat(str(row["updated_at"])).astimezone(timezone.utc),
+            provenance=_provenance_from_payload(
+                payload_from_json(str(row["provenance"]), label="source projection provenance")
+            ),
+            entity_ids=required_text_sequence(raw, "entity_ids", label="source projection"),
+            owned_entity_ids=required_text_sequence(raw, "owned_entity_ids", label="source projection"),
+            evidence_ids=required_text_sequence(raw, "evidence_ids", label="source projection"),
+            relationships=tuple(
+                _relationship_from_payload(
+                    payload_from_value(item, label="source projection.relationships")
+                )
+                for item in required_object_sequence(raw, "relationships", label="source projection")
+            ),
+            updated_at=parse_timestamp(row["updated_at"], label="source projection.updated_at"),
         )
 
 
@@ -544,22 +546,22 @@ class CompanyBrainMemoryProjector:
         active_owned_entities = {item for record in candidates for item in record.owned_entity_ids}
         for evidence_id in previous.evidence_ids:
             if evidence_id not in active_evidence:
-                current = self.store.get_evidence(self.tenant_id, evidence_id)
-                if current is not None:
+                evidence_record = self.store.get_evidence(self.tenant_id, evidence_id)
+                if evidence_record is not None:
                     self.store.delete_evidence(
                         self.tenant_id,
                         evidence_id,
-                        expected_version=current.version,
+                        expected_version=evidence_record.version,
                         reason="source projection is superseded or deleted",
                     )
         for entity_id in previous.owned_entity_ids:
             if entity_id not in active_owned_entities:
-                current = self.store.get_entity(self.tenant_id, entity_id)
-                if current is not None:
+                entity_record = self.store.get_entity(self.tenant_id, entity_id)
+                if entity_record is not None:
                     self.store.delete_entity(
                         self.tenant_id,
                         entity_id,
-                        expected_version=current.version,
+                        expected_version=entity_record.version,
                         reason="source projection is superseded or deleted",
                     )
 
@@ -605,41 +607,14 @@ def _projection_payload(projection: BrainSourceProjection) -> dict[str, object]:
     }
 
 
-def _relationship_payload(relationship: BrainRelationship) -> dict[str, object]:
-    return {
-        "source_id": relationship.source_id,
-        "target_id": relationship.target_id,
-        "kind": relationship.kind.value,
-        "evidence_ids": list(relationship.evidence_ids),
-    }
-
-
-def _relationship_from_payload(payload: dict[str, object]) -> BrainRelationship:
-    return BrainRelationship(
-        source_id=str(payload["source_id"]),
-        target_id=str(payload["target_id"]),
-        kind=RelationshipKind(str(payload["kind"])),
-        evidence_ids=tuple(str(item) for item in payload["evidence_ids"]),
-    )
-
-
-def _provenance_payload(provenance: BrainProvenance) -> dict[str, object]:
-    return {
-        "source_system": provenance.source_system,
-        "source_record_id": provenance.source_record_id,
-        "source_revision": provenance.source_revision,
-        "observed_at": provenance.observed_at.astimezone(timezone.utc).isoformat(),
-        "event_id": provenance.event_id,
-    }
-
-
-def _provenance_from_payload(payload: dict[str, object]) -> BrainProvenance:
+def _provenance_from_payload(payload: Mapping[str, object]) -> BrainProvenance:
+    fields = provenance_fields(payload)
     return BrainProvenance(
-        source_system=str(payload["source_system"]),
-        source_record_id=str(payload["source_record_id"]),
-        source_revision=str(payload["source_revision"]),
-        observed_at=datetime.fromisoformat(str(payload["observed_at"])).astimezone(timezone.utc),
-        event_id=str(payload["event_id"]) if payload.get("event_id") is not None else None,
+        source_system=fields.source_system,
+        source_record_id=fields.source_record_id,
+        source_revision=fields.source_revision,
+        observed_at=fields.observed_at,
+        event_id=fields.event_id,
     )
 
 
