@@ -17,6 +17,7 @@ from product.pr_guardian.contracts import (
     ReviewerRiskDisposition,
     ReviewerUtilityDisposition,
 )
+from product.pr_guardian.company_brain_records import finding_record, outcome_records
 
 
 def change() -> FileChange:
@@ -73,8 +74,8 @@ def test_ingestion_pipeline_optionally_projects_authorized_changes_to_company_br
 def test_pr_finding_and_explicit_outcome_return_to_company_memory_without_copying_acl_less_evidence():
     brain = CompanyBrain()
     feedback = CompanyBrainFeedbackProjector(brain)
-    finding_id = feedback.project_finding(finding())
-    outcome_id = feedback.project_outcome(
+    finding_id = feedback.project_finding(finding_record(finding()))
+    outcomes = outcome_records(
         FindingOutcome(
             finding_id="pr:acme/payments:42:dependency",
             reviewer_risk=ReviewerRiskDisposition.CONFIRMED_RISK,
@@ -82,22 +83,29 @@ def test_pr_finding_and_explicit_outcome_return_to_company_memory_without_copyin
             post_merge_correlation_id="deployment:payments:2026-08-26",
         )
     )
+    outcome_ids = tuple(feedback.project_outcome(outcome) for outcome in outcomes)
 
     assert brain.entities[finding_id].kind is EntityKind.FINDING
-    assert brain.entities[outcome_id].kind is EntityKind.OUTCOME
+    assert all(brain.entities[outcome_id].kind is EntityKind.OUTCOME for outcome_id in outcome_ids)
     assert brain.evidence == {}
-    assert any(
-        item.source_id == finding_id and item.target_id == outcome_id and item.kind is RelationshipKind.HAS_OUTCOME
-        for item in brain.relationships
+    assert all(
+        any(
+            item.source_id == finding_id
+            and item.target_id == outcome_id
+            and item.kind is RelationshipKind.HAS_OUTCOME
+            for item in brain.relationships
+        )
+        for outcome_id in outcome_ids
     )
 
 
 def test_outcomes_cannot_exist_without_a_prior_finding():
+    missing = FindingOutcome(
+        finding_id="missing",
+        reviewer_risk=ReviewerRiskDisposition.NOT_REVIEWED,
+        reviewer_utility=ReviewerUtilityDisposition.NOT_REVIEWED,
+    )
     with pytest.raises(ValueError, match="finding must exist"):
         CompanyBrainFeedbackProjector(CompanyBrain()).project_outcome(
-            FindingOutcome(
-                finding_id="missing",
-                reviewer_risk=ReviewerRiskDisposition.NOT_REVIEWED,
-                reviewer_utility=ReviewerUtilityDisposition.NOT_REVIEWED,
-            )
+            outcome_records(missing)[0]
         )

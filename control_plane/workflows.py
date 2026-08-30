@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import uuid
 from dataclasses import asdict, replace
 
 from intelligence.deployment_failures import DeploymentFailureAnalysis
@@ -11,6 +10,7 @@ from intelligence.incidents import IncidentAnalysis
 from intelligence.pr_guardian import PRPolicyDecision, policy_for
 from intelligence.risk import RiskAssessment
 from orchestration.approvals import Approval, verify_approval
+from control_plane.correlation import resolve_correlation_id
 from state.audit import AuditLog
 from state.models import AuditEvent, WorkflowRecord, WorkflowStatus
 from state.store import StateStore
@@ -42,9 +42,10 @@ class ControlPlaneWorkflows:
         assessment: RiskAssessment,
         simulated_policy: PRPolicyDecision | None = None,
         actor: str = "agent:pr-guardian",
+        correlation_id: str | None = None,
     ) -> tuple[WorkflowRecord, PRPolicyDecision]:
         workflow_id = f"pr:{repository}:{pr_number}"
-        correlation_id = str(uuid.uuid4())
+        resolved_correlation_id = resolve_correlation_id(correlation_id)
         maximum_policy = policy_for(assessment)
         policy = simulated_policy or maximum_policy
         if any(
@@ -60,14 +61,14 @@ class ControlPlaneWorkflows:
                 environment="sdlc",
                 kind="pr-review",
                 status=WorkflowStatus.PLANNED,
-                correlation_id=correlation_id,
+                correlation_id=resolved_correlation_id,
                 plan_hash=plan_hash,
             )
         )
         self.audit.append(
             AuditEvent(
                 event_id=f"{workflow_id}:risk:{workflow.version}",
-                correlation_id=correlation_id,
+                correlation_id=resolved_correlation_id,
                 actor=actor,
                 action="assess-change-risk",
                 resource=workflow_id,
@@ -90,9 +91,10 @@ class ControlPlaneWorkflows:
         incident_id: str,
         analysis: IncidentAnalysis,
         actor: str = "agent:incident-investigator",
+        correlation_id: str | None = None,
     ) -> WorkflowRecord:
         workflow_id = f"incident:{incident_id}"
-        correlation_id = str(uuid.uuid4())
+        resolved_correlation_id = resolve_correlation_id(correlation_id)
         evidence_ids = sorted(
             {
                 e.id
@@ -114,14 +116,14 @@ class ControlPlaneWorkflows:
                 environment=environment,
                 kind="incident-investigation",
                 status=WorkflowStatus.PLANNED,
-                correlation_id=correlation_id,
+                correlation_id=resolved_correlation_id,
                 plan_hash=plan_hash,
             )
         )
         self.audit.append(
             AuditEvent(
                 event_id=f"{workflow_id}:analysis:{workflow.version}",
-                correlation_id=correlation_id,
+                correlation_id=resolved_correlation_id,
                 actor=actor,
                 action="analyze-incident",
                 resource=workflow_id,
@@ -140,9 +142,10 @@ class ControlPlaneWorkflows:
         environment: str,
         analysis: DeploymentFailureAnalysis,
         actor: str = "agent:deployment-failure-investigator",
+        correlation_id: str | None = None,
     ) -> WorkflowRecord:
         workflow_id = f"deployment-failure:{analysis.deployment_id}"
-        correlation_id = str(uuid.uuid4())
+        resolved_correlation_id = resolve_correlation_id(correlation_id)
         plan_hash = _hash(asdict(analysis))
         workflow = self.store.put_workflow(
             WorkflowRecord(
@@ -151,14 +154,14 @@ class ControlPlaneWorkflows:
                 environment=environment,
                 kind="deployment-failure-investigation",
                 status=WorkflowStatus.PLANNED,
-                correlation_id=correlation_id,
+                correlation_id=resolved_correlation_id,
                 plan_hash=plan_hash,
             )
         )
         self.audit.append(
             AuditEvent(
                 event_id=f"{workflow_id}:analysis:{workflow.version}",
-                correlation_id=correlation_id,
+                correlation_id=resolved_correlation_id,
                 actor=actor,
                 action="investigate-deployment-failure",
                 resource=workflow_id,
@@ -180,9 +183,10 @@ class ControlPlaneWorkflows:
         environment: str,
         findings: tuple[DriftFinding, ...],
         actor: str = "agent:drift-detector",
+        correlation_id: str | None = None,
     ) -> WorkflowRecord:
         workflow_id = f"drift:{environment}:{resource_id}"
-        correlation_id = str(uuid.uuid4())
+        resolved_correlation_id = resolve_correlation_id(correlation_id)
         plan_hash = _hash([asdict(f) for f in findings])
         status = WorkflowStatus.PLANNED if findings else WorkflowStatus.SUCCEEDED
         workflow = self.store.put_workflow(
@@ -192,14 +196,14 @@ class ControlPlaneWorkflows:
                 environment=environment,
                 kind="drift-review",
                 status=status,
-                correlation_id=correlation_id,
+                correlation_id=resolved_correlation_id,
                 plan_hash=plan_hash,
             )
         )
         self.audit.append(
             AuditEvent(
                 event_id=f"{workflow_id}:scan:{workflow.version}",
-                correlation_id=correlation_id,
+                correlation_id=resolved_correlation_id,
                 actor=actor,
                 action="detect-drift",
                 resource=workflow_id,

@@ -1,4 +1,8 @@
-from feedback.outcome_capture import OutcomeFeedbackRecorder, normalize_github_pr_outcome
+from feedback.outcome_capture import (
+    GitHubPullRequestOutcome,
+    OutcomeFeedbackRecorder,
+    normalize_github_pr_outcome,
+)
 from feedback.store import FeedbackOutcome, SqliteFeedbackStore
 
 
@@ -50,13 +54,13 @@ def test_github_terminal_outcome_normalization():
         "repository": {"full_name": "acme/platform"},
         "pull_request": {"merged": True},
     }
-    assert normalize_github_pr_outcome(payload) == {
-        "repository": "acme/platform",
-        "pr_number": 7,
-        "merged": True,
+    assert normalize_github_pr_outcome(payload) == GitHubPullRequestOutcome(
+        repository="acme/platform",
+        pr_number=7,
+        merged=True,
         # Reviewer dispositions now travel with the terminal outcome; an
         # unlabelled pull request is explicitly "not-reviewed", never assumed.
-        "risk_signal": "not-reviewed",
-        "utility_signal": "not-reviewed",
-    }
+        risk_signal="not-reviewed",
+        utility_signal="not-reviewed",
+    )
     assert normalize_github_pr_outcome({"action": "synchronize"}) is None

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Callable, Mapping
 
@@ -17,18 +16,22 @@ class EntraSettings:
     jwks_url: str
 
     @classmethod
-    def from_environment(cls) -> "EntraSettings":
-        tenant = os.environ["EIP_ENTRA_TENANT_ID"]
-        audience = os.environ["EIP_ENTRA_AUDIENCE"]
+    def from_mapping(cls, source: Mapping[str, str]) -> "EntraSettings":
+        """Parse Entra inputs supplied by the process composition root."""
+
+        tenant = source["EIP_ENTRA_TENANT_ID"]
+        audience = source["EIP_ENTRA_AUDIENCE"]
         default_issuer = f"https://login.microsoftonline.com/{tenant}/v2.0"
         issuers = tuple(
-            i.strip() for i in os.getenv("EIP_ENTRA_ALLOWED_ISSUERS", default_issuer).split(",") if i.strip()
+            i.strip()
+            for i in source.get("EIP_ENTRA_ALLOWED_ISSUERS", default_issuer).split(",")
+            if i.strip()
         )
         return cls(
             tenant_id=tenant,
             audience=audience,
             allowed_issuers=issuers,
-            jwks_url=os.getenv(
+            jwks_url=source.get(
                 "EIP_ENTRA_JWKS_URL",
                 f"https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys",
             ),

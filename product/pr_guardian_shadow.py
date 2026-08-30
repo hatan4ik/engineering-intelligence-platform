@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Mapping
 
 from intelligence.risk import RiskAssessment
 from integrations.github.pr_guardian import PullRequestEvent

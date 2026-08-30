@@ -21,13 +21,14 @@ import json
 import os
 from pathlib import Path
 
-from app.operations_api import (
+from app.operations.capability import build_operations_capability
+from app.operations.normalization import normalize_common_alert
+from app.operations.presentation import incident_report
+from app.operations.publishers import (
     GitHubIncidentPublisher,
-    build_operations_capability,
     github_intelligence_client,
-    incident_report,
-    normalize_common_alert,
 )
+from app.settings import OperationsSettings
 
 
 def _github_client(token: str):
@@ -47,6 +48,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-dir", default=None, help="defaults to EIP_STATE_DIR, else .eip")
     parser.add_argument("--publish", choices=("none", "github"), default="none")
     parser.add_argument("--repository", default=None, help="owner/name, required by --publish github")
+    parser.add_argument("--correlation-id", default=None, help="preserve an upstream correlation id")
     return parser
 
 
@@ -73,7 +75,9 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     capability = build_operations_capability(
-        environ, incident_publisher=publisher, require_webhook_secret=False
+        OperationsSettings.from_mapping(environ),
+        incident_publisher=publisher,
+        require_webhook_secret=False,
     )
     if not trigger.fired:
         print(
@@ -94,9 +98,10 @@ def main(argv: list[str] | None = None) -> int:
             incident_id=trigger.incident_id,
             service=trigger.service,
             environment=trigger.environment,
+            correlation_id=args.correlation_id,
         )
     )
-    print(json.dumps(incident_report(trigger, result), indent=2, sort_keys=True))
+    print(json.dumps(incident_report(trigger, result).model_dump(mode="json"), indent=2, sort_keys=True))
     return 0
 
 

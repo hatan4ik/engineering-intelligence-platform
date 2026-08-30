@@ -5,7 +5,9 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
+from app.application import create_app
 from app.main import app
+from app.settings import ApplicationSettings
 from feedback.store import SqliteFeedbackStore
 
 
@@ -55,6 +57,10 @@ def _closed_pr_payload() -> dict[str, object]:
 
 def test_healthz_reports_every_capability_as_unconfigured_by_default(monkeypatch):
     monkeypatch.delenv("EIP_BACKEND", raising=False)
+    monkeypatch.delenv("EIP_CONTROL_PLANE_MODE", raising=False)
+    monkeypatch.delenv("EIP_REQUIRE_OPA", raising=False)
+    monkeypatch.delenv("EIP_AUTONOMY_KILL_SWITCH", raising=False)
+    monkeypatch.delenv("EIP_PR_GUARDIAN_KILL_SWITCH", raising=False)
     response = TestClient(app).get("/healthz")
     assert response.status_code == 200
     assert response.json() == {
@@ -66,6 +72,42 @@ def test_healthz_reports_every_capability_as_unconfigured_by_default(monkeypatch
             "portal": "unconfigured",
             "operations": "unconfigured",
         },
+        "controls": {
+            "control_plane_mode": "reference",
+            "autonomy_kill_switch": "ready",
+            "pr_guardian_kill_switch": "ready",
+            "opa_evaluator": "reference-optional",
+            "kill_switch_update": "restart-required",
+        },
+    }
+
+
+def test_healthz_reports_normalized_backend_and_safety_control_state():
+    settings = ApplicationSettings.from_mapping(
+        {
+            "EIP_BACKEND": " Azure ",
+            "EIP_AUTH_MODE": "api-key",
+            "EIP_API_KEY_PRINCIPALS": "{}",
+            "AZURE_SEARCH_ENDPOINT": "https://search.example.invalid",
+            "AZURE_SEARCH_INDEX": "company-brain",
+            "AZURE_OPENAI_ENDPOINT": "https://openai.example.invalid",
+            "AZURE_OPENAI_CHAT_DEPLOYMENT": "standard",
+            "EIP_CONTROL_PLANE_MODE": "temporal",
+            "EIP_REQUIRE_OPA": "false",
+            "EIP_AUTONOMY_KILL_SWITCH": "true",
+            "EIP_PR_GUARDIAN_KILL_SWITCH": "true",
+        }
+    )
+
+    body = TestClient(create_app(settings)).get("/healthz").json()
+
+    assert body["capabilities"]["query"] == "azure"
+    assert body["controls"] == {
+        "control_plane_mode": "temporal",
+        "autonomy_kill_switch": "engaged",
+        "pr_guardian_kill_switch": "engaged",
+        "opa_evaluator": "required",
+        "kill_switch_update": "restart-required",
     }
 
 

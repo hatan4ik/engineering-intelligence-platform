@@ -1,91 +1,77 @@
-"""Project PR findings and explicit outcomes into Company Brain memory.
+"""Project shared product findings and explicit outcomes into Company Brain memory.
 
-The product contracts intentionally expose only already-authorized evidence
-references. This projector records finding/outcome metadata but does not copy
-those references into the Company Brain without the original source ACL.
+Product-specific adapters translate their records at this boundary. The
+projector consequently has no dependency on PR Guardian (or a future product),
+and it records metadata only; an evidence reference without its original ACL
+is never copied into Company Brain evidence storage.
 """
 
 from __future__ import annotations
 
-from product.pr_guardian.contracts import FindingOutcome, PRFinding
-
 from .model import BrainEntity, CompanyBrain, EntityKind, RelationshipKind
-from .projector import repository_id
+from .product_contracts import ProductFinding, ProductOutcome
 
 
 class CompanyBrainFeedbackProjector:
-    """Retain reviewable PR learning records without inferring correctness."""
+    """Retain typed product learning records without inferring correctness."""
 
-    def __init__(self, brain: CompanyBrain, *, provider: str = "github") -> None:
+    def __init__(self, brain: CompanyBrain) -> None:
         self.brain = brain
-        self.provider = provider
 
-    def project_finding(self, finding: PRFinding) -> str:
-        repository = repository_id(provider=self.provider, repository=finding.repository)
-        if repository not in self.brain.entities:
-            self.brain.upsert_entity(
-                BrainEntity(
-                    entity_id=repository,
-                    kind=EntityKind.REPOSITORY,
-                    label=finding.repository,
-                    attributes=(("provider", self.provider),),
-                )
-            )
-        change_id = f"pr-change:{finding.repository}:{finding.pr_number}:{finding.head_sha}"
+    def project_finding(self, finding: ProductFinding) -> str:
+        """Project a bounded product finding without importing a product package."""
+
+        self.brain.upsert_entity(finding.scope.as_entity())
+        self.brain.upsert_entity(finding.subject.as_entity())
         finding_id = f"finding:{finding.finding_id}"
-        self.brain.upsert_entity(
-            BrainEntity(
-                entity_id=change_id,
-                kind=EntityKind.CHANGE,
-                label=f"PR #{finding.pr_number} at {finding.head_sha}",
-                attributes=(
-                    ("head_sha", finding.head_sha),
-                    ("pr_number", str(finding.pr_number)),
-                    ("repository", finding.repository),
-                ),
-            )
-        )
         self.brain.upsert_entity(
             BrainEntity(
                 entity_id=finding_id,
                 kind=EntityKind.FINDING,
                 label=finding.summary,
                 attributes=(
-                    ("context_qualified", str(finding.context_qualified).lower()),
-                    ("context_version", finding.context_version),
+                    ("assessment_version", finding.provenance.assessment_version),
+                    ("context_qualified", str(finding.provenance.context_qualified).lower()),
+                    ("context_version", finding.provenance.context_version),
                     ("evidence_basis", finding.evidence.basis.value),
-                    ("policy_version", finding.policy_version),
+                    ("product", finding.product),
+                    ("recommendation", finding.recommendation),
                     ("severity", finding.severity),
-                    ("simulated_action", finding.simulated_action.value),
                 ),
             )
         )
-        self.brain.relate(source_id=repository, target_id=change_id, kind=RelationshipKind.CHANGED_BY)
-        self.brain.relate(source_id=change_id, target_id=finding_id, kind=RelationshipKind.ASSESSED_BY)
+        self.brain.relate(
+            source_id=finding.scope.entity_id,
+            target_id=finding.subject.entity_id,
+            kind=finding.scope_relationship,
+        )
+        self.brain.relate(
+            source_id=finding.subject.entity_id,
+            target_id=finding_id,
+            kind=RelationshipKind.ASSESSED_BY,
+        )
         return finding_id
 
-    def project_outcome(self, outcome: FindingOutcome) -> str:
+    def project_outcome(self, outcome: ProductOutcome) -> str:
+        """Attach one explicit product outcome to a previously projected finding."""
+
         finding_id = f"finding:{outcome.finding_id}"
         if finding_id not in self.brain.entities:
-            raise ValueError("a PR finding must exist before its outcome is recorded")
-        correlation = outcome.post_merge_correlation_id or "unlinked"
-        outcome_id = (
-            f"outcome:{outcome.finding_id}:{outcome.reviewer_risk.value}:"
-            f"{outcome.reviewer_utility.value}:{correlation}"
-        )
+            raise ValueError("a product finding must exist before its outcome is recorded")
+        outcome_id = f"outcome:{outcome.outcome_id}"
         attributes = [
-            ("reviewer_risk", outcome.reviewer_risk.value),
-            ("reviewer_utility", outcome.reviewer_utility.value),
+            ("disposition", outcome.disposition),
+            ("outcome_kind", outcome.outcome_kind),
         ]
         if outcome.recorded_by:
             attributes.append(("recorded_by", outcome.recorded_by))
-        if outcome.post_merge_correlation_id:
-            attributes.append(("post_merge_correlation_id", outcome.post_merge_correlation_id))
+        if outcome.correlation_id:
+            attributes.append(("correlation_id", outcome.correlation_id))
         self.brain.upsert_entity(
             BrainEntity(
                 entity_id=outcome_id,
                 kind=EntityKind.OUTCOME,
-                label=f"PR finding outcome: {outcome.reviewer_risk.value}",
+                label=f"{outcome.outcome_kind}: {outcome.disposition}",
                 attributes=tuple(sorted(attributes)),
             )
         )

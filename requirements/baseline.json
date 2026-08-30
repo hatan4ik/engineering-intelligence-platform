@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "requirements": [
+    {
+      "id": "EIP-SEC-014",
+      "statement": "Authorization constrains retrieval before any evidence reaches model context.",
+      "criticality": "high",
+      "data_sensitivity": "restricted",
+      "decision_impact": "read-only",
+      "autonomy_tier": "L0/L1",
+      "implementation_status": "reference-implemented",
+      "design_refs": ["architecture/design.md", "architecture/non-functional-requirements.md"],
+      "implemented_by": ["ingestion/azure_search.py", "app/rag/azure_backend.py"],
+      "verified_by": ["tests/test_hybrid_vector_rag.py", "tests/test_integration_probe.py"],
+      "operational_evidence": {
+        "required_for": "named L0/L1 pilot",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "platform-security",
+      "review_cycle_days": 90
+    },
+    {
+      "id": "EIP-DATA-021",
+      "statement": "Company Brain findings expose authorized evidence provenance or explicitly state an evidence limitation.",
+      "criticality": "high",
+      "data_sensitivity": "restricted",
+      "decision_impact": "advisory",
+      "autonomy_tier": "L0/L1",
+      "implementation_status": "reference-implemented",
+      "design_refs": ["architecture/design.md", "docs/PR-GUARDIAN-DOMAIN-CONTRACT.md"],
+      "implemented_by": ["company_brain/world_model.py", "product/pr_guardian/contracts.py"],
+      "verified_by": ["tests/test_company_brain_world_model.py", "tests/test_pr_guardian_contracts.py"],
+      "operational_evidence": {
+        "required_for": "named L0/L1 pilot",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "data-governance",
+      "review_cycle_days": 90
+    },
+    {
+      "id": "EIP-PRG-001",
+      "statement": "PR Guardian begins in repository-owned shadow mode and cannot become a merge gate from platform configuration alone.",
+      "criticality": "high",
+      "data_sensitivity": "internal",
+      "decision_impact": "advisory",
+      "autonomy_tier": "L0/L1",
+      "implementation_status": "reference-implemented",
+      "design_refs": ["docs/PRODUCT-STRATEGY.md", "docs/PR-GUARDIAN-SHADOW-PILOT.md"],
+      "implemented_by": ["product/pr_guardian/config.py", "product/pr_guardian/enforcement.py"],
+      "verified_by": ["tests/test_pr_guardian_modes.py", "tests/test_pr_guardian_enforcement.py"],
+      "operational_evidence": {
+        "required_for": "advisory promotion",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "developer-experience",
+      "review_cycle_days": 30
+    },
+    {
+      "id": "EIP-PRG-002",
+      "statement": "Each PR Guardian promotion decision uses retained reviewer dispositions and does not infer correctness from merge state alone.",
+      "criticality": "high",
+      "data_sensitivity": "internal",
+      "decision_impact": "advisory",
+      "autonomy_tier": "L0/L1",
+      "implementation_status": "reference-implemented",
+      "design_refs": ["docs/PR-GUARDIAN-SHADOW-PILOT.md", "docs/PRODUCTION-EVIDENCE.md"],
+      "implemented_by": ["product/pr_guardian/store.py", "feedback/outcome_capture.py"],
+      "verified_by": ["tests/test_outcome_feedback.py", "tests/test_pr_guardian_shadow_report.py"],
+      "operational_evidence": {
+        "required_for": "advisory promotion",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "developer-experience",
+      "review_cycle_days": 30
+    },
+    {
+      "id": "EIP-AUD-010",
+      "statement": "Every consequential workflow transition is bound to an immutable audit event and a correlation ID.",
+      "criticality": "high",
+      "data_sensitivity": "restricted",
+      "decision_impact": "consequential",
+      "autonomy_tier": "L3/L4",
+      "implementation_status": "reference-partial",
+      "design_refs": ["architecture/design.md", "architecture/non-functional-requirements.md"],
+      "implemented_by": ["control_plane/workflows.py", "state/audit.py"],
+      "verified_by": ["tests/test_control_plane_workflows.py", "tests/test_state_store.py"],
+      "operational_evidence": {
+        "required_for": "L3 pilot",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "platform-engineering",
+      "review_cycle_days": 30
+    },
+    {
+      "id": "EIP-CTRL-018",
+      "statement": "Any mutation is authorized by deterministic policy, a closed runbook catalogue, and independent verification rather than model output.",
+      "criticality": "critical",
+      "data_sensitivity": "restricted",
+      "decision_impact": "consequential",
+      "autonomy_tier": "L3/L4",
+      "implementation_status": "reference-partial",
+      "design_refs": ["architecture/design.md", "docs/PRODUCTION-EVIDENCE.md"],
+      "implemented_by": ["remediation/catalog.py", "remediation/executor.py", "remediation/opa_policy.py"],
+      "verified_by": ["tests/test_l4_execution_gate.py", "tests/test_opa_policy.py"],
+      "operational_evidence": {
+        "required_for": "L3 pilot",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "sre-platform",
+      "review_cycle_days": 30
+    },
+    {
+      "id": "EIP-CTRL-022",
+      "statement": "L4 autonomy is certified per service, environment, and runbook and is disabled when its scoped evidence expires.",
+      "criticality": "critical",
+      "data_sensitivity": "restricted",
+      "decision_impact": "consequential",
+      "autonomy_tier": "L4",
+      "implementation_status": "reference-implemented",
+      "design_refs": ["architecture/l4-certification.md", "docs/L4-PROMOTION-RUNBOOK.md"],
+      "implemented_by": ["resilience/certification.py", "remediation/executor.py"],
+      "verified_by": ["tests/test_l4_certification_record.py", "tests/test_l4_execution_gate.py"],
+      "operational_evidence": {
+        "required_for": "L4 promotion",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "sre-platform",
+      "review_cycle_days": 30
+    },
+    {
+      "id": "EIP-OPS-004",
+      "statement": "Operational intelligence delivers L1 analysis and L2 proposals only; a response never executes a proposed change.",
+      "criticality": "high",
+      "data_sensitivity": "internal",
+      "decision_impact": "advisory",
+      "autonomy_tier": "L2",
+      "implementation_status": "reference-implemented",
+      "design_refs": ["docs/OPERATIONS-INTELLIGENCE-RUNBOOK.md", "docs/PRODUCT-STRATEGY.md"],
+      "implemented_by": ["app/operations_api.py", "product/l2_proposals.py"],
+      "verified_by": ["tests/test_operations_api.py", "tests/test_l2_proposals.py"],
+      "operational_evidence": {
+        "required_for": "named L2 pilot",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "sre-platform",
+      "review_cycle_days": 30
+    },
+    {
+      "id": "EIP-GOV-030",
+      "statement": "Every workflow is tiered by data sensitivity and decision impact before real data or a higher autonomy level is enabled.",
+      "criticality": "high",
+      "data_sensitivity": "restricted",
+      "decision_impact": "consequential",
+      "autonomy_tier": "all",
+      "implementation_status": "planned",
+      "design_refs": ["architecture/non-functional-requirements.md", "docs/PRODUCTION-EVIDENCE.md"],
+      "implemented_by": [],
+      "verified_by": [],
+      "operational_evidence": {
+        "required_for": "any named pilot",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "data-governance",
+      "review_cycle_days": 90
+    },
+    {
+      "id": "EIP-PERF-040",
+      "statement": "Each pilot workflow has approved latency, throughput, cost, and degradation budgets before promotion.",
+      "criticality": "medium",
+      "data_sensitivity": "internal",
+      "decision_impact": "advisory",
+      "autonomy_tier": "all",
+      "implementation_status": "planned",
+      "design_refs": ["architecture/non-functional-requirements.md", "docs/PRODUCT-STRATEGY.md"],
+      "implemented_by": [],
+      "verified_by": [],
+      "operational_evidence": {
+        "required_for": "advisory promotion",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "platform-engineering",
+      "review_cycle_days": 90
+    }
+  ]
+}

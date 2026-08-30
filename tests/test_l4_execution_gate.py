@@ -212,6 +212,26 @@ def test_the_kill_switch_engages_on_any_casing_and_is_otherwise_off(monkeypatch)
     assert run(Adapter(), certification=record()).status == "succeeded"
 
 
+def test_temporal_mode_never_falls_back_to_the_local_policy_evaluator():
+    adapter = Adapter()
+    result = execute_control_loop(
+        catalog=default_catalog(),
+        policy=policy(),
+        request=request(),
+        adapter=adapter,
+        evaluator=None,
+        approval_verified=True,
+        certification=record(),
+        autonomy_level=AutonomyLevel.BOUNDED_AUTONOMOUS,
+        now=NOW,
+        environ={"EIP_CONTROL_PLANE_MODE": "temporal", "EIP_REQUIRE_OPA": "false"},
+    )
+
+    assert result.status == "denied"
+    assert result.policy.reason == "OPA policy evaluator is required but not configured"
+    assert adapter.executed == []
+
+
 def l2_catalog() -> RunbookCatalog:
     catalog = RunbookCatalog()
     catalog.register(Runbook(

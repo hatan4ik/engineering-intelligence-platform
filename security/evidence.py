@@ -7,8 +7,13 @@ from .adversarial import ContentAssessment, assess_retrieved_content
 
 
 class EvidenceLike(Protocol):
-    source: str
-    text: str
+    """Read-only evidence required by the content-safety classifier."""
+
+    @property
+    def source(self) -> str: ...
+
+    @property
+    def text(self) -> str: ...
 
 
 @dataclass(frozen=True)

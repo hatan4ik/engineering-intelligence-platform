@@ -29,7 +29,7 @@ pull_request (read-only token, base revision only)
 
 pull_request_target: closed (trusted default-branch code; no PR checkout)
   -> reviewer labels + matching advisory record
-  -> closure artifact + calibration comment
+  -> closure artifact + best-effort calibration comment
 ```
 
 The first workflow does not receive a write-capable token and does not execute the pull-request
@@ -38,6 +38,16 @@ before it has permission to create a check or comment. It accepts marker comment
 were written by its authenticated automation identity, so a contributor cannot forge a prior
 observation. The closure workflow reads the GitHub event as data and checks out the default branch
 only. It has no deployment or cloud credentials.
+
+The closure artifact is written before the calibration comment is attempted. If GitHub refuses that
+comment, the workflow records `publication=not-published` and retains the artifact for investigation;
+it must not discard the captured reviewer disposition. The artifact is still only short-retention
+workflow output, not promotion evidence, and a failed comment remains an operational gap to resolve.
+
+For an authenticated GitHub webhook, the bounded `X-GitHub-Delivery` identifier is preserved as
+the PR finding, workflow, audit, telemetry, and response correlation ID. An internal caller with
+no upstream identifier receives a newly minted correlation ID; neither path creates a second ID
+mid-workflow.
 
 Fork PRs are expected to have a read-only `GITHUB_TOKEN`; this design deliberately accommodates
 that restriction by publishing only from the subsequent trusted workflow.
@@ -63,8 +73,9 @@ labels fail the closure record rather than silently choosing one.
    not a required status check/ruleset condition.
 2. Collect a representative sample across the selected repository or repositories. Add reviewer
    labels to every material finding, including negative feedback.
-3. At closure, confirm the `PR Guardian shadow-pilot closure record` comment reports a matching
-   shadow score and reviewer signal. A missing match is a data-quality gap, not a benign result.
+3. At closure, confirm the retained artifact records the matching shadow score and reviewer signal.
+   The `PR Guardian shadow-pilot closure record` comment is a convenience surface; if it is missing,
+   investigate its recorded publication state. A missing match is a data-quality gap, not a benign result.
 4. Export the short-retention closure artifacts to the approved immutable evidence system with
    repository, time window, workflow revision, reviewer, and access-control metadata. An Actions
    artifact or PR comment alone is not an evidence record.

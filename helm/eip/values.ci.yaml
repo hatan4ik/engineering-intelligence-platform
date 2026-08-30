@@ -12,6 +12,11 @@ env:
   AZURE_SEARCH_INDEX: "engineering-knowledge"
   AZURE_OPENAI_ENDPOINT: "https://eip-ci.openai.azure.com"
   AZURE_OPENAI_CHAT_DEPLOYMENT: "eip-ci-chat"
+controls:
+  controlPlaneMode: reference
+  requireOpa: true
+  autonomyKillSwitch: false
+  prGuardianKillSwitch: false
 temporalWorker:
   enabled: true
   endpoint: "temporal-frontend.eip-system.svc.cluster.local:7233"

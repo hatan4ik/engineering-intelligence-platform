@@ -13,9 +13,31 @@ from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 
+from company_brain.product_contracts import (
+    EvidenceBasis,
+    EvidenceBundle,
+    EvidenceReference,
+    ProductContractError,
+)
 
-class ProductContractError(ValueError):
-    """Raised when a product record violates a safety or shape invariant."""
+
+__all__ = [
+    "EnforcementPolicy",
+    "EnforcementRule",
+    "EnforcementWaiver",
+    "EvidenceBasis",
+    "EvidenceBundle",
+    "EvidenceReference",
+    "EvaluationRun",
+    "FindingAction",
+    "FindingOutcome",
+    "PRFinding",
+    "ProductContractError",
+    "ProductMode",
+    "RepositoryConfig",
+    "ReviewerRiskDisposition",
+    "ReviewerUtilityDisposition",
+]
 
 
 class ProductMode(StrEnum):
@@ -42,12 +64,6 @@ class EnforcementRule(StrEnum):
     SECURITY_CHANGE_WITHOUT_TEST_EVIDENCE = (
         "security-boundary-change-without-test-evidence-at-high-risk"
     )
-
-
-class EvidenceBasis(StrEnum):
-    MEASURED = "measured"
-    DERIVED = "derived"
-    MODELED = "modeled"
 
 
 class FindingAction(StrEnum):
@@ -189,46 +205,6 @@ class RepositoryConfig:
                     raise ProductContractError("waivers owner must name a declared service owner")
         elif self.enforcement is not None:
             raise ProductContractError("enforcement is allowed only when mode is enforce")
-
-
-@dataclass(frozen=True)
-class EvidenceReference:
-    """An ACL-authorized, minimally exposed reference used by a finding."""
-
-    evidence_id: str
-    source_kind: str
-    locator: str
-    authorized: bool
-
-    def __post_init__(self) -> None:
-        _required(self.evidence_id, "evidence_id", 200)
-        _required(self.source_kind, "source_kind", 80)
-        _required(self.locator, "locator", 500)
-        if self.authorized is not True:
-            raise ProductContractError("unauthorized evidence cannot enter a product finding")
-
-
-@dataclass(frozen=True)
-class EvidenceBundle:
-    """Evidence state is explicit even when no authorized source was found."""
-
-    basis: EvidenceBasis
-    references: tuple[EvidenceReference, ...]
-    limitations: tuple[str, ...]
-
-    def __post_init__(self) -> None:
-        if self.basis not in set(EvidenceBasis):
-            raise ProductContractError("evidence basis is invalid")
-        if self.references != tuple(sorted(self.references, key=lambda item: item.evidence_id)):
-            raise ProductContractError("evidence references must be sorted by evidence_id")
-        if len({item.evidence_id for item in self.references}) != len(self.references):
-            raise ProductContractError("evidence references must be unique")
-        if not self.references and not self.limitations:
-            raise ProductContractError("missing evidence requires an explicit limitation")
-        if self.basis is EvidenceBasis.MEASURED and not self.references:
-            raise ProductContractError("measured evidence requires an authorized reference")
-        for limitation in self.limitations:
-            _required(limitation, "evidence limitation", 500)
 
 
 @dataclass(frozen=True)

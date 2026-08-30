@@ -46,6 +46,15 @@ env:
   AZURE_OPENAI_CHAT_DEPLOYMENT: ""
   AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ""
   AZURE_OPENAI_API_VERSION: "2024-10-21"
+# These controls are rendered as process environment variables. A Helm value
+# change therefore takes effect after the replacement pod starts; it is not a
+# live control-plane API. Health reports both switch states and this update
+# contract so an operator cannot mistake it for a hot-reload mechanism.
+controls:
+  controlPlaneMode: reference
+  requireOpa: true
+  autonomyKillSwitch: false
+  prGuardianKillSwitch: false
 podAnnotations: {}
 temporalWorker:
   # Off by default. This evidence-only worker has no Azure or Kubernetes API

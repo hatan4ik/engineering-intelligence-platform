@@ -38,9 +38,12 @@ Welcome to the documentation for the Engineering Intelligence Platform. To preve
 *How we run the platform safely in production.*
 - [KPI System](kpi-system.md) - AI-quality, safety, and FinOps metrics.
 - [Runtime Observability](../architecture/runtime-observability.md) - OpenTelemetry and cost tracking.
+- [HTTP Application Configuration](APPLICATION-CONFIGURATION.md) - Typed process settings, startup validation, and capability wiring.
 - [L4 Certification Guidelines](../architecture/l4-certification.md) - How a service "earns" the right to self-heal.
 - [Production Readiness Gates](PRODUCTION-READINESS.md)
 - [Production Evidence Contract](PRODUCTION-EVIDENCE.md)
+- [Performance and Evidence Contract](PERFORMANCE-EVIDENCE-CONTRACT.md)
+- [Static Analysis and Type-Safety Baseline](TYPE-SAFETY-BASELINE.md)
 
 ## 🏛️ Part 5: Historical Reviews & ADRs
 *Decisions made and past audits.*

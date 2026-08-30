@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "scope": [
+    "app",
+    "company_brain",
+    "intelligence",
+    "product",
+    "remediation",
+    "control_plane",
+    "state"
+  ],
+  "tools": {
+    "ruff": {
+      "version": "0.16.4",
+      "maximum_errors": 0
+    },
+    "mypy": {
+      "version": "2.3.1",
+      "maximum_errors": 36
+    }
+  },
+  "dynamic_typing": {
+    "maximum_any_references": 21,
+    "maximum_type_ignores": 1
+  }
+}

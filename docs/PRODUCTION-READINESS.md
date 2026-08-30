@@ -23,7 +23,7 @@ No agent or remediation is promoted because it appears intelligent. Promotion re
 - Secrets/PII redaction and audit behavior verified.
 
 ### Gate 3 — Reliability
-- SLO and timeout budget defined.
+- [SLO and timeout budget defined per workflow](PERFORMANCE-EVIDENCE-CONTRACT.md).
 - Retry/backoff and circuit breaker behavior tested.
 - Dependency outage behavior tested.
 - Rollback/compensation path exercised.
