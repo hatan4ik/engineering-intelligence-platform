@@ -37,7 +37,7 @@ claim.
 | Deployment Failure Investigator | **2.5** | pipeline-failure evidence/last-good correlation and workflow | provider breadth, richer logs/timeline UX, and calibration |
 | Incident Intelligence | **3.0** | Azure Monitor/App Insights/OTel/K8s adapters and correlation primitives | real incident-system publishing, richer queries, and outcome calibration |
 | Drift Detector | **2.5** | desired-vs-observed model and durable finding | wider resource coverage, corrective workflow, and precision measurement |
-| Knowledge Decay | **2.5** | stale/ownerless/conflicting detection and maintenance plan | live publisher, resolution tracking, and freshness SLOs |
+| Knowledge Decay | **2.5** | stale/ownerless/conflicting detection plus tenant-scoped, source-freshness-aware, read-only maintenance proposals | approved publisher, resolution tracking, and freshness SLO evidence |
 | Predictive / change-risk intelligence | **2.5** | explainable scoring and feedback-safe calibration primitives | real historical features, service calibration, and false-negative monitoring |
 | Engineering Portal / service intelligence | **2.5** | service/portfolio view models and API reference paths | authenticated UI/API deployment, navigation, and operator workflows |
 | Feedback learning | **2.5** | explicit reviewer-label shadow outcomes, durable outcome model, and conservative precision/acceptance metrics | retained independent outcome correlation, cohort analysis, and repository-specific calibration |

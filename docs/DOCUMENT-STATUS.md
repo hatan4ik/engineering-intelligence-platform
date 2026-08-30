@@ -80,9 +80,10 @@ production-certified.
 | [`L3-REHEARSAL-RUNBOOK.md`](L3-REHEARSAL-RUNBOOK.md) | Current implementation state | Exercise, soak, and readiness runners; rehearsal is not certification |
 | [`L4-PROMOTION-RUNBOOK.md`](L4-PROMOTION-RUNBOOK.md) | Current implementation state | Scoped certification record, what invalidates it, the platform cannot self-certify |
 | [`COMPANY-BRAIN-CORE.md`](COMPANY-BRAIN-CORE.md) | Current implementation contract | Product-neutral Evidence, Finding, Outcome, and provenance records; source-only reference behavior |
-| [`COMPANY-BRAIN-STORE.md`](COMPANY-BRAIN-STORE.md) | Target proposal | Company Brain reference store (merged from a parallel line) |
-| [`COMPANY-BRAIN-WORLD-MODEL.md`](COMPANY-BRAIN-WORLD-MODEL.md) | Target proposal | Company Brain world model (merged from a parallel line) |
-| [`COMPANY-BRAIN-MEMORY-SYNC.md`](COMPANY-BRAIN-MEMORY-SYNC.md) | Target proposal | Company Brain memory sync (merged from a parallel line) |
+| [`COMPANY-BRAIN-STORE.md`](COMPANY-BRAIN-STORE.md) | Current implementation contract | Tenant-scoped Company Brain reference store; not a production data plane |
+| [`COMPANY-BRAIN-WORLD-MODEL.md`](COMPANY-BRAIN-WORLD-MODEL.md) | Current implementation contract | Qualified Company Brain world-model read path; not action authority |
+| [`COMPANY-BRAIN-MEMORY-SYNC.md`](COMPANY-BRAIN-MEMORY-SYNC.md) | Current implementation contract | Governed source lifecycle projection into reference memory |
+| [`COMPANY-BRAIN-MAINTENANCE.md`](COMPANY-BRAIN-MAINTENANCE.md) | Current implementation contract | Read-only, deterministic knowledge-maintenance proposal contract |
 
 ## Review cadence
 

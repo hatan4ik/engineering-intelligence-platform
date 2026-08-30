@@ -26,6 +26,11 @@ The store can rebuild an active `CompanyBrain` snapshot for a read-only product 
 read model only: it does not grant authorization, approve a change, trigger a workflow, or execute
 a remediation.
 
+For reporting and maintenance paths, `SqliteCompanyBrainStore.open_read_only()` opens an existing
+reference database using SQLite read-only mode and skips schema initialization. This makes a
+planning read incapable of creating a database or changing a record; it does not make SQLite a
+production data-plane fallback.
+
 ## Boundaries and next work
 
 - SQLite is explicitly reference-only and refuses construction when the repository is configured for

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from ingestion.documents import KnowledgeDocument, KnowledgeSourceType
 from ingestion.models import ChangeType, FileChange
@@ -30,6 +31,14 @@ def owner_id(owner: str) -> str:
 
 def _attributes(**values: str | None) -> tuple[tuple[str, str], ...]:
     return tuple(sorted((key, value) for key, value in values.items() if value))
+
+
+def _source_updated_at(value: datetime) -> str:
+    """Persist a source timestamp separately from the projection write time."""
+
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("knowledge document updated_at must include a timezone")
+    return value.astimezone(timezone.utc).isoformat()
 
 
 @dataclass(frozen=True)
@@ -199,6 +208,7 @@ class CompanyBrainProjector:
                     provider=document.identity.provider,
                     source_type=document.identity.source_type.value,
                     revision=document.revision,
+                    source_updated_at=_source_updated_at(document.updated_at),
                 ),
             )
         )

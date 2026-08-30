@@ -60,6 +60,17 @@ from .product_contracts import (
     ProductOutcome,
     ProductSubject,
 )
+from .maintenance import (
+    CompanyBrainMaintenanceError,
+    CompanyBrainMaintenanceReader,
+    DEFAULT_MAINTENANCE_KINDS,
+    MemoryMaintenanceAction,
+    MemoryMaintenanceFindingKind,
+    MemoryMaintenancePlan,
+    MemoryMaintenancePolicy,
+    MemoryMaintenanceProposal,
+    plan_company_brain_maintenance,
+)
 
 __all__ = [
     "BrainEntity",
@@ -111,4 +122,13 @@ __all__ = [
     "ProductFinding",
     "ProductOutcome",
     "ProductSubject",
+    "CompanyBrainMaintenanceError",
+    "CompanyBrainMaintenanceReader",
+    "DEFAULT_MAINTENANCE_KINDS",
+    "MemoryMaintenanceAction",
+    "MemoryMaintenanceFindingKind",
+    "MemoryMaintenancePlan",
+    "MemoryMaintenancePolicy",
+    "MemoryMaintenanceProposal",
+    "plan_company_brain_maintenance",
 ]
