@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timezone
-from typing import Mapping
+from typing import Literal, Mapping, TypedDict, cast
 
 from intelligence.risk import RiskAssessment
 from integrations.github.pr_guardian import PullRequestEvent
@@ -45,6 +45,117 @@ _UTILITY_LABELS = {
     "eip-pr-guardian/not-useful": "not-useful",
 }
 
+ShadowMode = Literal["shadow", "advisory", "enforce"]
+RiskBand = Literal["low", "moderate", "high", "critical"]
+RiskSignal = Literal["confirmed-risk", "false-positive", "not-reviewed"]
+UtilitySignal = Literal["useful", "not-useful", "not-reviewed"]
+
+
+class ShadowEnforcement(TypedDict):
+    would_block: bool
+    reason: str
+    rule: str | None
+    waived_by: str | None
+
+
+class ArchitectureViolation(TypedDict):
+    rule_id: str
+    path: str
+    marker: str
+    rationale: str
+    severity: int
+
+
+class ArchitectureSkip(TypedDict):
+    path: str
+    reason: str
+
+
+class ArchitectureReview(TypedDict):
+    violations: list[ArchitectureViolation]
+    in_scope: int
+    reviewed: int
+    skipped: list[ArchitectureSkip]
+    summary: str
+
+
+class ShadowSubject(TypedDict):
+    repository: str
+    pr_number: int
+    head_sha: str
+    action: str
+
+
+class ShadowRiskFactor(TypedDict):
+    name: str
+    points: int
+    evidence: str
+
+
+class ShadowAssessment(TypedDict):
+    score: int
+    band: RiskBand
+    factors: list[ShadowRiskFactor]
+
+
+class SimulatedPolicy(TypedDict):
+    would_require_extended_tests: bool
+    would_require_additional_approval: bool
+    would_block: bool
+
+
+class ShadowWorkflow(TypedDict):
+    id: str
+    audit_chain_verified: bool
+
+
+class ShadowObservation(TypedDict):
+    schema_version: int
+    kind: str
+    mode: ShadowMode
+    enforcement: ShadowEnforcement
+    architecture: ArchitectureReview
+    observed_at: str
+    subject: ShadowSubject
+    assessment: ShadowAssessment
+    changed_services: list[str]
+    simulated_policy: SimulatedPolicy
+    workflow: ShadowWorkflow
+
+
+class OutcomeSubject(TypedDict):
+    repository: str
+    pr_number: int
+    head_sha: str
+
+
+class OutcomeClosure(TypedDict):
+    merged: bool
+
+
+class ReviewerSignal(TypedDict):
+    risk: RiskSignal
+    utility: UtilitySignal
+
+
+class SourceObservation(TypedDict):
+    score: int
+    band: RiskBand
+    would_block: bool
+    would_require_additional_approval: bool
+
+
+class ShadowOutcome(TypedDict):
+    schema_version: int
+    kind: str
+    recorded_at: str
+    subject: OutcomeSubject
+    closure: OutcomeClosure
+    reviewer_signal: ReviewerSignal
+    recognized_labels: list[str]
+    source_observation: SourceObservation | None
+    limitations: list[str]
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -64,7 +175,7 @@ def observation_from_assessment(
     mode: str = "shadow",
     enforcement: Mapping[str, object] | None = None,
     architecture: Mapping[str, object] | None = None,
-) -> dict[str, object]:
+) -> ShadowObservation:
     """Return a strictly shaped observation for the repository's current mode.
 
     ``mode`` comes from the evaluated repository's own configuration.  The
@@ -115,17 +226,36 @@ def observation_from_assessment(
     return validate_observation(record)
 
 
-def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
-    """Validate a workflow-transfer record before a trusted workflow uses it."""
+def validate_observation(value: Mapping[str, object]) -> ShadowObservation:
+    """Validate and normalize one untrusted workflow-transfer observation.
 
-    def _optional_string(raw: object, name: str, maximum: int) -> str | None:
-        return None if raw is None else _string(raw, name, maximum)
+    Each nested boundary is deliberately validated by a focused function so a
+    schema change cannot make this trusted publisher depend on ambient dict
+    coercion or a hidden field relationship.
+    """
 
-    # Records written before advisory/enforce modes existed carry neither an
-    # enforcement nor an architecture section.  Fill both with their explicitly
-    # non-blocking, empty defaults so old artifacts keep validating and every
-    # normalized record has the same shape.
-    value = {
+    envelope = _observation_envelope(value)
+    mode = _shadow_mode(envelope.get("mode"))
+    enforcement = _validate_enforcement(envelope.get("enforcement"), mode=mode)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": OBSERVATION_KIND,
+        "mode": mode,
+        "enforcement": enforcement,
+        "architecture": _validate_architecture(envelope.get("architecture")),
+        "observed_at": _string(envelope.get("observed_at"), "observed_at", 80),
+        "subject": _validate_observation_subject(envelope.get("subject")),
+        "assessment": _validate_assessment(envelope.get("assessment")),
+        "changed_services": _validate_changed_services(envelope.get("changed_services")),
+        "simulated_policy": _validate_simulated_policy(envelope.get("simulated_policy")),
+        "workflow": _validate_workflow(envelope.get("workflow")),
+    }
+
+
+def _observation_envelope(value: Mapping[str, object]) -> dict[str, object]:
+    """Apply explicit legacy defaults before enforcing the current envelope."""
+
+    envelope = {
         "enforcement": {
             "would_block": False,
             "reason": "mode-not-enforcing",
@@ -142,166 +272,175 @@ def validate_observation(value: Mapping[str, object]) -> dict[str, object]:
         **dict(value),
     }
     _exact_keys(
-        value,
+        envelope,
         {
             "schema_version", "kind", "mode", "enforcement", "architecture", "observed_at",
             "subject", "assessment", "changed_services", "simulated_policy", "workflow",
         },
         "shadow observation",
     )
-    if value.get("schema_version") != SCHEMA_VERSION or value.get("kind") != OBSERVATION_KIND:
+    if envelope.get("schema_version") != SCHEMA_VERSION or envelope.get("kind") != OBSERVATION_KIND:
         raise ValueError("unsupported shadow observation schema")
-    mode = _string(value.get("mode"), "mode", 20)
+    return envelope
+
+
+def _shadow_mode(value: object) -> ShadowMode:
+    mode = _string(value, "mode", 20)
     if mode not in {"shadow", "advisory", "enforce"}:
         raise ValueError("mode is invalid")
+    return cast(ShadowMode, mode)
 
-    raw_enforcement = _mapping(value.get("enforcement"), "enforcement")
-    _exact_keys(raw_enforcement, {"would_block", "reason", "rule", "waived_by"}, "enforcement")
-    enforcement: dict[str, object] = {
-        "would_block": _boolean(raw_enforcement.get("would_block"), "enforcement.would_block"),
-        "reason": _string(raw_enforcement.get("reason"), "enforcement.reason", 120),
-        "rule": _optional_string(raw_enforcement.get("rule"), "enforcement.rule", 120),
-        "waived_by": _optional_string(raw_enforcement.get("waived_by"), "enforcement.waived_by", 200),
+
+def _validate_enforcement(value: object, *, mode: ShadowMode) -> ShadowEnforcement:
+    raw = _mapping(value, "enforcement")
+    _exact_keys(raw, {"would_block", "reason", "rule", "waived_by"}, "enforcement")
+    enforcement: ShadowEnforcement = {
+        "would_block": _boolean(raw.get("would_block"), "enforcement.would_block"),
+        "reason": _string(raw.get("reason"), "enforcement.reason", 120),
+        "rule": _optional_string(raw.get("rule"), "enforcement.rule", 120),
+        "waived_by": _optional_string(raw.get("waived_by"), "enforcement.waived_by", 200),
     }
-    # A record can describe a block only when it also names the rule that
-    # produced it; an unattributed block is not publishable.
     if enforcement["would_block"] and not enforcement["rule"]:
         raise ValueError("enforcement.rule is required when enforcement.would_block is true")
     if enforcement["would_block"] and mode != "enforce":
         raise ValueError("enforcement.would_block is allowed only in enforce mode")
+    return enforcement
 
-    # Older records carried only violations+summary; fill the coverage counts
-    # with a "nothing was reviewed" default so they cannot read as a clean run.
-    raw_architecture = {
+
+def _validate_architecture(value: object) -> ArchitectureReview:
+    raw = {
         "in_scope": 0,
         "reviewed": 0,
         "skipped": [],
-        **dict(_mapping(value.get("architecture"), "architecture")),
+        **dict(_mapping(value, "architecture")),
     }
-    _exact_keys(
-        raw_architecture,
-        {"violations", "in_scope", "reviewed", "skipped", "summary"},
-        "architecture",
-    )
-    raw_violations = raw_architecture.get("violations")
-    if not isinstance(raw_violations, list) or len(raw_violations) > 64:
-        raise ValueError("architecture.violations is invalid")
-    violations: list[dict[str, object]] = []
-    for index, raw in enumerate(raw_violations):
-        item = _mapping(raw, f"architecture.violations[{index}]")
-        _exact_keys(
-            item,
-            {"rule_id", "path", "marker", "rationale", "severity"},
-            f"architecture.violations[{index}]",
-        )
-        violations.append({
-            "rule_id": _string(item.get("rule_id"), f"architecture.violations[{index}].rule_id", 120),
-            "path": _string(item.get("path"), f"architecture.violations[{index}].path", 400),
-            "marker": _string(item.get("marker"), f"architecture.violations[{index}].marker", 400),
-            "rationale": _string(item.get("rationale"), f"architecture.violations[{index}].rationale", 500),
-            "severity": _integer(
-                item.get("severity"), f"architecture.violations[{index}].severity", minimum=1, maximum=5
-            ),
-        })
-    raw_skipped = raw_architecture.get("skipped")
-    if not isinstance(raw_skipped, list) or len(raw_skipped) > 64:
-        raise ValueError("architecture.skipped is invalid")
-    skipped: list[dict[str, object]] = []
-    for index, raw in enumerate(raw_skipped):
-        item = _mapping(raw, f"architecture.skipped[{index}]")
-        _exact_keys(item, {"path", "reason"}, f"architecture.skipped[{index}]")
-        skipped.append({
-            "path": _string(item.get("path"), f"architecture.skipped[{index}].path", 400),
-            "reason": _string(item.get("reason"), f"architecture.skipped[{index}].reason", 200),
-        })
-    reviewed = _integer(
-        raw_architecture.get("reviewed"), "architecture.reviewed", minimum=0, maximum=10_000
-    )
-    in_scope = _integer(
-        raw_architecture.get("in_scope"), "architecture.in_scope", minimum=0, maximum=10_000
-    )
+    _exact_keys(raw, {"violations", "in_scope", "reviewed", "skipped", "summary"}, "architecture")
+    violations = _validate_architecture_violations(raw.get("violations"))
+    skipped = _validate_architecture_skips(raw.get("skipped"))
+    reviewed = _integer(raw.get("reviewed"), "architecture.reviewed", minimum=0, maximum=10_000)
+    in_scope = _integer(raw.get("in_scope"), "architecture.in_scope", minimum=0, maximum=10_000)
     if reviewed > in_scope:
         raise ValueError("architecture.reviewed cannot exceed architecture.in_scope")
-    # A record must not report findings it claims never to have read.
     if violations and reviewed == 0:
         raise ValueError("architecture.violations requires at least one reviewed file")
-    architecture = {
+    return {
         "violations": violations,
         "in_scope": in_scope,
         "reviewed": reviewed,
         "skipped": skipped,
-        "summary": _string(raw_architecture.get("summary"), "architecture.summary", 500),
+        "summary": _string(raw.get("summary"), "architecture.summary", 500),
     }
 
-    observed_at = _string(value.get("observed_at"), "observed_at", 80)
-    subject = _mapping(value.get("subject"), "subject")
-    _exact_keys(subject, {"repository", "pr_number", "head_sha", "action"}, "subject")
-    repository = _string(subject.get("repository"), "subject.repository", 200)
+
+def _validate_architecture_violations(value: object) -> list[ArchitectureViolation]:
+    if not isinstance(value, list) or len(value) > 64:
+        raise ValueError("architecture.violations is invalid")
+    violations: list[ArchitectureViolation] = []
+    for index, item in enumerate(value):
+        raw = _mapping(item, f"architecture.violations[{index}]")
+        _exact_keys(raw, {"rule_id", "path", "marker", "rationale", "severity"}, f"architecture.violations[{index}]")
+        violations.append({
+            "rule_id": _string(raw.get("rule_id"), f"architecture.violations[{index}].rule_id", 120),
+            "path": _string(raw.get("path"), f"architecture.violations[{index}].path", 400),
+            "marker": _string(raw.get("marker"), f"architecture.violations[{index}].marker", 400),
+            "rationale": _string(raw.get("rationale"), f"architecture.violations[{index}].rationale", 500),
+            "severity": _integer(raw.get("severity"), f"architecture.violations[{index}].severity", minimum=1, maximum=5),
+        })
+    return violations
+
+
+def _validate_architecture_skips(value: object) -> list[ArchitectureSkip]:
+    if not isinstance(value, list) or len(value) > 64:
+        raise ValueError("architecture.skipped is invalid")
+    skipped: list[ArchitectureSkip] = []
+    for index, item in enumerate(value):
+        raw = _mapping(item, f"architecture.skipped[{index}]")
+        _exact_keys(raw, {"path", "reason"}, f"architecture.skipped[{index}]")
+        skipped.append({
+            "path": _string(raw.get("path"), f"architecture.skipped[{index}].path", 400),
+            "reason": _string(raw.get("reason"), f"architecture.skipped[{index}].reason", 200),
+        })
+    return skipped
+
+
+def _validate_observation_subject(value: object) -> ShadowSubject:
+    raw = _mapping(value, "subject")
+    _exact_keys(raw, {"repository", "pr_number", "head_sha", "action"}, "subject")
+    repository = _string(raw.get("repository"), "subject.repository", 200)
     if not _REPOSITORY.fullmatch(repository):
         raise ValueError("subject.repository is invalid")
-    pr_number = _integer(subject.get("pr_number"), "subject.pr_number", minimum=1, maximum=10**9)
-    head_sha = _string(subject.get("head_sha"), "subject.head_sha", 64)
+    head_sha = _string(raw.get("head_sha"), "subject.head_sha", 64)
     if not _SHA.fullmatch(head_sha):
         raise ValueError("subject.head_sha is invalid")
-    action = _string(subject.get("action"), "subject.action", 64)
+    return {
+        "repository": repository,
+        "pr_number": _integer(raw.get("pr_number"), "subject.pr_number", minimum=1, maximum=10**9),
+        "head_sha": head_sha.lower(),
+        "action": _string(raw.get("action"), "subject.action", 64),
+    }
 
-    assessment = _mapping(value.get("assessment"), "assessment")
-    _exact_keys(assessment, {"score", "band", "factors"}, "assessment")
-    score = _integer(assessment.get("score"), "assessment.score", minimum=0, maximum=100)
-    band = _string(assessment.get("band"), "assessment.band", 20)
+
+def _validate_assessment(value: object) -> ShadowAssessment:
+    raw = _mapping(value, "assessment")
+    _exact_keys(raw, {"score", "band", "factors"}, "assessment")
+    band = _string(raw.get("band"), "assessment.band", 20)
     if band not in _BANDS:
         raise ValueError("assessment.band is invalid")
-    raw_factors = assessment.get("factors")
-    if not isinstance(raw_factors, list) or len(raw_factors) > 32:
-        raise ValueError("assessment.factors is invalid")
-    factors: list[dict[str, object]] = []
-    for index, raw in enumerate(raw_factors):
-        factor = _mapping(raw, f"assessment.factors[{index}]")
-        _exact_keys(factor, {"name", "points", "evidence"}, f"assessment.factors[{index}]")
-        factors.append({
-            "name": _string(factor.get("name"), f"assessment.factors[{index}].name", 120),
-            "points": _integer(factor.get("points"), f"assessment.factors[{index}].points", minimum=0, maximum=100),
-            "evidence": _string(factor.get("evidence"), f"assessment.factors[{index}].evidence", 500),
-        })
+    return {
+        "score": _integer(raw.get("score"), "assessment.score", minimum=0, maximum=100),
+        "band": cast(RiskBand, band),
+        "factors": _validate_risk_factors(raw.get("factors")),
+    }
 
-    raw_services = value.get("changed_services")
-    if not isinstance(raw_services, list) or len(raw_services) > 64:
+
+def _validate_risk_factors(value: object) -> list[ShadowRiskFactor]:
+    if not isinstance(value, list) or len(value) > 32:
+        raise ValueError("assessment.factors is invalid")
+    factors: list[ShadowRiskFactor] = []
+    for index, item in enumerate(value):
+        raw = _mapping(item, f"assessment.factors[{index}]")
+        _exact_keys(raw, {"name", "points", "evidence"}, f"assessment.factors[{index}]")
+        factors.append({
+            "name": _string(raw.get("name"), f"assessment.factors[{index}].name", 120),
+            "points": _integer(raw.get("points"), f"assessment.factors[{index}].points", minimum=0, maximum=100),
+            "evidence": _string(raw.get("evidence"), f"assessment.factors[{index}].evidence", 500),
+        })
+    return factors
+
+
+def _validate_changed_services(value: object) -> list[str]:
+    if not isinstance(value, list) or len(value) > 64:
         raise ValueError("changed_services is invalid")
-    services = [_string(item, "changed_services item", 120) for item in raw_services]
+    services = [_string(item, "changed_services item", 120) for item in value]
     if services != sorted(set(services)):
         raise ValueError("changed_services must be sorted and unique")
+    return services
 
-    policy = _mapping(value.get("simulated_policy"), "simulated_policy")
+
+def _validate_simulated_policy(value: object) -> SimulatedPolicy:
+    raw = _mapping(value, "simulated_policy")
     _exact_keys(
-        policy,
+        raw,
         {"would_require_extended_tests", "would_require_additional_approval", "would_block"},
         "simulated_policy",
     )
-    normalized_policy = {
-        key: _boolean(policy.get(key), f"simulated_policy.{key}")
-        for key in sorted(policy)
-    }
-    workflow = _mapping(value.get("workflow"), "workflow")
-    _exact_keys(workflow, {"id", "audit_chain_verified"}, "workflow")
-    workflow_id = _string(workflow.get("id"), "workflow.id", 240)
-    audit_chain_verified = _boolean(workflow.get("audit_chain_verified"), "workflow.audit_chain_verified")
     return {
-        "schema_version": SCHEMA_VERSION,
-        "kind": OBSERVATION_KIND,
-        "mode": mode,
-        "enforcement": enforcement,
-        "architecture": architecture,
-        "observed_at": observed_at,
-        "subject": {
-            "repository": repository,
-            "pr_number": pr_number,
-            "head_sha": head_sha.lower(),
-            "action": action,
-        },
-        "assessment": {"score": score, "band": band, "factors": factors},
-        "changed_services": services,
-        "simulated_policy": normalized_policy,
-        "workflow": {"id": workflow_id, "audit_chain_verified": audit_chain_verified},
+        "would_require_extended_tests": _boolean(
+            raw.get("would_require_extended_tests"), "simulated_policy.would_require_extended_tests"
+        ),
+        "would_require_additional_approval": _boolean(
+            raw.get("would_require_additional_approval"), "simulated_policy.would_require_additional_approval"
+        ),
+        "would_block": _boolean(raw.get("would_block"), "simulated_policy.would_block"),
+    }
+
+
+def _validate_workflow(value: object) -> ShadowWorkflow:
+    raw = _mapping(value, "workflow")
+    _exact_keys(raw, {"id", "audit_chain_verified"}, "workflow")
+    return {
+        "id": _string(raw.get("id"), "workflow.id", 240),
+        "audit_chain_verified": _boolean(raw.get("audit_chain_verified"), "workflow.audit_chain_verified"),
     }
 
 
@@ -325,12 +464,11 @@ def observation_comment(
     from product.pr_guardian.enforcement import explain
 
     observation = validate_observation(observation)
-    mode = str(observation["mode"])
-    assessment = _mapping(observation["assessment"], "assessment")
-    policy = _mapping(observation["simulated_policy"], "simulated_policy")
-    enforcement = _mapping(observation["enforcement"], "enforcement")
+    mode = observation["mode"]
+    assessment = observation["assessment"]
+    policy = observation["simulated_policy"]
+    enforcement = observation["enforcement"]
     factors = assessment["factors"]
-    assert isinstance(factors, list)
     evidence = "\n".join(
         f"- **+{factor['points']}** `{factor['name']}` — {factor['evidence']}"
         for factor in factors
@@ -399,7 +537,7 @@ def observation_comment(
     )
 
 
-def observation_from_comment(comment: str) -> dict[str, object] | None:
+def observation_from_comment(comment: str) -> ShadowObservation | None:
     start = comment.find(DATA_MARKER)
     if start < 0:
         return None
@@ -421,7 +559,7 @@ def closure_outcome(
     payload: Mapping[str, object],
     observation: Mapping[str, object] | None,
     recorded_at: str | None = None,
-) -> dict[str, object]:
+) -> ShadowOutcome:
     """Join an explicit reviewer label with a prior shadow observation.
 
     Closing or merging a pull request is not treated as proof that the risk
@@ -446,7 +584,7 @@ def closure_outcome(
     normalized_observation = validate_observation(observation) if observation is not None else None
     matches_observation = False
     if normalized_observation is not None:
-        observation_subject = _mapping(normalized_observation["subject"], "observation.subject")
+        observation_subject = normalized_observation["subject"]
         matches_observation = (
             observation_subject["repository"] == name
             and observation_subject["pr_number"] == number
@@ -454,10 +592,10 @@ def closure_outcome(
         )
     if normalized_observation is not None and not matches_observation:
         raise ValueError("shadow observation does not match the closed pull request")
-    source: dict[str, object] | None = None
+    source: SourceObservation | None = None
     if normalized_observation is not None:
-        assessment = _mapping(normalized_observation["assessment"], "assessment")
-        policy = _mapping(normalized_observation["simulated_policy"], "simulated_policy")
+        assessment = normalized_observation["assessment"]
+        policy = normalized_observation["simulated_policy"]
         source = {
             "score": assessment["score"],
             "band": assessment["band"],
@@ -470,7 +608,10 @@ def closure_outcome(
         "recorded_at": recorded_at or utc_now(),
         "subject": {"repository": name, "pr_number": number, "head_sha": head_sha.lower()},
         "closure": {"merged": _boolean(pull_request.get("merged"), "pull_request.merged")},
-        "reviewer_signal": {"risk": risk_signal, "utility": utility_signal},
+        "reviewer_signal": {
+            "risk": cast(RiskSignal, risk_signal),
+            "utility": cast(UtilitySignal, utility_signal),
+        },
         "recognized_labels": labels,
         "source_observation": source,
         "limitations": [
@@ -480,7 +621,9 @@ def closure_outcome(
     }
 
 
-def validate_outcome(value: Mapping[str, object]) -> dict[str, object]:
+def validate_outcome(value: Mapping[str, object]) -> ShadowOutcome:
+    """Validate and normalize one closure artifact before calibration uses it."""
+
     _exact_keys(
         value,
         {
@@ -491,76 +634,92 @@ def validate_outcome(value: Mapping[str, object]) -> dict[str, object]:
     )
     if value.get("schema_version") != SCHEMA_VERSION or value.get("kind") != OUTCOME_KIND:
         raise ValueError("unsupported shadow outcome schema")
-    _string(value.get("recorded_at"), "recorded_at", 80)
-    subject = _mapping(value.get("subject"), "subject")
-    _exact_keys(subject, {"repository", "pr_number", "head_sha"}, "subject")
-    repository = _string(subject.get("repository"), "subject.repository", 200)
-    if not _REPOSITORY.fullmatch(repository):
-        raise ValueError("subject.repository is invalid")
-    pr_number = _integer(subject.get("pr_number"), "subject.pr_number", minimum=1, maximum=10**9)
-    head_sha = _string(subject.get("head_sha"), "subject.head_sha", 64)
-    if not _SHA.fullmatch(head_sha):
-        raise ValueError("subject.head_sha is invalid")
     closure = _mapping(value.get("closure"), "closure")
     _exact_keys(closure, {"merged"}, "closure")
-    merged = _boolean(closure.get("merged"), "closure.merged")
-    signal = _mapping(value.get("reviewer_signal"), "reviewer_signal")
-    _exact_keys(signal, {"risk", "utility"}, "reviewer_signal")
-    risk = _string(signal.get("risk"), "reviewer_signal.risk", 40)
-    utility = _string(signal.get("utility"), "reviewer_signal.utility", 40)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": OUTCOME_KIND,
+        "recorded_at": _string(value.get("recorded_at"), "recorded_at", 80),
+        "subject": _validate_outcome_subject(value.get("subject")),
+        "closure": {"merged": _boolean(closure.get("merged"), "closure.merged")},
+        "reviewer_signal": _validate_reviewer_signal(value.get("reviewer_signal")),
+        "recognized_labels": _validate_recognized_labels(value.get("recognized_labels")),
+        "source_observation": _validate_source_observation(value.get("source_observation")),
+        "limitations": _validate_limitations(value.get("limitations")),
+    }
+
+
+def _validate_outcome_subject(value: object) -> OutcomeSubject:
+    raw = _mapping(value, "subject")
+    _exact_keys(raw, {"repository", "pr_number", "head_sha"}, "subject")
+    repository = _string(raw.get("repository"), "subject.repository", 200)
+    if not _REPOSITORY.fullmatch(repository):
+        raise ValueError("subject.repository is invalid")
+    head_sha = _string(raw.get("head_sha"), "subject.head_sha", 64)
+    if not _SHA.fullmatch(head_sha):
+        raise ValueError("subject.head_sha is invalid")
+    return {
+        "repository": repository,
+        "pr_number": _integer(raw.get("pr_number"), "subject.pr_number", minimum=1, maximum=10**9),
+        "head_sha": head_sha.lower(),
+    }
+
+
+def _validate_reviewer_signal(value: object) -> ReviewerSignal:
+    raw = _mapping(value, "reviewer_signal")
+    _exact_keys(raw, {"risk", "utility"}, "reviewer_signal")
+    risk = _string(raw.get("risk"), "reviewer_signal.risk", 40)
+    utility = _string(raw.get("utility"), "reviewer_signal.utility", 40)
     if risk not in {"confirmed-risk", "false-positive", "not-reviewed"}:
         raise ValueError("reviewer_signal.risk is invalid")
     if utility not in {"useful", "not-useful", "not-reviewed"}:
         raise ValueError("reviewer_signal.utility is invalid")
-    labels = value.get("recognized_labels")
-    if not isinstance(labels, list) or labels != sorted(set(labels)) or any(not isinstance(label, str) for label in labels):
+    return {"risk": cast(RiskSignal, risk), "utility": cast(UtilitySignal, utility)}
+
+
+def _validate_recognized_labels(value: object) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
         raise ValueError("recognized_labels is invalid")
-    raw_source = value.get("source_observation")
-    source: dict[str, object] | None
-    if raw_source is None:
-        source = None
-    else:
-        raw_source = _mapping(raw_source, "source_observation")
-        _exact_keys(raw_source, {"score", "band", "would_block", "would_require_additional_approval"}, "source_observation")
-        source_score = _integer(raw_source.get("score"), "source_observation.score", minimum=0, maximum=100)
-        source_band = _string(raw_source.get("band"), "source_observation.band", 20)
-        if source_band not in _BANDS:
-            raise ValueError("source_observation.band is invalid")
-        source = {
-            "score": source_score,
-            "band": source_band,
-            "would_block": _boolean(raw_source.get("would_block"), "source_observation.would_block"),
-            "would_require_additional_approval": _boolean(
-                raw_source.get("would_require_additional_approval"),
-                "source_observation.would_require_additional_approval",
-            ),
-        }
-    limitations = value.get("limitations")
-    if not isinstance(limitations, list) or not limitations or any(not isinstance(item, str) for item in limitations):
-        raise ValueError("limitations is invalid")
+    labels = cast(list[str], value)
+    if labels != sorted(set(labels)):
+        raise ValueError("recognized_labels is invalid")
+    return labels
+
+
+def _validate_source_observation(value: object) -> SourceObservation | None:
+    if value is None:
+        return None
+    raw = _mapping(value, "source_observation")
+    _exact_keys(raw, {"score", "band", "would_block", "would_require_additional_approval"}, "source_observation")
+    band = _string(raw.get("band"), "source_observation.band", 20)
+    if band not in _BANDS:
+        raise ValueError("source_observation.band is invalid")
     return {
-        "schema_version": SCHEMA_VERSION,
-        "kind": OUTCOME_KIND,
-        "recorded_at": value["recorded_at"],
-        "subject": {"repository": repository, "pr_number": pr_number, "head_sha": head_sha.lower()},
-        "closure": {"merged": merged},
-        "reviewer_signal": {"risk": risk, "utility": utility},
-        "recognized_labels": labels,
-        "source_observation": source,
-        "limitations": limitations,
+        "score": _integer(raw.get("score"), "source_observation.score", minimum=0, maximum=100),
+        "band": cast(RiskBand, band),
+        "would_block": _boolean(raw.get("would_block"), "source_observation.would_block"),
+        "would_require_additional_approval": _boolean(
+            raw.get("would_require_additional_approval"),
+            "source_observation.would_require_additional_approval",
+        ),
     }
+
+
+def _validate_limitations(value: object) -> list[str]:
+    if not isinstance(value, list) or not value or any(not isinstance(item, str) for item in value):
+        raise ValueError("limitations is invalid")
+    return value
 
 
 def outcome_comment(outcome: Mapping[str, object]) -> str:
     outcome = validate_outcome(outcome)
-    signal = _mapping(outcome["reviewer_signal"], "reviewer_signal")
+    signal = outcome["reviewer_signal"]
     source = outcome["source_observation"]
     source_text = "No matching shadow observation was found; this closure cannot be used for calibration."
     if source is not None:
-        source_data = _mapping(source, "source_observation")
         source_text = (
-            f"Matched shadow score: `{source_data['score']}/100`; simulated merge block: "
-            f"`{source_data['would_block']}`."
+            f"Matched shadow score: `{source['score']}/100`; simulated merge block: "
+            f"`{source['would_block']}`."
         )
     return (
         f"{OUTCOME_COMMENT_MARKER}\n"
@@ -572,7 +731,7 @@ def outcome_comment(outcome: Mapping[str, object]) -> str:
     )
 
 
-def _simulated_controls(policy: Mapping[str, object]) -> str:
+def _simulated_controls(policy: SimulatedPolicy) -> str:
     controls: list[str] = []
     if policy["would_require_extended_tests"]:
         controls.append("would request extended tests")
@@ -612,6 +771,10 @@ def _mapping(value: object, name: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{name} must be an object")
     return value
+
+
+def _optional_string(value: object, name: str, maximum: int) -> str | None:
+    return None if value is None else _string(value, name, maximum)
 
 
 def _string(value: object, name: str, maximum: int) -> str:

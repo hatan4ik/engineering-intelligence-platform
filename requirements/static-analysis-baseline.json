@@ -21,7 +21,7 @@
     }
   },
   "dynamic_typing": {
-    "maximum_any_references": 21,
+    "maximum_any_references": 19,
     "maximum_type_ignores": 1
   }
 }

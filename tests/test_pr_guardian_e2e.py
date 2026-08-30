@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from integrations.github.pr_guardian import ChangedFile, PullRequestEvent, normalize_pull_request_event
 from intelligence.graph import ServiceGraph, ServiceNode
 from product.pr_guardian_service import PRGuardianService
@@ -120,3 +122,17 @@ def test_low_risk_docs_only_pr_publishes_neutral_shadow_check(tmp_path):
     assert result.assessment.score == 0
     assert result.conclusion == "neutral"
     assert github.checks[0]["conclusion"] == "neutral"
+
+
+def test_service_rejects_mutating_a_dependency_after_composition(tmp_path):
+    service = PRGuardianService(
+        graph=graph(),
+        github=FakeGitHub([]),
+        workflows=ControlPlaneWorkflows(
+            SqliteStateStore(tmp_path / "state.db"),
+            SqliteAuditLog(tmp_path / "audit.db"),
+        ),
+    )
+
+    with pytest.raises(AttributeError):
+        service.graph = ServiceGraph()

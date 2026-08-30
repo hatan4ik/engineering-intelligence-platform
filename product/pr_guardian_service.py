@@ -55,12 +55,38 @@ class PRGuardianResult:
     company_context: PRGuardianCompanyContext | None
 
 
+@dataclass(frozen=True)
+class PRGuardianDependencies:
+    """Immutable composition inputs captured by one PR Guardian service instance."""
+
+    graph: ServiceGraph | None
+    github: GitHubPRClient
+    workflows: ControlPlaneWorkflows
+    history: HistoricalFailureProvider | None
+    telemetry: TelemetrySink
+    config: RepositoryConfig | None
+    environ: Mapping[str, str] | None
+    company_context: QualifiedCompanyContextProvider | None
+    principal: BrainPrincipal | None
+    findings: PRGuardianFindingStore | None
+
+
 class PRGuardianService:
     """Product use case for an evidence-backed GitHub PR risk check.
 
     GitHub is only an event/output adapter. Risk scoring remains deterministic,
     and the durable control plane records the exact assessment and policy plan.
     """
+
+    __slots__ = (
+        "_dependencies",
+        "_mode",
+        "_policy_version",
+        "_preparer",
+        "_finding_factory",
+        "_publisher",
+        "_telemetry_recorder",
+    )
 
     def __init__(
         self,
@@ -97,31 +123,43 @@ class PRGuardianService:
         if not isinstance(policy_version, str) or not policy_version or "\n" in policy_version:
             raise ValueError("policy_version is invalid")
 
-        # Preserve these attributes as the injectable public dependencies for
-        # existing callers, while focused components own their mechanisms.
-        self.graph = graph
-        self.github = github
-        self.workflows = workflows
-        self.history = history
-        self.telemetry = telemetry or NullTelemetrySink()
-        self.config = config
-        self.environ = environ
-        self.mode = resolved
-        self.company_context = company_context
-        self.principal = principal
-        self.findings = findings
-        self.policy_version = config.policy_version if config is not None else policy_version
-
-        self._preparer = PRReviewPreparer(
+        self._dependencies = PRGuardianDependencies(
             graph=graph,
             github=github,
+            workflows=workflows,
             history=history,
+            telemetry=telemetry or NullTelemetrySink(),
+            config=config,
+            environ=environ,
             company_context=company_context,
             principal=principal,
+            findings=findings,
         )
-        self._finding_factory = PRFindingFactory(policy_version=self.policy_version)
-        self._publisher = PRGuardianPublisher(github)
-        self._telemetry_recorder = PRGuardianTelemetryRecorder(self.telemetry)
+        self._mode = resolved
+        self._policy_version = config.policy_version if config is not None else policy_version
+
+        self._preparer = PRReviewPreparer(
+            graph=self._dependencies.graph,
+            github=self._dependencies.github,
+            history=self._dependencies.history,
+            company_context=self._dependencies.company_context,
+            principal=self._dependencies.principal,
+        )
+        self._finding_factory = PRFindingFactory(policy_version=self._policy_version)
+        self._publisher = PRGuardianPublisher(self._dependencies.github)
+        self._telemetry_recorder = PRGuardianTelemetryRecorder(self._dependencies.telemetry)
+
+    @property
+    def mode(self) -> str:
+        """The repository-derived operating mode fixed at service construction."""
+
+        return self._mode
+
+    @property
+    def policy_version(self) -> str:
+        """The policy version captured in findings produced by this service."""
+
+        return self._policy_version
 
     async def evaluate(
         self,
@@ -136,7 +174,7 @@ class PRGuardianService:
         started = time.monotonic()
         config = self._config_for(event)
         review = self._preparer.prepare(event)
-        workflow, policy = await self.workflows.start_pr_review(
+        workflow, policy = await self._dependencies.workflows.start_pr_review(
             service_id=review.primary_service,
             repository=event.repository,
             pr_number=event.number,
@@ -149,7 +187,7 @@ class PRGuardianService:
             review.assessment,
             review.filenames,
             _today(now),
-            environ=self.environ,
+            environ=self._dependencies.environ,
         )
         if review.company_context is not None and not review.company_context.qualified:
             # A caller that asks the Company Brain to qualify its context
@@ -167,8 +205,8 @@ class PRGuardianService:
             correlation_id=workflow.correlation_id,
             company_context=review.company_context,
         )
-        if self.findings is not None:
-            self.findings.record_finding(finding)
+        if self._dependencies.findings is not None:
+            self._dependencies.findings.record_finding(finding)
         result = PRGuardianResult(
             assessment=review.assessment,
             policy=policy,
@@ -207,7 +245,7 @@ class PRGuardianService:
         return result
 
     def _config_for(self, event: PullRequestEvent) -> RepositoryConfig:
-        config = self.config or default_shadow_config(event.repository)
+        config = self._dependencies.config or default_shadow_config(event.repository)
         if config.repository != event.repository:
             raise ValueError(
                 "the loaded repository configuration names a different repository "
