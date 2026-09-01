@@ -5,6 +5,7 @@ next product-control-plane slice: once a separately configured worker is
 introduced, every consequential workflow transition must pass through this
 state-and-audit boundary before the workflow can advance.
 """
+
 from __future__ import annotations
 
 import json
@@ -23,6 +24,7 @@ from control_plane.remediation import RemediationWorkflowPlan, _hash as _plan_ha
 from intelligence.incidents import EvidenceEvent, EvidenceKind, analyze_incident
 from orchestration.approvals import Approval, verify_approval
 from orchestration.remediation_workflow import (
+    ActivityFunction,
     COLLECT_EVIDENCE_ACTIVITY,
     EVALUATE_POLICY_ACTIVITY,
     EXECUTE_ACTION_ACTIVITY,
@@ -98,7 +100,9 @@ class ControlPlaneActivityBridge:
                 "workflow lifecycle state was retained, but immutable audit export did not complete"
             ) from exc
         if not exported.event_hash:
-            raise AuditExportFailure("audit exporter returned an event without a verifiable hash")
+            raise AuditExportFailure(
+                "audit exporter returned an event without a verifiable hash"
+            )
         return WorkflowLifecycleActivityResult(
             workflow_id=transition.record.workflow_id,
             workflow_version=transition.record.version,
@@ -171,7 +175,7 @@ def _require_step_time(occurred_at: str) -> str:
     return value
 
 
-def evidence_to_mapping(event: EvidenceEvent) -> dict:
+def evidence_to_mapping(event: EvidenceEvent) -> dict[str, object]:
     return {
         "id": event.id,
         "kind": event.kind.value,
@@ -185,16 +189,54 @@ def evidence_to_mapping(event: EvidenceEvent) -> dict:
 
 
 def evidence_from_mapping(raw: Mapping[str, object]) -> EvidenceEvent:
+    attributes = _attribute_pairs(raw.get("attributes", []))
     return EvidenceEvent(
-        id=str(raw["id"]),
-        kind=EvidenceKind(str(raw["kind"])),
-        service=str(raw["service"]),
-        timestamp=datetime.fromisoformat(str(raw["timestamp"])),
-        summary=str(raw["summary"]),
-        source=str(raw["source"]),
-        severity=int(raw.get("severity", 1)),
-        attributes=tuple((str(k), str(v)) for k, v in (raw.get("attributes") or [])),
+        id=_required_text(raw, "id"),
+        kind=EvidenceKind(_required_text(raw, "kind")),
+        service=_required_text(raw, "service"),
+        timestamp=datetime.fromisoformat(_required_text(raw, "timestamp")),
+        summary=_required_text(raw, "summary"),
+        source=_required_text(raw, "source"),
+        severity=_non_negative_int(raw.get("severity", 1), field="severity"),
+        attributes=attributes,
     )
+
+
+def _required_text(raw: Mapping[str, object], field: str) -> str:
+    value = raw.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise RemediationConfigurationError(
+            f"evidence field {field!r} must be a non-blank string"
+        )
+    return value
+
+
+def _non_negative_int(value: object, *, field: str) -> int:
+    if type(value) is not int or value < 0:
+        raise RemediationConfigurationError(
+            f"evidence field {field!r} must be a non-negative integer"
+        )
+    return value
+
+
+def _attribute_pairs(value: object) -> tuple[tuple[str, str], ...]:
+    if not isinstance(value, list):
+        raise RemediationConfigurationError(
+            "evidence field 'attributes' must be an array"
+        )
+    pairs: list[tuple[str, str]] = []
+    for item in value:
+        if not isinstance(item, list) or len(item) != 2:
+            raise RemediationConfigurationError(
+                "evidence attributes must be two-item string arrays"
+            )
+        key, item_value = item
+        if not isinstance(key, str) or not isinstance(item_value, str):
+            raise RemediationConfigurationError(
+                "evidence attributes must be two-item string arrays"
+            )
+        pairs.append((key, item_value))
+    return tuple(pairs)
 
 
 class RehearsalTwin(Protocol):
@@ -239,7 +281,18 @@ class JsonFixtureEvidenceProvider:
         records = raw.get(incident_id) if isinstance(raw, AbcMapping) else raw
         if records is None:
             return ()
-        return tuple(evidence_from_mapping(item) for item in records)
+        if not isinstance(records, list):
+            raise RemediationConfigurationError(
+                "evidence fixture records must be an array"
+            )
+        items: list[EvidenceEvent] = []
+        for item in records:
+            if not isinstance(item, AbcMapping):
+                raise RemediationConfigurationError(
+                    "evidence fixture records must be objects"
+                )
+            items.append(evidence_from_mapping(item))
+        return tuple(items)
 
 
 def load_service_autonomy(path: str | Path) -> tuple[ServiceAutonomy, ...]:
@@ -250,7 +303,9 @@ def load_service_autonomy(path: str | Path) -> tuple[ServiceAutonomy, ...]:
     """
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(raw, list):
-        raise RemediationConfigurationError("service autonomy file must contain a JSON list")
+        raise RemediationConfigurationError(
+            "service autonomy file must contain a JSON list"
+        )
     policies = []
     for index, item in enumerate(raw):
         try:
@@ -259,7 +314,9 @@ def load_service_autonomy(path: str | Path) -> tuple[ServiceAutonomy, ...]:
                     service=str(item["service"]),
                     environment=str(item["environment"]),
                     level=AutonomyLevel(int(item["level"])),
-                    certified_runbooks=tuple(str(r) for r in item.get("certified_runbooks", ())),
+                    certified_runbooks=tuple(
+                        str(r) for r in item.get("certified_runbooks", ())
+                    ),
                     max_blast_radius=int(item.get("max_blast_radius", 0)),
                     kill_switch=bool(item.get("kill_switch", False)),
                 )
@@ -318,7 +375,7 @@ class RemediationActivities:
 
     # -- registration -------------------------------------------------------
 
-    def activity_functions(self) -> list[object]:
+    def activity_functions(self) -> list[ActivityFunction]:
         return [
             self.collect_evidence,
             self.plan_remediation,
@@ -333,7 +390,10 @@ class RemediationActivities:
 
     def _autonomy(self, request: RemediationRequest) -> ServiceAutonomy:
         for policy in self.autonomy_policies:
-            if policy.service == request.service and policy.environment == request.environment:
+            if (
+                policy.service == request.service
+                and policy.environment == request.environment
+            ):
                 return policy
         raise RemediationConfigurationError(
             f"no reviewed autonomy policy for {request.service}/{request.environment}"
@@ -385,7 +445,9 @@ class RemediationActivities:
     # -- activities ---------------------------------------------------------
 
     @activity.defn(name=COLLECT_EVIDENCE_ACTIVITY)
-    def collect_evidence(self, request: RemediationRequest, occurred_at: str) -> EvidenceBundle:
+    def collect_evidence(
+        self, request: RemediationRequest, occurred_at: str
+    ) -> EvidenceBundle:
         require_remediation_workflows("collect_evidence", self.environ)
         request.validate()
         events = tuple(
@@ -426,7 +488,9 @@ class RemediationActivities:
         require_remediation_workflows("plan_remediation", self.environ)
         request.validate()
         if evidence is None:
-            raise RemediationConfigurationError("plan_remediation requires an evidence bundle")
+            raise RemediationConfigurationError(
+                "plan_remediation requires an evidence bundle"
+            )
         events = [evidence_from_mapping(item) for item in evidence.evidence]
         analysis = analyze_incident(events, service=request.service)
         plan = plan_from_incident(analysis)
@@ -493,7 +557,9 @@ class RemediationActivities:
     ) -> ApprovalVerification:
         require_remediation_workflows("verify_approval", self.environ)
         if not plan.plan_hash:
-            return ApprovalVerification(False, "there is no plan hash to approve against")
+            return ApprovalVerification(
+                False, "there is no plan hash to approve against"
+            )
         verified = verify_approval(
             Approval(
                 workflow_id=signal.workflow_id,
@@ -510,7 +576,9 @@ class RemediationActivities:
             return ApprovalVerification(
                 False, "approval is invalid, stale, expired, or bound to another plan"
             )
-        return ApprovalVerification(True, "approval signature verified", signal.approver)
+        return ApprovalVerification(
+            True, "approval signature verified", signal.approver
+        )
 
     @activity.defn(name=EVALUATE_POLICY_ACTIVITY)
     def evaluate_policy(
@@ -521,9 +589,13 @@ class RemediationActivities:
     ) -> PolicyVerdict:
         require_remediation_workflows("evaluate_policy", self.environ)
         if self.evaluator is None:
-            return PolicyVerdict(False, "no policy evaluator is configured; failing closed", "unknown")
+            return PolicyVerdict(
+                False, "no policy evaluator is configured; failing closed", "unknown"
+            )
         if not plan.runbook_id:
-            return PolicyVerdict(False, "there is no planned runbook to authorize", "unknown")
+            return PolicyVerdict(
+                False, "there is no planned runbook to authorize", "unknown"
+            )
         evaluated = self.evaluator.evaluate(
             runbook=self.catalog.get(plan.runbook_id),
             policy=self._autonomy(request),
@@ -546,9 +618,15 @@ class RemediationActivities:
     ) -> RehearsalVerdict:
         require_remediation_workflows("rehearse_in_twin", self.environ)
         if self.twin is None or not self.twin_source_namespace:
-            return RehearsalVerdict(False, "unconfigured", ["digital twin is not configured; failing closed"])
+            return RehearsalVerdict(
+                False,
+                "unconfigured",
+                ["digital twin is not configured; failing closed"],
+            )
         if not plan.runbook_id:
-            return RehearsalVerdict(False, "unplanned", ["there is no planned runbook to rehearse"])
+            return RehearsalVerdict(
+                False, "unplanned", ["there is no planned runbook to rehearse"]
+            )
         result = self.twin.simulate(
             simulation_id=request.request_id,
             source_namespace=self.twin_source_namespace,
@@ -597,7 +675,10 @@ class RemediationActivities:
             to_status=WorkflowStatus.EXECUTING,
             occurred_at=_require_step_time(occurred_at),
             plan_hash=plan.plan_hash,
-            attributes={"runbook_id": plan.runbook_id, "blast_radius": request.blast_radius},
+            attributes={
+                "runbook_id": plan.runbook_id,
+                "blast_radius": request.blast_radius,
+            },
             consequential=True,
         )
         result = execute_control_loop(

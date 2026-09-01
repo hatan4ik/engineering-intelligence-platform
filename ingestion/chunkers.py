@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import hashlib
-from dataclasses import replace
 from typing import Protocol
 
 from .models import Chunk, FileChange

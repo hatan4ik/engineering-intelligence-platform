@@ -21,12 +21,13 @@ which its content was last ingested, which is the commit that content came from.
 The caller supplies the :class:`~ingestion.index.Index` instance. This module
 never constructs an Azure client and never reads Azure configuration.
 """
+
 from __future__ import annotations
 
 import hashlib
 import os
 from pathlib import Path
-from typing import Iterable, Iterator, Sequence
+from typing import Iterable, Iterator, Literal, Mapping, Sequence
 
 from .events import NormalizedEvent
 from .index import Index
@@ -92,7 +93,9 @@ INGESTIBLE_SUFFIXES: frozenset[str] = frozenset(
 )
 
 #: Extension-less files that are still source knowledge.
-INGESTIBLE_NAMES: frozenset[str] = frozenset({"Dockerfile", "Makefile", "CODEOWNERS", "LICENSE"})
+INGESTIBLE_NAMES: frozenset[str] = frozenset(
+    {"Dockerfile", "Makefile", "CODEOWNERS", "LICENSE"}
+)
 
 #: Files larger than this are skipped; chunking them produces noise, not evidence.
 DEFAULT_MAX_FILE_BYTES: int = 512 * 1024
@@ -121,7 +124,9 @@ def _walk(root: Path) -> Iterator[Path]:
             yield Path(directory) / filename
 
 
-def _event_id(repository: str, branch: str, relative_path: str, content: str, acl: ACL) -> str:
+def _event_id(
+    repository: str, branch: str, relative_path: str, content: str, acl: ACL
+) -> str:
     # Deliberately excludes the commit sha: the unit of work is "this content at
     # this path on this branch, readable by these principals". Including the sha
     # would re-ingest every file on every commit and defeat the ledger; excluding
@@ -129,7 +134,14 @@ def _event_id(repository: str, branch: str, relative_path: str, content: str, ac
     # docs/PRODUCTION-EVIDENCE.md requires to propagate.
     digest = hashlib.sha256(
         "|".join(
-            [repository, branch, relative_path, content, *sorted(acl.groups), *sorted(acl.users)]
+            [
+                repository,
+                branch,
+                relative_path,
+                content,
+                *sorted(acl.groups),
+                *sorted(acl.users),
+            ]
         ).encode("utf-8")
     ).hexdigest()
     return f"checkout:{repository}:{branch}:{relative_path}:{digest}"
@@ -191,9 +203,13 @@ def ingest_checkout(
     """
 
     if not str(branch).strip():
-        raise ValueError("ingest_checkout requires a branch; it is the document identity")
+        raise ValueError(
+            "ingest_checkout requires a branch; it is the document identity"
+        )
     if not str(commit_sha).strip():
-        raise ValueError("ingest_checkout requires a commit_sha; it is the citation provenance")
+        raise ValueError(
+            "ingest_checkout requires a commit_sha; it is the citation provenance"
+        )
     acl = resolve_acl(repository, list(groups))
     checkout = Path(root).resolve()
     if not checkout.is_dir():
@@ -203,13 +219,28 @@ def ingest_checkout(
     worker = sqlite_worker(pipeline, str(ledger_path))
 
     counts: dict[str, int | list[str]] = {
-        "documents": 0, "chunks": 0, "skipped": 0, "failed": 0, "duplicates": 0,
+        "documents": 0,
+        "chunks": 0,
+        "skipped": 0,
+        "failed": 0,
+        "duplicates": 0,
     }
     failed_paths: list[str] = []
     counts["failed_paths"] = failed_paths
 
-    def _bump(key: str) -> None:
-        counts[key] = int(counts[key]) + 1  # type: ignore[arg-type]
+    def _bump(
+        key: Literal["documents", "chunks", "skipped", "failed", "duplicates"],
+    ) -> None:
+        value = counts[key]
+        if type(value) is not int:
+            raise RuntimeError(f"ingestion counter {key!r} is not an integer")
+        counts[key] = value + 1
+
+    def _integer_value(values: Mapping[str, object], key: str) -> int:
+        value = values.get(key, 0)
+        if type(value) is not int:
+            raise RuntimeError(f"ingestion counter {key!r} is not an integer")
+        return value
 
     for path in _walk(checkout):
         if not _is_ingestible(path):
@@ -250,6 +281,10 @@ def ingest_checkout(
         if result.get("duplicate"):
             _bump("duplicates")
             continue
-        counts["documents"] = int(counts["documents"]) + int(result.get("upserted", 0))  # type: ignore[arg-type]
-        counts["chunks"] = int(counts["chunks"]) + int(result.get("chunks", 0))  # type: ignore[arg-type]
+        counts["documents"] = _integer_value(counts, "documents") + _integer_value(
+            result, "upserted"
+        )
+        counts["chunks"] = _integer_value(counts, "chunks") + _integer_value(
+            result, "chunks"
+        )
     return counts

@@ -1,10 +1,11 @@
 """The Cosmos audit adapter must reproduce SQLite hash-chain semantics exactly."""
+
 from __future__ import annotations
 
 import pytest
 
 from state.audit import AuditConflict, SqliteAuditLog
-from state.cosmos_audit import CosmosAuditLog
+from state.cosmos_audit import CosmosAuditLog, CosmosStoredAuditError
 from state.models import AuditEvent
 from tests.test_state_factory import FakeContainer
 
@@ -33,13 +34,17 @@ def test_cosmos_chain_matches_sqlite_over_the_same_event_sequence(tmp_path):
     cosmos_chain = [cosmos_log.append(event) for event in sequence]
 
     assert [e.event_hash for e in cosmos_chain] == [e.event_hash for e in sqlite_chain]
-    assert [e.previous_hash for e in cosmos_chain] == [e.previous_hash for e in sqlite_chain]
+    assert [e.previous_hash for e in cosmos_chain] == [
+        e.previous_hash for e in sqlite_chain
+    ]
     assert cosmos_chain[0].previous_hash is None
     assert cosmos_chain[1].previous_hash == cosmos_chain[0].event_hash
     assert cosmos_log.last_hash() == sqlite_log.last_hash()
 
 
-def test_duplicate_delivery_returns_the_stored_event_without_forking_the_chain(tmp_path):
+def test_duplicate_delivery_returns_the_stored_event_without_forking_the_chain(
+    tmp_path,
+):
     sqlite_log = SqliteAuditLog(tmp_path / "audit.db")
     cosmos_log = CosmosAuditLog(FakeContainer())
     event = events()[0]
@@ -78,3 +83,19 @@ def test_cosmos_audit_requires_explicit_configuration():
     with pytest.raises(RuntimeError) as excinfo:
         CosmosAuditLog.from_environment({"EIP_CONTROL_PLANE_MODE": "temporal"})
     assert "EIP_COSMOS_AUDIT_CONTAINER" in str(excinfo.value)
+
+
+def test_cosmos_audit_rejects_corrupt_tip_without_coercion():
+    container = FakeContainer()
+    container.items["audit-chain:tip"] = {
+        "id": "audit-chain:tip",
+        "partition_key": "eip-audit-chain",
+        "kind": "audit-chain-tip",
+        "sequence": "1",
+        "event_id": "evt-1",
+        "event_hash": "hash",
+        "_etag": "1",
+    }
+
+    with pytest.raises(CosmosStoredAuditError, match="sequence"):
+        CosmosAuditLog(container).event_count()

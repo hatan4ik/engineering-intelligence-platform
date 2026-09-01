@@ -83,11 +83,14 @@ class SqlitePRGuardianStore:
         payload = _canonical(_finding_payload(finding))
         with self._connect() as db:
             row = db.execute(
-                "SELECT payload FROM pr_guardian_findings WHERE finding_id = ?", (finding.finding_id,)
+                "SELECT payload FROM pr_guardian_findings WHERE finding_id = ?",
+                (finding.finding_id,),
             ).fetchone()
             if row is not None:
                 if row["payload"] != payload:
-                    raise PRGuardianStoreError("finding_id conflicts with an existing immutable finding")
+                    raise PRGuardianStoreError(
+                        "finding_id conflicts with an existing immutable finding"
+                    )
                 return False
             db.execute(
                 """INSERT INTO pr_guardian_findings
@@ -107,9 +110,14 @@ class SqlitePRGuardianStore:
     def finding(self, finding_id: str) -> PRFinding | None:
         with self._connect() as db:
             row = db.execute(
-                "SELECT payload FROM pr_guardian_findings WHERE finding_id = ?", (finding_id,)
+                "SELECT payload FROM pr_guardian_findings WHERE finding_id = ?",
+                (finding_id,),
             ).fetchone()
-        return _finding_from_payload(json.loads(row["payload"])) if row is not None else None
+        return (
+            _finding_from_payload(json.loads(row["payload"]))
+            if row is not None
+            else None
+        )
 
     def findings_for_pull_request(
         self, *, repository: str, pr_number: int, head_sha: str | None = None
@@ -119,7 +127,11 @@ class SqlitePRGuardianStore:
             + (" AND head_sha = ?" if head_sha is not None else "")
             + " ORDER BY finding_id"
         )
-        args: tuple[object, ...] = (repository, pr_number, *(() if head_sha is None else (head_sha,)))
+        args: tuple[object, ...] = (
+            repository,
+            pr_number,
+            *(() if head_sha is None else (head_sha,)),
+        )
         with self._connect() as db:
             rows = db.execute(query, args).fetchall()
         return tuple(_finding_from_payload(json.loads(row["payload"])) for row in rows)
@@ -177,7 +189,7 @@ def _finding_from_payload(payload: dict[str, object]) -> PRFinding:
     return PRFinding(
         finding_id=str(payload["finding_id"]),
         repository=str(payload["repository"]),
-        pr_number=int(payload["pr_number"]),
+        pr_number=_stored_int(payload["pr_number"], field="pr_number"),
         head_sha=str(payload["head_sha"]),
         severity=str(payload["severity"]),
         summary=str(payload["summary"]),
@@ -198,7 +210,9 @@ def _finding_from_payload(payload: dict[str, object]) -> PRFinding:
                 for item in references
                 if isinstance(item, dict)
             ),
-            limitations=tuple(str(item) for item in evidence_payload.get("limitations", [])),
+            limitations=tuple(
+                str(item) for item in evidence_payload.get("limitations", [])
+            ),
         ),
     )
 
@@ -218,13 +232,23 @@ def _outcome_from_payload(payload: dict[str, object]) -> FindingOutcome:
         finding_id=str(payload["finding_id"]),
         reviewer_risk=ReviewerRiskDisposition(str(payload["reviewer_risk"])),
         reviewer_utility=ReviewerUtilityDisposition(str(payload["reviewer_utility"])),
-        recorded_by=str(payload["recorded_by"]) if payload.get("recorded_by") is not None else None,
+        recorded_by=str(payload["recorded_by"])
+        if payload.get("recorded_by") is not None
+        else None,
         post_merge_correlation_id=(
             str(payload["post_merge_correlation_id"])
             if payload.get("post_merge_correlation_id") is not None
             else None
         ),
     )
+
+
+def _stored_int(value: object, *, field: str) -> int:
+    """Restore an integer only when the local immutable payload preserved it."""
+
+    if type(value) is not int:
+        raise PRGuardianStoreError(f"stored finding {field} is invalid")
+    return value
 
 
 def _canonical(value: dict[str, object]) -> str:

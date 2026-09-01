@@ -23,7 +23,7 @@ def build_incident_view(
     impacted_services: tuple[str, ...],
     analysis: IncidentAnalysis,
 ) -> IncidentIntelligenceView:
-    timeline = tuple(
+    timeline: tuple[dict[str, object], ...] = tuple(
         {
             "id": event.id,
             "kind": event.kind.value,

@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Mapping, Sequence
 
 from .contracts import (
     EnforcementPolicy,
@@ -35,13 +35,27 @@ UNDECLARED = "undeclared"
 
 DEFAULT_EVIDENCE_SOURCES = ("github-pull-request",)
 
-_TOP_LEVEL_FIELDS = frozenset({
-    "repository", "mode", "service_ids", "service_owners", "evidence_sources",
-    "policy_version", "enforcement",
-})
-_ENFORCEMENT_FIELDS = frozenset({
-    "rule", "threshold", "approved_by", "approved_on", "expires_on", "waivers",
-})
+_TOP_LEVEL_FIELDS = frozenset(
+    {
+        "repository",
+        "mode",
+        "service_ids",
+        "service_owners",
+        "evidence_sources",
+        "policy_version",
+        "enforcement",
+    }
+)
+_ENFORCEMENT_FIELDS = frozenset(
+    {
+        "rule",
+        "threshold",
+        "approved_by",
+        "approved_on",
+        "expires_on",
+        "waivers",
+    }
+)
 _WAIVER_FIELDS = frozenset({"path_glob", "reason", "owner", "expires_on"})
 
 
@@ -115,7 +129,9 @@ def load_repository_config(
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
-        raise ProductContractError(f"{CONFIG_RELATIVE_PATH} could not be read: {exc}") from exc
+        raise ProductContractError(
+            f"{CONFIG_RELATIVE_PATH} could not be read: {exc}"
+        ) from exc
     except json.JSONDecodeError as exc:
         raise ProductContractError(
             f"{CONFIG_RELATIVE_PATH} is not valid JSON: {exc}"
@@ -126,7 +142,7 @@ def load_repository_config(
 
 
 def parse_repository_config(
-    payload: Any,
+    payload: object,
     *,
     repository: str,
     now: date | None = None,
@@ -146,7 +162,10 @@ def parse_repository_config(
 
     declared_repository = payload.get("repository")
     if declared_repository is not None:
-        if not isinstance(declared_repository, str) or declared_repository != repository:
+        if (
+            not isinstance(declared_repository, str)
+            or declared_repository != repository
+        ):
             raise ProductContractError(
                 "repository does not match the repository being evaluated"
             )
@@ -160,7 +179,11 @@ def parse_repository_config(
         else _identifiers(payload.get("evidence_sources"), "evidence_sources")
     )
     policy_version = payload.get("policy_version")
-    if not isinstance(policy_version, str) or not policy_version or len(policy_version) > 120:
+    if (
+        not isinstance(policy_version, str)
+        or not policy_version
+        or len(policy_version) > 120
+    ):
         raise ProductContractError("policy_version is invalid")
 
     raw_enforcement = payload.get("enforcement")
@@ -197,7 +220,9 @@ def _mode(value: object) -> ProductMode:
         return ProductMode(value)
     except ValueError as exc:
         allowed = ", ".join(item.value for item in ProductMode)
-        raise ProductContractError(f"mode is invalid; expected one of {allowed}") from exc
+        raise ProductContractError(
+            f"mode is invalid; expected one of {allowed}"
+        ) from exc
 
 
 def _identifiers(value: object, label: str) -> tuple[str, ...]:
@@ -240,7 +265,9 @@ def _enforcement(
 
     threshold = value.get("threshold")
     if type(threshold) is not int or not 0 <= threshold <= 100:
-        raise ProductContractError("enforcement.threshold must be an integer between 0 and 100")
+        raise ProductContractError(
+            "enforcement.threshold must be an integer between 0 and 100"
+        )
 
     approved_by = value.get("approved_by")
     if not isinstance(approved_by, str) or not approved_by or len(approved_by) > 200:
@@ -253,7 +280,9 @@ def _enforcement(
     approved_on = _date_field(value.get("approved_on"), "enforcement.approved_on")
     expires_on = _date_field(value.get("expires_on"), "enforcement.expires_on")
     if expires_on < approved_on:
-        raise ProductContractError("enforcement.expires_on precedes enforcement.approved_on")
+        raise ProductContractError(
+            "enforcement.expires_on precedes enforcement.approved_on"
+        )
     if require_unexpired and expires_on < today:
         raise ProductContractError(
             f"enforcement.expires_on ({expires_on.isoformat()}) has passed; "

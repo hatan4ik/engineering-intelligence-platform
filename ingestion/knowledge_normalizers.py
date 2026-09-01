@@ -7,12 +7,18 @@ from .documents import KnowledgeDocument, KnowledgeIdentity, KnowledgeSourceType
 from .models import ACL
 
 
-def _timestamp(value: str | datetime | None) -> datetime:
+def _timestamp(value: object) -> datetime:
+    """Normalize a trusted timestamp or reject an unknown external shape."""
+
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    if value:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
-    return datetime.now(timezone.utc)
+    if isinstance(value, str) and value:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(
+            timezone.utc
+        )
+    if value is None or value == "":
+        return datetime.now(timezone.utc)
+    raise ValueError("timestamp must be an ISO-8601 string, datetime, or null")
 
 
 def azure_devops_work_item(raw: Mapping[str, object], *, acl: ACL) -> KnowledgeDocument:
@@ -28,7 +34,9 @@ def azure_devops_work_item(raw: Mapping[str, object], *, acl: ACL) -> KnowledgeD
     body = f"Title: {title}\nState: {state}\n\n{description}".strip()
     revision = str(raw.get("rev") or "1")
     return KnowledgeDocument(
-        identity=KnowledgeIdentity("azure-devops", KnowledgeSourceType.WORK_ITEM, item_id),
+        identity=KnowledgeIdentity(
+            "azure-devops", KnowledgeSourceType.WORK_ITEM, item_id
+        ),
         title=title,
         body=body,
         revision=revision,
@@ -37,7 +45,10 @@ def azure_devops_work_item(raw: Mapping[str, object], *, acl: ACL) -> KnowledgeD
         owner=str(fields.get("System.AssignedTo") or "") or None,
         service=str(fields.get("Custom.Service") or "") or None,
         acl=acl,
-        metadata={"state": state, "work_item_type": str(fields.get("System.WorkItemType") or "")},
+        metadata={
+            "state": state,
+            "work_item_type": str(fields.get("System.WorkItemType") or ""),
+        },
     )
 
 
@@ -83,7 +94,9 @@ def deployment_record(raw: Mapping[str, object], *, acl: ACL) -> KnowledgeDocume
         f"Environment: {environment}\nCommit: {commit}\nStatus: {status}"
     )
     return KnowledgeDocument(
-        identity=KnowledgeIdentity("cicd", KnowledgeSourceType.DEPLOYMENT, deployment_id),
+        identity=KnowledgeIdentity(
+            "cicd", KnowledgeSourceType.DEPLOYMENT, deployment_id
+        ),
         title=f"Deployment {deployment_id} — {service or 'unknown'}",
         body=body,
         revision=str(raw.get("revision") or commit),

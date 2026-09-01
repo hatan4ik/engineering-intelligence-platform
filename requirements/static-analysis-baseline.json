@@ -3,13 +3,21 @@
   "scope": [
     "app",
     "company_brain",
+    "control_plane",
+    "feedback",
+    "finops",
+    "ingestion",
+    "integrations",
     "intelligence",
+    "orchestration",
+    "portal",
     "product",
     "remediation",
     "resilience",
-    "control_plane",
+    "security",
     "state",
-    "integrations"
+    "telemetry",
+    "topology"
   ],
   "tools": {
     "ruff": {
@@ -18,11 +26,11 @@
     },
     "mypy": {
       "version": "2.3.1",
-      "maximum_errors": 23
+      "maximum_errors": 0
     }
   },
   "dynamic_typing": {
-    "maximum_any_references": 19,
-    "maximum_type_ignores": 1
+    "maximum_any_references": 0,
+    "maximum_type_ignores": 0
   }
 }

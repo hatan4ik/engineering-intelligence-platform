@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from math import isfinite
+from typing import Mapping
 
 from control_plane.remediation import (
     RemediationTerminalStatus,
@@ -51,7 +53,16 @@ class DurableSelfHealingCoordinator:
         self.approval_secret = approval_secret
         self.telemetry = telemetry
 
-    def _emit(self, *, workflow_id: str, phase: str, component: str, outcome: str, started: float, **attrs: str) -> None:
+    def _emit(
+        self,
+        *,
+        workflow_id: str,
+        phase: str,
+        component: str,
+        outcome: str,
+        started: float,
+        **attrs: str,
+    ) -> None:
         if self.telemetry is None:
             return
         self.telemetry.emit(
@@ -64,13 +75,18 @@ class DurableSelfHealingCoordinator:
             attributes=attrs,
         )
 
-    def prepare(self, analysis: IncidentAnalysis, *, incident_id: str, blast_radius: int) -> PreparedRemediation | None:
+    def prepare(
+        self, analysis: IncidentAnalysis, *, incident_id: str, blast_radius: int
+    ) -> PreparedRemediation | None:
         started = time.perf_counter()
         plan = plan_from_incident(analysis)
         if plan is None:
             self._emit(
-                workflow_id=f"remediation:{incident_id}", phase="remediation.plan", component="planner",
-                outcome="no-plan", started=started,
+                workflow_id=f"remediation:{incident_id}",
+                phase="remediation.plan",
+                component="planner",
+                outcome="no-plan",
+                started=started,
             )
             return None
         workflow_plan = RemediationWorkflowPlan(
@@ -84,8 +100,12 @@ class DurableSelfHealingCoordinator:
         )
         workflow = self.workflows.prepare(workflow_plan)
         self._emit(
-            workflow_id=workflow.workflow_id, phase="remediation.plan", component="planner",
-            outcome="planned", started=started, runbook_id=plan.runbook_id,
+            workflow_id=workflow.workflow_id,
+            phase="remediation.plan",
+            component="planner",
+            outcome="planned",
+            started=started,
+            runbook_id=plan.runbook_id,
         )
         return PreparedRemediation(workflow, plan, blast_radius)
 
@@ -107,8 +127,11 @@ class DurableSelfHealingCoordinator:
             )
         except Exception:
             self._emit(
-                workflow_id=prepared.workflow.workflow_id, phase="remediation.approval",
-                component="approval", outcome="denied", started=started,
+                workflow_id=prepared.workflow.workflow_id,
+                phase="remediation.approval",
+                component="approval",
+                outcome="denied",
+                started=started,
             )
             raise
         queued = self.queue.enqueue(
@@ -126,9 +149,12 @@ class DurableSelfHealingCoordinator:
             not_before=float(now) if now is not None else None,
         )
         self._emit(
-            workflow_id=prepared.workflow.workflow_id, phase="remediation.approval",
-            component="approval", outcome="approved" if queued else "duplicate",
-            started=started, runbook_id=prepared.plan.runbook_id,
+            workflow_id=prepared.workflow.workflow_id,
+            phase="remediation.approval",
+            component="approval",
+            outcome="approved" if queued else "duplicate",
+            started=started,
+            runbook_id=prepared.plan.runbook_id,
         )
         return queued
 
@@ -137,14 +163,19 @@ class DurableSelfHealingCoordinator:
         if job.kind != self.JOB_KIND:
             raise ValueError("unexpected remediation job kind")
         if job.payload.get("approval_verified") is not True:
-            raise PermissionError("durable remediation job was not created from a verified approval")
+            raise PermissionError(
+                "durable remediation job was not created from a verified approval"
+            )
         request = ActionRequest(
-            service=str(job.payload["service"]),
-            environment=str(job.payload["environment"]),
-            runbook_id=str(job.payload["runbook_id"]),
-            blast_radius=int(job.payload["blast_radius"]),
+            service=_required_text(job.payload, "service"),
+            environment=_required_text(job.payload, "environment"),
+            runbook_id=_required_text(job.payload, "runbook_id"),
+            blast_radius=_required_positive_int(job.payload, "blast_radius"),
             approval_token=f"verified:{job.workflow_id}",
-            error_budget_remaining=float(job.payload.get("error_budget_remaining", 1.0)),
+            error_budget_remaining=_non_negative_float(
+                job.payload.get("error_budget_remaining", 1.0),
+                field="error_budget_remaining",
+            ),
         )
 
         simulation_started = time.perf_counter()
@@ -156,16 +187,25 @@ class DurableSelfHealingCoordinator:
             approval_verified=True,
         )
         self._emit(
-            workflow_id=job.workflow_id, phase="remediation.simulation", component="digital-twin",
-            outcome="verified" if simulation.safe_to_promote else "blocked", started=simulation_started,
+            workflow_id=job.workflow_id,
+            phase="remediation.simulation",
+            component="digital-twin",
+            outcome="verified" if simulation.safe_to_promote else "blocked",
+            started=simulation_started,
             runbook_id=request.runbook_id,
         )
         if not simulation.safe_to_promote:
             self._emit(
-                workflow_id=job.workflow_id, phase="remediation.terminal", component="control-plane",
-                outcome="denied", started=terminal_started, runbook_id=request.runbook_id,
+                workflow_id=job.workflow_id,
+                phase="remediation.terminal",
+                component="control-plane",
+                outcome="denied",
+                started=terminal_started,
+                runbook_id=request.runbook_id,
             )
-            raise RuntimeError("sandbox verification failed; production promotion blocked")
+            raise RuntimeError(
+                "sandbox verification failed; production promotion blocked"
+            )
 
         execution_started = time.perf_counter()
         result = execute_control_loop(
@@ -176,8 +216,12 @@ class DurableSelfHealingCoordinator:
             approval_verified=True,
         )
         self._emit(
-            workflow_id=job.workflow_id, phase="remediation.execute", component="certified-adapter",
-            outcome=result.status, started=execution_started, runbook_id=request.runbook_id,
+            workflow_id=job.workflow_id,
+            phase="remediation.execute",
+            component="certified-adapter",
+            outcome=result.status,
+            started=execution_started,
+            runbook_id=request.runbook_id,
         )
         self.workflows.finish(
             workflow_id=job.workflow_id,
@@ -186,8 +230,12 @@ class DurableSelfHealingCoordinator:
             rollback_ref=result.rollback_ref,
         )
         self._emit(
-            workflow_id=job.workflow_id, phase="remediation.terminal", component="control-plane",
-            outcome=result.status, started=terminal_started, runbook_id=request.runbook_id,
+            workflow_id=job.workflow_id,
+            phase="remediation.terminal",
+            component="control-plane",
+            outcome=result.status,
+            started=terminal_started,
+            runbook_id=request.runbook_id,
             verified=str(result.verified).lower(),
         )
         return result
@@ -200,3 +248,40 @@ def _terminal_status(value: str) -> RemediationTerminalStatus:
         return RemediationTerminalStatus(value)
     except ValueError as error:
         raise ValueError(f"unknown remediation execution status: {value!r}") from error
+
+
+def _required_text(payload: Mapping[str, object], field: str) -> str:
+    """Read a persisted job field without coercing malformed values."""
+
+    value = payload.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            f"durable remediation job field {field!r} must be a non-blank string"
+        )
+    return value
+
+
+def _required_positive_int(payload: Mapping[str, object], field: str) -> int:
+    """Reject bools and string coercions at the durable-job boundary."""
+
+    value = payload.get(field)
+    if type(value) is not int or value < 1:
+        raise ValueError(
+            f"durable remediation job field {field!r} must be a positive integer"
+        )
+    return value
+
+
+def _non_negative_float(value: object, *, field: str) -> float:
+    """Accept numeric JSON values only when they are finite and non-negative."""
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"durable remediation job field {field!r} must be a non-negative number"
+        )
+    result = float(value)
+    if not isfinite(result) or result < 0:
+        raise ValueError(
+            f"durable remediation job field {field!r} must be a non-negative number"
+        )
+    return result

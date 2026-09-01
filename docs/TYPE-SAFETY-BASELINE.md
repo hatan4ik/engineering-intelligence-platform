@@ -10,13 +10,15 @@
 ## Purpose
 
 The Company Brain has dynamic integration boundaries by design: webhooks, Azure responses,
-configuration, and JSON enter as untrusted data. The goal is not an unrealistic repository-wide
-ban on `Any`; it is to narrow data immediately, make public contracts explicit, and prevent
-static-analysis debt from growing while the existing code is improved.
+configuration, and JSON enter as untrusted data. The delivery code narrows those inputs at the
+boundary, makes public contracts explicit, and forbids active `Any` annotations and type-ignore
+suppression in the packaged product surface.
 
-The baseline currently covers the product and control-path packages: `app`, `company_brain`,
-`intelligence`, `product`, `remediation`, `resilience`, `control_plane`, `state`, and `integrations`. It
-intentionally does not claim that every package or external SDK is fully type-checked yet.
+The baseline covers every distributable product package declared in `pyproject.toml`: `app`,
+`company_brain`, `control_plane`, `feedback`, `finops`, `ingestion`, `integrations`,
+`intelligence`, `orchestration`, `portal`, `product`, `remediation`, `resilience`, `security`,
+`state`, `telemetry`, and `topology`. It deliberately does not count third-party SDK stubs,
+tests, or developer/CI tools as proof that those separate surfaces are fully strict.
 
 ## Ratchet
 
@@ -48,6 +50,7 @@ operational evidence record.
 5. Add stricter Ruff rules, a second type checker, or a wider scope only after measuring their
    starting debt in a separate, reviewable baseline change.
 
-This is a delivery guardrail, not a claim that the initial ceilings represent an acceptable end
-state. The next increments are to replace raw report dictionaries with DTOs, remove existing
-dynamic paths in public control interfaces, and lower the recorded ceilings in small slices.
+The current checked-in ceilings are zero for Ruff diagnostics, mypy errors, active `Any`
+references, and type-ignore comments in this product surface. The next increment is not to
+relax those ceilings; it is to add stricter rules and supporting-tool scope only with their own
+measured, reviewable baseline.

@@ -33,15 +33,23 @@ class FixtureEvidenceProvider:
         if isinstance(raw, list):
             raw = {"events": raw}
         if not isinstance(raw, Mapping):
-            raise RuntimeError(f"operations evidence fixture must be a list or object: {self.path}")
+            raise RuntimeError(
+                f"operations evidence fixture must be a list or object: {self.path}"
+            )
         self._shared = _entries(raw, "events")
         self._deployment = _entries(raw, "deployment_events")
         self._incident = _entries(raw, "incident_events")
 
-    def collect(self, *, incident_id: str, service: str, environment: str) -> list[EvidenceEvent]:
+    def collect(
+        self, *, incident_id: str, service: str, environment: str
+    ) -> list[EvidenceEvent]:
         return self._build(
             (*self._shared, *self._incident),
-            {"service": service, "environment": environment, "incident_id": incident_id},
+            {
+                "service": service,
+                "environment": environment,
+                "incident_id": incident_id,
+            },
         )
 
     def evidence_for(self, event: DeploymentFailureEvent) -> list[EvidenceEvent]:
@@ -81,7 +89,9 @@ class AzureMonitorEvidenceProvider:
         self.kql = kql
         self.lookback = lookback
 
-    def collect(self, *, incident_id: str, service: str, environment: str) -> list[EvidenceEvent]:
+    def collect(
+        self, *, incident_id: str, service: str, environment: str
+    ) -> list[EvidenceEvent]:
         return self._query(service)
 
     def evidence_for(self, event: DeploymentFailureEvent) -> list[EvidenceEvent]:
@@ -102,14 +112,18 @@ class AzureMonitorEvidenceProvider:
         )
 
 
-def _entries(payload: Mapping[str, object], key: str) -> tuple[Mapping[str, object], ...]:
+def _entries(
+    payload: Mapping[str, object], key: str
+) -> tuple[Mapping[str, object], ...]:
     raw = payload.get(key, [])
     if raw is None:
         return ()
     if not isinstance(raw, list):
         raise RuntimeError(f"operations evidence fixture field {key!r} must be a list")
     if not all(isinstance(entry, Mapping) for entry in raw):
-        raise RuntimeError(f"operations evidence fixture field {key!r} must contain objects")
+        raise RuntimeError(
+            f"operations evidence fixture field {key!r} must contain objects"
+        )
     return tuple(raw)
 
 
@@ -119,7 +133,9 @@ def _substitute(value: str, values: Mapping[str, str]) -> str:
     return value
 
 
-def _event_from_mapping(entry: Mapping[str, object], values: Mapping[str, str]) -> EvidenceEvent:
+def _event_from_mapping(
+    entry: Mapping[str, object], values: Mapping[str, str]
+) -> EvidenceEvent:
     def text(name: str, default: str = "") -> str:
         return _substitute(str(entry.get(name, default) or default), values)
 
@@ -148,17 +164,37 @@ def _event_from_mapping(entry: Mapping[str, object], values: Mapping[str, str]) 
         timestamp=parsed.astimezone(timezone.utc),
         summary=text("summary"),
         source=text("source", "fixture"),
-        severity=int(entry.get("severity", 1)),
+        severity=_severity(entry.get("severity", 1)),
         attributes=pairs,
     )
 
 
-def _attribute_pairs(value: object, substitutions: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
+def _attribute_pairs(
+    value: object, substitutions: Mapping[str, str]
+) -> tuple[tuple[str, str], ...]:
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
-        raise RuntimeError("evidence fixture attributes must be an object or sequence of pairs")
+        raise RuntimeError(
+            "evidence fixture attributes must be an object or sequence of pairs"
+        )
     pairs: list[tuple[str, str]] = []
     for item in value:
-        if not isinstance(item, Sequence) or isinstance(item, (str, bytes)) or len(item) != 2:
-            raise RuntimeError("evidence fixture attributes must contain key/value pairs")
+        if (
+            not isinstance(item, Sequence)
+            or isinstance(item, (str, bytes))
+            or len(item) != 2
+        ):
+            raise RuntimeError(
+                "evidence fixture attributes must contain key/value pairs"
+            )
         pairs.append((str(item[0]), _substitute(str(item[1]), substitutions)))
     return tuple(sorted(pairs))
+
+
+def _severity(value: object) -> int:
+    """Accept an integer fixture severity without silently coercing strings or bools."""
+
+    if type(value) is not int or value < 0:
+        raise RuntimeError(
+            "operations evidence fixture severity must be a non-negative integer"
+        )
+    return value
