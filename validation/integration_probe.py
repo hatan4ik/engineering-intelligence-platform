@@ -19,7 +19,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 
 # Every variable the probe needs before any subprocess, DNS lookup, or HTTP call
@@ -47,6 +47,18 @@ REQUIRED_ENVIRONMENT: tuple[str, ...] = (
     "EIP_INTEGRATION_EVIDENCE",
 )
 
+# The GitHub workflow has additional settings that the locally invoked probe
+# deliberately does not need: Azure federated-login identity and the AKS
+# context to acquire. Checking them before ``azure/login`` prevents a manual
+# run from attempting authentication with a partial environment.
+WORKFLOW_REQUIRED_ENVIRONMENT: tuple[str, ...] = REQUIRED_ENVIRONMENT + (
+    "AZURE_CLIENT_ID",
+    "AZURE_TENANT_ID",
+    "AZURE_SUBSCRIPTION_ID",
+    "AKS_RESOURCE_GROUP",
+    "AKS_CLUSTER_NAME",
+)
+
 # Documented in the same table but not required: the repository scopes apply only
 # when the governed test question is repository-scoped. They are still passed by
 # the workflow.
@@ -56,11 +68,15 @@ OPTIONAL_ENVIRONMENT: tuple[str, ...] = (
 )
 
 
-def missing_configuration(environ: Mapping[str, str] | None = None) -> tuple[str, ...]:
-    """Return every required variable that is unset or blank, in documented order."""
+def missing_configuration(
+    environ: Mapping[str, str] | None = None,
+    *,
+    required: Sequence[str] = REQUIRED_ENVIRONMENT,
+) -> tuple[str, ...]:
+    """Return every requested required variable that is unset or blank."""
 
     source = os.environ if environ is None else environ
-    return tuple(name for name in REQUIRED_ENVIRONMENT if not str(source.get(name, "")).strip())
+    return tuple(name for name in required if not str(source.get(name, "")).strip())
 
 
 @dataclass(frozen=True)
@@ -265,22 +281,48 @@ def _emit(results: list[dict[str, object]], *, passed: bool) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
-def main() -> int:
-    # Fail closed before any probe runs. A partially configured run produces a
-    # long list of individually plausible failures that reads like an outage; the
-    # single configuration result says what it actually is.
-    missing = missing_configuration()
-    if missing:
-        _emit(
-            [{"probe": "configuration", "passed": False, "missing": list(missing)}],
-            passed=False,
-        )
+def check_configuration(*, required: Sequence[str] = REQUIRED_ENVIRONMENT) -> int:
+    """Validate required settings without authenticating or probing anything.
+
+    The workflow calls this before Azure login. A successful configuration
+    check only permits the separately gated probe to begin; it is not
+    integration evidence. A refusal writes a safe, machine-readable reason.
+    """
+
+    missing = missing_configuration(required=required)
+    if not missing:
+        print("integration configuration is complete; no probe was run")
+        return 0
+    _emit(
+        [{"probe": "configuration", "passed": False, "missing": list(missing)}],
+        passed=False,
+    )
+    print(
+        "integration probe refused to run; missing required environment: " + ", ".join(missing),
+        file=sys.stderr,
+    )
+    return 2
+
+
+def main(argv: Sequence[str] = ()) -> int:
+    """Run configuration-only validation or the full read-only probe."""
+
+    if tuple(argv) == ("--check-configuration",):
+        return check_configuration()
+    if tuple(argv) == ("--check-workflow-configuration",):
+        return check_configuration(required=WORKFLOW_REQUIRED_ENVIRONMENT)
+    if argv:
         print(
-            "integration probe refused to run; missing required environment: "
-            + ", ".join(missing),
+            "usage: integration_probe.py [--check-configuration | --check-workflow-configuration]",
             file=sys.stderr,
         )
         return 2
+    # Fail closed before any probe runs. A partially configured run produces a
+    # long list of individually plausible failures that reads like an outage; the
+    # single configuration result says what it actually is.
+    configuration_result = check_configuration()
+    if configuration_result:
+        return configuration_result
 
     results = collect()
     passed = all(item.passed for item in results)
@@ -289,4 +331,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
