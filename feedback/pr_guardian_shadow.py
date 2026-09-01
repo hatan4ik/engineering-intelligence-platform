@@ -10,6 +10,8 @@ recommendation that nothing in this codebase applies.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Mapping, Sequence
 
 from intelligence.risk_calibration import (
@@ -20,9 +22,7 @@ from intelligence.risk_calibration import (
 )
 from product.pr_guardian_shadow import ShadowOutcome, validate_outcome
 
-CALIBRATION_NOTE = (
-    "Threshold changes are reviewed product decisions; this section is a recommendation only."
-)
+CALIBRATION_NOTE = "Threshold changes are reviewed product decisions; this section is a recommendation only."
 
 # ``calibrate_high_risk_threshold`` tunes a threshold to catch the *failed*
 # class, so a reviewer-confirmed risk is a failed sample and a false positive is
@@ -36,22 +36,24 @@ _FAILURE_DISPOSITION = next(
 
 def build_shadow_report(outcomes: Sequence[Mapping[str, object]]) -> dict[str, object]:
     records: list[ShadowOutcome] = [validate_outcome(item) for item in outcomes]
-    joined: list[ShadowOutcome] = [record for record in records if record["source_observation"] is not None]
+    joined: list[ShadowOutcome] = [
+        record for record in records if record["source_observation"] is not None
+    ]
     reviewed: list[ShadowOutcome] = [
-        record for record in joined
+        record
+        for record in joined
         if record["reviewer_signal"]["risk"] != "not-reviewed"
     ]
     confirmed = [
-        record for record in reviewed
+        record
+        for record in reviewed
         if record["reviewer_signal"]["risk"] == "confirmed-risk"
     ]
     useful = sum(
-        1 for record in joined
-        if record["reviewer_signal"]["utility"] == "useful"
+        1 for record in joined if record["reviewer_signal"]["utility"] == "useful"
     )
     not_useful = sum(
-        1 for record in joined
-        if record["reviewer_signal"]["utility"] == "not-useful"
+        1 for record in joined if record["reviewer_signal"]["utility"] == "not-useful"
     )
     tp = fp = tn = fn = 0
     for record in reviewed:
@@ -75,14 +77,24 @@ def build_shadow_report(outcomes: Sequence[Mapping[str, object]]) -> dict[str, o
         "minimum_joined_observations": len(joined) >= 30,
         "minimum_reviewer_classifications": len(reviewed) >= 30,
         "minimum_confirmed_risks": len(confirmed) >= 5,
-        "minimum_simulated_block_precision": precision is not None and precision >= 0.50,
+        "minimum_simulated_block_precision": precision is not None
+        and precision >= 0.50,
         "minimum_simulated_block_recall": recall is not None and recall >= 0.80,
     }
-    failures = [name for name, complete in promotion_requirements.items() if not complete]
+    failures = [
+        name for name, complete in promotion_requirements.items() if not complete
+    ]
     return {
         "schema_version": 1,
         "kind": "pr-guardian-shadow-report",
         "scope": "offline pilot export only",
+        "input_provenance": {
+            "canonical_outcome_export_sha256": canonical_shadow_outcomes_sha256(
+                records
+            ),
+            "closure_records": len(records),
+            "canonicalization": "validated closure records sorted by repository, PR, head SHA, and recorded_at",
+        },
         "sample": {
             "closure_records": len(records),
             "joined_observations": len(joined),
@@ -118,7 +130,42 @@ def build_shadow_report(outcomes: Sequence[Mapping[str, object]]) -> dict[str, o
     }
 
 
-def _next_review(records: Sequence[Mapping[str, object]], failures: Sequence[str]) -> str:
+def canonical_json_sha256(payload: object) -> str:
+    """Return the stable digest used to bind reviewable JSON evidence.
+
+    The function deliberately rejects non-JSON values and NaN rather than
+    quietly producing a platform-specific representation. It is a content
+    fingerprint, not an authenticity or retention assertion.
+    """
+
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return f"sha256:{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
+
+
+def canonical_shadow_outcomes_sha256(records: Sequence[ShadowOutcome]) -> str:
+    """Fingerprint normalized outcomes independently of input-file order."""
+
+    canonical_records = sorted(
+        records,
+        key=lambda record: (
+            record["subject"]["repository"],
+            record["subject"]["pr_number"],
+            record["subject"]["head_sha"],
+            record["recorded_at"],
+        ),
+    )
+    return canonical_json_sha256(canonical_records)
+
+
+def _next_review(
+    records: Sequence[Mapping[str, object]], failures: Sequence[str]
+) -> str:
     if not records:
         return "no closure records yet"
     if failures:
