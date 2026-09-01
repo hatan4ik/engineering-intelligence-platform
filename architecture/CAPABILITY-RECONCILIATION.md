@@ -49,7 +49,8 @@ Ephemeral digital twin -> certified runbook -> independent verify
 ## Product focus
 
 The architecture above is the target portfolio, not a claim that each vertical is an active
-product. The active product is **PR Guardian** for one or two named repositories, in shadow mode.
+product. The defined initial product is **PR Guardian** for one or two future named repositories,
+starting in shadow mode; no pilot repository is currently named or enabled.
 Architecture Guard, deployment investigation, incident intelligence, drift, and remediation are
 reference workflows until they consume the shared product finding, evidence, outcome, and
 evaluation contracts described in the [product maturity roadmap](../roadmap/technical-roadmap-24-months.md).
@@ -71,12 +72,12 @@ implementation may exist, but no service/environment/runbook production evidence
 | Hybrid/vector RAG | Reference-partial | Azure Search hybrid/vector retrieval, ACL filter, suspicious-evidence quarantine, and evaluation | deterministic Guardrail SLM/equivalent, production index tuning, adversarial expansion, and quality calibration |
 | AI Gateway | Reference-partial | Entra bearer auth, trusted groups/roles, redaction, model routing, and request-budget contract | per-principal rate/concurrency enforcement, Graph group-overage resolver, operator UX, and production proof |
 | Service/resource graph | Implemented reference | persistent graph, service/resource/owner/SLO projections, blast radius | broader runtime/IaC extractors and scale tuning |
-| PR Guardian | Shadow E2E reference | GitHub event -> diff/service mapping -> graph/risk -> workflow -> neutral check/comment; explicit reviewer-label closure record and offline report | durable product finding/evidence/outcome store, authorized retrieval citations, independent post-merge correlation, and repository-specific calibration |
+| PR Guardian | Shadow E2E reference | GitHub event -> diff/service mapping -> graph/risk -> workflow -> neutral check/comment; local durable finding/outcome store; explicit reviewer-label closure record, canonical feedback-export/report digests, and non-authorizing pilot/promotion validators | named pilot configuration, externally retained evidence, live reviewer outcomes, authorized retrieval citations, independent post-merge correlation, and repository-specific calibration |
 | Architecture Guard | Implemented reference | ADR/reference architecture rules with deterministic findings | broader rule catalog and PR publishing integration |
 | Deployment Failure Investigator | Implemented E2E | pipeline failure normalization, evidence/last-good correlation, hypotheses, durable output | additional pipeline providers and ticket UX |
 | Incident Intelligence | Implemented E2E | Azure Monitor evidence adapter, topology/change correlation, evidence-backed RCA | richer App Insights/OTel queries and incident-system publishing |
 | Drift Detector | Implemented E2E | Git/Terraform desired state + Azure Resource Graph observed state -> durable drift finding | corrective PR automation and more resource projections |
-| Knowledge Decay Agent | Implemented reference | stale/ownerless/conflicting knowledge scoring plus a tenant-scoped, deterministic, read-only maintenance proposal planner that uses source freshness and canonical ownership | approved source-specific publisher, reviewer/outcome tracking, and freshness SLO evidence |
+| Knowledge Decay Agent | Implemented reference | stale/ownerless/conflicting knowledge scoring; tenant-scoped deterministic maintenance planning; explicit human disposition and independent source-revision correlation contract | approved source-specific publisher and system of record, real reviewer/source outcomes, and freshness SLO evidence |
 | Predictive change risk | Implemented reference | historical calibration, explicit confidence/evidence, deployment-risk output | real feature-store history and threshold calibration |
 | Authoritative state | Reference boundary | SQLite lifecycle contract and Cosmos DB adapter with `_etag` CAS, app versions, atomic transition receipts, idempotency, cancellation, and restart coverage | provision/wire managed state, multi-region policy, backup/restore, retention, and production proof |
 | Audit | Reference boundary | hash-chained local audit, control-plane action audit, and lifecycle bridge that fails a transition when audit export fails | immutable external export/retention policy and retained operational evidence |

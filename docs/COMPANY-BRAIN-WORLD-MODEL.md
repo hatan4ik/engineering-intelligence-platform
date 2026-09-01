@@ -49,8 +49,15 @@ The result intentionally preserves uncertainty. A caller must show its limitatio
 insufficient-evidence path; it may not convert a low-confidence or conflicted graph edge into a
 silent approval.
 
-## Next integration
+## Current product integration
 
-PR Guardian is the first product consumer. Its next increment will adapt this qualified context to
-the PR workflow, retain its findings/outcomes durably, and preserve the distinction between a
-measured fact, a derived risk assessment, and a policy decision.
+PR Guardian is the first product consumer. Its adapter translates qualified context into a
+repository-scoped service graph and an ACL-authorized `EvidenceBundle`; its reference store retains
+typed findings and explicit reviewer outcomes. The adapter preserves the distinction between a
+measured fact, a derived risk assessment, and a policy decision. It does not turn any of those
+records into a merge, deployment, or remediation authority.
+
+The next proof is operational rather than another source-only integration: a named pilot must show
+that authorized evidence, reviewer feedback, and independently correlated outcomes remain useful
+and safe in the certified repository scope. Until then, the integration is reference behavior, not
+pilot or production evidence.
