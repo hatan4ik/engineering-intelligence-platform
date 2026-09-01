@@ -57,8 +57,12 @@ Partial Company Brain configuration fails startup. These group identities are th
 used for ACL-trimmed retrieval, not a claim that every GitHub actor can access the source material.
 The webhook remains shadow-only and publishes a neutral GitHub check.
 
-## Next
+## Feedback and promotion boundary
 
-The next increment converts explicit reviewer labels and independent post-merge correlations into
-these retained outcome records, then evaluates immutable datasets before any policy promotion is
-considered.
+The source contract can retain explicit reviewer labels and independently correlated outcomes as
+typed records. The shadow-report and promotion-review contracts additionally bind feedback metrics
+to canonical outcome-export and report digests before a human evidence review. They remain
+non-authorizing: no source record, report, or packet changes product mode or a merge decision.
+
+The next increment is operational proof: a named pilot must retain those records externally and
+demonstrate reviewer and independent post-merge outcomes before any policy promotion is considered.

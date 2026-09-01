@@ -24,7 +24,7 @@ into the product records below.
 
 | Record | Purpose | Safety invariant |
 |---|---|---|
-| `RepositoryConfig` | Names the repository, services, owners, allowed evidence sources, policy version, and shadow/advisory mode | No anonymous or organization-wide installation; no enforcement mode exists in the contract |
+| `RepositoryConfig` | Names the repository, services, owners, allowed evidence sources, policy version, and `shadow` / `advisory` / `enforce` mode | No anonymous or organization-wide installation; `enforce` requires one narrow deterministic rule, a declared owner, expiry, and waiver contract and still does not prove a certified deployment |
 | `EvidenceReference` | Minimal, ACL-authorized evidence pointer | Unauthorized evidence cannot enter a finding |
 | `EvidenceBundle` | Labels evidence as measured, derived, or modeled and records limitations | Missing evidence is explicit; measured evidence requires an authorized reference |
 | `PRFinding` | Reviewable risk finding bound to PR SHA, correlation ID, policy version, and a simulated action | `would-block` is descriptive only and cannot authorize a merge decision |

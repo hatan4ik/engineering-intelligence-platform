@@ -39,6 +39,8 @@ production-certified.
 | [`PRODUCT-STRATEGY.md`](PRODUCT-STRATEGY.md) | Current product decision | First product wedge and expansion gates |
 | [`PR-GUARDIAN-DOMAIN-CONTRACT.md`](PR-GUARDIAN-DOMAIN-CONTRACT.md) | Current product boundary | PR Guardian records and safety invariants |
 | [`PR-GUARDIAN-COMPANY-BRAIN.md`](PR-GUARDIAN-COMPANY-BRAIN.md) | Implemented reference contract | Qualified context, durable findings, and non-enforcement rules |
+| [`PR-GUARDIAN-PILOT-ONBOARDING.md`](PR-GUARDIAN-PILOT-ONBOARDING.md) | Current implementation contract | Shadow-only target-repository onboarding record and local validator; not pilot activation |
+| [`PR-GUARDIAN-PROMOTION-REVIEW.md`](PR-GUARDIAN-PROMOTION-REVIEW.md) | Current implementation contract | Digest-bound human review packet; never a product authorization |
 | [`../roadmap/technical-roadmap-24-months.md`](../roadmap/technical-roadmap-24-months.md) | Target proposal | Outcome-gated delivery sequence and promotion gates |
 | [`CURRENT-POSITION.md`](CURRENT-POSITION.md) | Current implementation state | The single answer to "where are we today", with both yardsticks stated |
 | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) | Current evidence contract | What must be retained to support a promotion claim |
@@ -83,7 +85,7 @@ production-certified.
 | [`COMPANY-BRAIN-STORE.md`](COMPANY-BRAIN-STORE.md) | Current implementation contract | Tenant-scoped Company Brain reference store; not a production data plane |
 | [`COMPANY-BRAIN-WORLD-MODEL.md`](COMPANY-BRAIN-WORLD-MODEL.md) | Current implementation contract | Qualified Company Brain world-model read path; not action authority |
 | [`COMPANY-BRAIN-MEMORY-SYNC.md`](COMPANY-BRAIN-MEMORY-SYNC.md) | Current implementation contract | Governed source lifecycle projection into reference memory |
-| [`COMPANY-BRAIN-MAINTENANCE.md`](COMPANY-BRAIN-MAINTENANCE.md) | Current implementation contract | Read-only, deterministic knowledge-maintenance proposal contract |
+| [`COMPANY-BRAIN-MAINTENANCE.md`](COMPANY-BRAIN-MAINTENANCE.md) | Current implementation contract | Read-only maintenance planning plus explicit review/source-observation correlation; no source publisher |
 
 ## Review cadence
 

@@ -11,9 +11,9 @@ Welcome to the documentation for the Engineering Intelligence Platform. To preve
 
 ## 🛠 Runbooks (Stages 1–6 engineering)
 *What each runner does, what it needs, and what it refuses to do.*
-- [PR Guardian Shadow Report](PR-GUARDIAN-SHADOW-REPORT.md) · [PR Guardian Repository Config](PR-GUARDIAN-REPOSITORY-CONFIG.md)
+- [PR Guardian Shadow Report](PR-GUARDIAN-SHADOW-REPORT.md) · [Pilot Onboarding](PR-GUARDIAN-PILOT-ONBOARDING.md) · [Promotion Review](PR-GUARDIAN-PROMOTION-REVIEW.md) · [Repository Config](PR-GUARDIAN-REPOSITORY-CONFIG.md)
 - [Knowledge Ingest](KNOWLEDGE-INGEST-RUNBOOK.md) · [Evidence Registry](evidence/README.md) · [Integration Proof](INTEGRATION-PROOF-RUNBOOK.md)
-- [Company Brain Memory Maintenance](COMPANY-BRAIN-MAINTENANCE.md) — read-only proposals for stale, ownerless, conflicting, or freshness-unknown knowledge
+- [Company Brain Memory Maintenance](COMPANY-BRAIN-MAINTENANCE.md) — read-only proposals and explicit outcome correlation for stale, ownerless, conflicting, or freshness-unknown knowledge
 - [Operations Intelligence (L1/L2)](OPERATIONS-INTELLIGENCE-RUNBOOK.md)
 - [L3 Rehearsal](L3-REHEARSAL-RUNBOOK.md) · [L4 Promotion](L4-PROMOTION-RUNBOOK.md) · [Temporal Worker](TEMPORAL-WORKER-RUNBOOK.md)
 - [24-Month Technical Roadmap](../roadmap/technical-roadmap-24-months.md)
