@@ -17,6 +17,19 @@ from .contracts import (
     ReviewerRiskDisposition,
     ReviewerUtilityDisposition,
 )
+from .pilot import (
+    KILL_SWITCH_VARIABLE,
+    PILOT_MANIFEST_RELATIVE_PATH,
+    PilotDataClassification,
+    PilotEvidenceRetention,
+    ShadowPilotContractError,
+    ShadowPilotManifest,
+    ShadowPilotOperatingModel,
+    ShadowReviewerLabels,
+    ShadowWorkflowControls,
+    parse_shadow_pilot_manifest,
+    validate_shadow_installation,
+)
 from .store import PRGuardianFindingStore, PRGuardianStoreError, SqlitePRGuardianStore
 
 __all__ = [
@@ -30,11 +43,22 @@ __all__ = [
     "FindingAction",
     "FindingOutcome",
     "PRFinding",
+    "PILOT_MANIFEST_RELATIVE_PATH",
+    "KILL_SWITCH_VARIABLE",
+    "PilotDataClassification",
     "ProductContractError",
     "ProductMode",
     "RepositoryConfig",
     "ReviewerRiskDisposition",
     "ReviewerUtilityDisposition",
+    "PilotEvidenceRetention",
+    "ShadowPilotContractError",
+    "ShadowPilotManifest",
+    "ShadowPilotOperatingModel",
+    "ShadowReviewerLabels",
+    "ShadowWorkflowControls",
+    "parse_shadow_pilot_manifest",
+    "validate_shadow_installation",
     "PRGuardianFindingStore",
     "PRGuardianStoreError",
     "SqlitePRGuardianStore",
