@@ -3,7 +3,7 @@ from azure.cosmos import exceptions
 
 from app.entra_identity import EntraPrincipalStore, EntraSettings
 from app.gateway import GatewayAuthError
-from state.cosmos_store import CosmosStateStore
+from state.cosmos_store import CosmosStateStore, CosmosStoredStateError
 from state.lifecycle import WorkflowLifecycleEvent
 from state.models import ServiceRecord, WorkflowStatus
 from state.store import VersionConflict
@@ -35,11 +35,13 @@ def decode_ok(token, key, **kwargs):
 def test_entra_projects_only_verified_claims():
     store = EntraPrincipalStore(
         EntraSettings(
-            "tenant", "api://eip",
+            "tenant",
+            "api://eip",
             ("https://login.microsoftonline.com/tenant/v2.0",),
             "https://example.invalid/keys",
         ),
-        key_client=KeyClient(), decode=decode_ok,
+        key_client=KeyClient(),
+        decode=decode_ok,
     )
     principal = store.authenticate("Bearer token")
     assert principal.subject == "object-id"
@@ -51,14 +53,50 @@ def test_entra_group_overage_fails_closed():
     def decode_overage(*args, **kwargs):
         return {
             "iss": "https://login.microsoftonline.com/tenant/v2.0",
-            "sub": "subject", "exp": 9999999999, "iat": 1,
+            "sub": "subject",
+            "exp": 9999999999,
+            "iat": 1,
             "hasgroups": True,
         }
+
     store = EntraPrincipalStore(
-        EntraSettings("tenant", "api://eip", ("https://login.microsoftonline.com/tenant/v2.0",), "unused"),
-        key_client=KeyClient(), decode=decode_overage,
+        EntraSettings(
+            "tenant",
+            "api://eip",
+            ("https://login.microsoftonline.com/tenant/v2.0",),
+            "unused",
+        ),
+        key_client=KeyClient(),
+        decode=decode_overage,
     )
     with pytest.raises(GatewayAuthError, match="group overage"):
+        store.authenticate("Bearer token")
+
+
+@pytest.mark.parametrize(
+    "field,value", [("groups", "engineering"), ("roles", ["EIP.AI.Advanced", 1])]
+)
+def test_entra_malformed_group_and_role_claims_fail_closed(field, value):
+    def decode_bad_claim(*args, **kwargs):
+        return {
+            "iss": "https://login.microsoftonline.com/tenant/v2.0",
+            "sub": "subject",
+            "exp": 9999999999,
+            "iat": 1,
+            field: value,
+        }
+
+    store = EntraPrincipalStore(
+        EntraSettings(
+            "tenant",
+            "api://eip",
+            ("https://login.microsoftonline.com/tenant/v2.0",),
+            "unused",
+        ),
+        key_client=KeyClient(),
+        decode=decode_bad_claim,
+    )
+    with pytest.raises(GatewayAuthError, match=field):
         store.authenticate("Bearer token")
 
 
@@ -69,7 +107,9 @@ class FakeContainer:
 
     def read_item(self, item, partition_key):
         if item not in self.items:
-            raise exceptions.CosmosResourceNotFoundError(status_code=404, message="missing")
+            raise exceptions.CosmosResourceNotFoundError(
+                status_code=404, message="missing"
+            )
         return dict(self.items[item])
 
     def create_item(self, body):
@@ -97,14 +137,18 @@ class FakeContainer:
                 body = args[0]
                 assert body["partition_key"] == partition_key
                 if body["id"] in staged:
-                    raise exceptions.CosmosResourceExistsError(status_code=409, message="exists")
+                    raise exceptions.CosmosResourceExistsError(
+                        status_code=409, message="exists"
+                    )
                 next_etag += 1
                 staged[body["id"]] = {**body, "_etag": str(next_etag)}
             elif name == "replace":
                 item, body = args
                 assert body["partition_key"] == partition_key
                 if staged[item]["_etag"] != options["if_match_etag"]:
-                    raise exceptions.CosmosAccessConditionFailedError(status_code=412, message="stale")
+                    raise exceptions.CosmosAccessConditionFailedError(
+                        status_code=412, message="stale"
+                    )
                 next_etag += 1
                 staged[item] = {**body, "_etag": str(next_etag)}
             else:
@@ -116,13 +160,40 @@ class FakeContainer:
 
 def test_cosmos_state_store_preserves_optimistic_version_contract():
     store = CosmosStateStore(FakeContainer())
-    created = store.put_service(ServiceRecord(service_id="payments", owner="team-payments"))
+    created = store.put_service(
+        ServiceRecord(service_id="payments", owner="team-payments")
+    )
     assert created.version == 1
     updated = store.put_service(created, expected_version=1)
     assert updated.version == 2
     assert store.get_service("payments").version == 2
     with pytest.raises(VersionConflict):
         store.put_service(updated, expected_version=1)
+
+
+def test_cosmos_state_store_rejects_corrupt_payloads_without_coercion():
+    container = FakeContainer()
+    container.items["service:payments"] = {
+        "id": "service:payments",
+        "partition_key": "service:payments",
+        "kind": "service",
+        "version": 1,
+        "payload": {
+            "service_id": "payments",
+            "owner": "team-payments",
+            "tier": True,
+            "repositories": [],
+            "dependencies": [],
+            "slo_target": None,
+            "autonomy_level": 0,
+            "metadata": {},
+            "version": 1,
+        },
+        "_etag": "1",
+    }
+
+    with pytest.raises(CosmosStoredStateError, match="tier"):
+        CosmosStateStore(container).get_service("payments")
 
 
 def test_cosmos_state_store_atomically_persists_transition_receipt():

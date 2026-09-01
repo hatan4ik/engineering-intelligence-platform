@@ -2,17 +2,21 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from .catalog import RunbookCatalog
 from .kubernetes_adapter import CommandResult, KubernetesActionAdapter
+from .kubernetes_payload import KubernetesObject, object_field, parse_object
 from .policy import ActionRequest, ServiceAutonomy
 from .simulation import SimulationResult, simulate
 
 
 class InputCommandRunner(Protocol):
-    def run(self, argv: Sequence[str], input_text: str | None = None) -> CommandResult: ...
+    def run(
+        self, argv: Sequence[str], input_text: str | None = None
+    ) -> CommandResult: ...
 
 
 class SubprocessInputRunner:
@@ -55,23 +59,49 @@ class KubernetesDigitalTwin:
     def _run(self, argv: Sequence[str], input_text: str | None = None) -> CommandResult:
         result = self.runner.run(argv, input_text)
         if result.returncode != 0:
-            raise RuntimeError(result.stderr.strip() or f"command failed: {' '.join(argv)}")
+            raise RuntimeError(
+                result.stderr.strip() or f"command failed: {' '.join(argv)}"
+            )
         return result
 
-    def provision(self, *, simulation_id: str, service: str, source_namespace: str) -> TwinEnvironment:
+    def provision(
+        self, *, simulation_id: str, service: str, source_namespace: str
+    ) -> TwinEnvironment:
         service = self._safe_name(service)
         source_namespace = self._safe_name(source_namespace)
-        suffix = "".join(ch for ch in simulation_id.lower() if ch.isalnum() or ch == "-")[:30].strip("-") or "run"
+        suffix = (
+            "".join(ch for ch in simulation_id.lower() if ch.isalnum() or ch == "-")[
+                :30
+            ].strip("-")
+            or "run"
+        )
         namespace = self._safe_name(f"eip-sim-{suffix}"[:63].rstrip("-"))
 
         self._run(("kubectl", "create", "namespace", namespace))
         try:
-            self._run(("kubectl", "label", "namespace", namespace, "eip.openai/sandbox=true", "--overwrite"))
-            raw = self._run((
-                "kubectl", "-n", source_namespace, "get", f"deployment/{service}", "-o", "json"
-            )).stdout
-            source = json.loads(raw)
-            clone = self._sanitize_deployment(source, namespace)
+            self._run(
+                (
+                    "kubectl",
+                    "label",
+                    "namespace",
+                    namespace,
+                    "eip.openai/sandbox=true",
+                    "--overwrite",
+                )
+            )
+            raw = self._run(
+                (
+                    "kubectl",
+                    "-n",
+                    source_namespace,
+                    "get",
+                    f"deployment/{service}",
+                    "-o",
+                    "json",
+                )
+            ).stdout
+            source = parse_object(raw, context="source deployment")
+            clone = self._sanitize_deployment(source, namespace, service)
             self._run(
                 ("kubectl", "-n", namespace, "apply", "-f", "-"),
                 json.dumps(clone),
@@ -82,19 +112,33 @@ class KubernetesDigitalTwin:
             raise
 
     @staticmethod
-    def _sanitize_deployment(source: dict[str, object], namespace: str) -> dict[str, object]:
-        metadata = dict(source.get("metadata") or {})
-        spec = dict(source.get("spec") or {})
-        labels = dict(metadata.get("labels") or {})
+    def _sanitize_deployment(
+        source: KubernetesObject, namespace: str, expected_service: str
+    ) -> dict[str, object]:
+        """Copy a typed deployment while stripping production identity."""
+
+        metadata = object_field(source, "metadata")
+        name = metadata.get("name")
+        if name != expected_service:
+            raise RuntimeError(
+                "source deployment name did not match the requested service"
+            )
+        spec = dict(object_field(source, "spec"))
+        labels = {
+            str(key): str(value)
+            for key, value in object_field(metadata, "labels").items()
+        }
         labels["eip.openai/sandbox"] = "true"
         safe_metadata = {
-            "name": metadata.get("name"),
+            "name": expected_service,
             "namespace": namespace,
             "labels": labels,
-            "annotations": {"eip.openai/source-uid": str(metadata.get("uid") or "unknown")},
+            "annotations": {
+                "eip.openai/source-uid": str(metadata.get("uid") or "unknown")
+            },
         }
-        template = dict(spec.get("template") or {})
-        pod_spec = dict(template.get("spec") or {})
+        template = dict(object_field(spec, "template"))
+        pod_spec = dict(object_field(template, "spec"))
         pod_spec.pop("serviceAccountName", None)
         pod_spec["automountServiceAccountToken"] = False
         template["spec"] = pod_spec
@@ -108,9 +152,17 @@ class KubernetesDigitalTwin:
 
     def destroy(self, namespace: str) -> None:
         namespace = self._safe_name(namespace)
-        result = self.runner.run(("kubectl", "delete", "namespace", namespace, "--wait=false"))
-        if result.returncode != 0 and "notfound" not in result.stderr.lower() and "not found" not in result.stderr.lower():
-            raise RuntimeError(result.stderr.strip() or "failed to delete sandbox namespace")
+        result = self.runner.run(
+            ("kubectl", "delete", "namespace", namespace, "--wait=false")
+        )
+        if (
+            result.returncode != 0
+            and "notfound" not in result.stderr.lower()
+            and "not found" not in result.stderr.lower()
+        ):
+            raise RuntimeError(
+                result.stderr.strip() or "failed to delete sandbox namespace"
+            )
 
     def simulate(
         self,
@@ -123,11 +175,14 @@ class KubernetesDigitalTwin:
         approval_verified: bool = False,
     ) -> SimulationResult:
         runbook = catalog.get(request.runbook_id)
-        source_adapter = KubernetesActionAdapter(self.runner, namespace=source_namespace)
+        source_adapter = KubernetesActionAdapter(
+            self.runner, namespace=source_namespace
+        )
         allowed, reason = source_adapter.preflight(runbook, request)
         if not allowed:
             from remediation.executor import ExecutionResult
             from remediation.policy import PolicyDecision
+
             return SimulationResult(
                 safe_to_promote=False,
                 execution=ExecutionResult(

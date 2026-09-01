@@ -85,7 +85,9 @@ class ExecutionResult:
     error: str | None = None
 
 
-def _preflight(adapter: ActionAdapter, runbook: Runbook, request: ActionRequest) -> tuple[bool, str]:
+def _preflight(
+    adapter: ActionAdapter, runbook: Runbook, request: ActionRequest
+) -> tuple[bool, str]:
     checker = getattr(adapter, "preflight", None)
     if checker is None:
         return True, "adapter has no preflight hook; policy/catalog controls only"
@@ -96,7 +98,9 @@ def _preflight(adapter: ActionAdapter, runbook: Runbook, request: ActionRequest)
     if isinstance(result, tuple):
         allowed, reason = result
         return bool(allowed), str(reason)
-    return bool(result), "runbook preconditions satisfied" if result else "runbook preconditions failed"
+    return bool(
+        result
+    ), "runbook preconditions satisfied" if result else "runbook preconditions failed"
 
 
 def _claimed_level_value(declared: AutonomyLevel | int | None) -> int:
@@ -107,10 +111,11 @@ def _claimed_level_value(declared: AutonomyLevel | int | None) -> int:
     operator is owed ``kill-switch`` as the reason rather than a level quibble.
     """
 
-    try:
-        return int(declared)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return 0
+    if isinstance(declared, AutonomyLevel):
+        return int(declared)
+    if type(declared) is int:
+        return declared
+    return 0
 
 
 def _effective_level(
@@ -267,7 +272,9 @@ def execute_control_loop(
     # the higher of the granted level and the *raw* declared one, so neither a
     # downgrade nor an over-declaration escapes it.
     switch_level = max(int(policy.level), _claimed_level_value(autonomy_level))
-    if switch_level >= int(AutonomyLevel.APPROVE_AND_EXECUTE) and autonomy_kill_switch_engaged(environ):
+    if switch_level >= int(
+        AutonomyLevel.APPROVE_AND_EXECUTE
+    ) and autonomy_kill_switch_engaged(environ):
         return ExecutionResult(
             status="blocked",
             policy=PolicyDecision(False, KILL_SWITCH_REASON),
@@ -280,12 +287,18 @@ def execute_control_loop(
             error=level_refusal,
         )
     if evaluator is None and opa_evaluator_required(environ):
-        decision = PolicyDecision(False, "OPA policy evaluator is required but not configured")
+        decision = PolicyDecision(
+            False, "OPA policy evaluator is required but not configured"
+        )
         return ExecutionResult(status="denied", policy=decision)
     evaluator = evaluator or LocalReferenceEvaluator()
     autonomy = _autonomy_context(
-        level=level, policy=policy, request=request, runbook=runbook,
-        certification=certification, now=moment,
+        level=level,
+        policy=policy,
+        request=request,
+        runbook=runbook,
+        certification=certification,
+        now=moment,
     )
     # Presence, expiry and scope are decidable without asking anyone, so they are
     # decided here: an L4 request that presents no usable certification never
@@ -348,6 +361,7 @@ def execute_control_loop(
             error=f"execution failed: {type(exc).__name__}: {exc}",
         )
 
+    verification_error: str | None
     try:
         verified = adapter.verify(runbook.verify_signal, request)
     except Exception as exc:

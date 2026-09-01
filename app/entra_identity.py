@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Callable, Mapping
+from typing import Callable, Protocol
 
 import jwt
 
@@ -38,6 +39,19 @@ class EntraSettings:
         )
 
 
+class SigningKey(Protocol):
+    """The minimal verified-key shape consumed by the JWT decoder."""
+
+    @property
+    def key(self) -> object: ...
+
+
+class SigningKeyClient(Protocol):
+    """The narrow JWKS port used by Entra token authentication."""
+
+    def get_signing_key_from_jwt(self, token: str) -> SigningKey: ...
+
+
 class EntraPrincipalStore:
     """Validates Entra access tokens and projects trusted claims to gateway policy.
 
@@ -50,7 +64,7 @@ class EntraPrincipalStore:
         self,
         settings: EntraSettings,
         *,
-        key_client: object | None = None,
+        key_client: SigningKeyClient | None = None,
         decode: Callable[..., Mapping[str, object]] = jwt.decode,
     ) -> None:
         self.settings = settings
@@ -84,9 +98,11 @@ class EntraPrincipalStore:
         subject = str(claims.get("oid") or claims.get("sub") or "")
         if not subject:
             raise GatewayAuthError("principal subject is missing")
-        groups = tuple(sorted({str(g) for g in claims.get("groups", []) if str(g).strip()}))
-        roles = tuple(sorted({str(r) for r in claims.get("roles", []) if str(r).strip()}))
-        tiers = ("standard", "advanced") if "EIP.AI.Advanced" in roles else ("standard",)
+        groups = _claim_strings(claims, "groups")
+        roles = _claim_strings(claims, "roles")
+        tiers = (
+            ("standard", "advanced") if "EIP.AI.Advanced" in roles else ("standard",)
+        )
         budget = 1.0 if "EIP.AI.HighBudget" in roles else 0.25
         return GatewayPrincipal(
             subject=subject,
@@ -94,3 +110,19 @@ class EntraPrincipalStore:
             max_request_usd=budget,
             allowed_model_tiers=tiers,
         )
+
+
+def _claim_strings(claims: Mapping[str, object], field: str) -> tuple[str, ...]:
+    """Accept only well-formed string-array claims from a verified token."""
+
+    raw = claims.get(field, ())
+    if isinstance(raw, (str, bytes, Mapping)) or not isinstance(raw, Iterable):
+        raise GatewayAuthError(f"Entra {field} claim must be an array of strings")
+    values: set[str] = set()
+    for value in raw:
+        if not isinstance(value, str) or not value.strip():
+            raise GatewayAuthError(
+                f"Entra {field} claim must be an array of non-blank strings"
+            )
+        values.add(value)
+    return tuple(sorted(values))

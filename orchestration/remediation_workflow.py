@@ -23,6 +23,7 @@ definition stays inside Temporal's determinism sandbox. The activity
 implementations live in :mod:`orchestration.control_plane_activities` and are
 referenced by name.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,7 +31,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Mapping, Protocol
+from typing import Callable, Mapping, Protocol
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -62,7 +63,9 @@ def remediation_workflows_enabled(environ: Mapping[str, str] | None = None) -> b
     return str(source.get(REMEDIATION_WORKFLOWS_FLAG, "")).strip().lower() == "enabled"
 
 
-def require_remediation_workflows(step: str, environ: Mapping[str, str] | None = None) -> None:
+def require_remediation_workflows(
+    step: str, environ: Mapping[str, str] | None = None
+) -> None:
     if not remediation_workflows_enabled(environ):
         raise RemediationWorkflowsDisabled(
             f"{step} is a consequential remediation activity; set "
@@ -70,10 +73,13 @@ def require_remediation_workflows(step: str, environ: Mapping[str, str] | None =
         )
 
 
+ActivityFunction = Callable[..., object]
+
+
 class RemediationActivityProvider(Protocol):
     """Anything that can supply this workflow's registered activity functions."""
 
-    def activity_functions(self) -> list[object]: ...
+    def activity_functions(self) -> list[ActivityFunction]: ...
 
 
 @dataclass(frozen=True)
@@ -86,7 +92,9 @@ class RemediationRegistration:
     reason: str
 
 
-def remediation_registration(environ: Mapping[str, str] | None = None) -> RemediationRegistration:
+def remediation_registration(
+    environ: Mapping[str, str] | None = None,
+) -> RemediationRegistration:
     """Decide whether the worker may register ``eip.remediation.v1``.
 
     The gate is the factory's own predicate, not a variable-name check: the
@@ -133,7 +141,8 @@ def remediation_registration(environ: Mapping[str, str] | None = None) -> Remedi
         registered=False,
         flag_enabled=True,
         missing_configuration=missing,
-        reason="Cosmos state and audit configuration is incomplete; missing: " + ", ".join(missing),
+        reason="Cosmos state and audit configuration is incomplete; missing: "
+        + ", ".join(missing),
     )
 
 
@@ -225,16 +234,22 @@ def evaluate_approval_signal(
     verification activity checks its signature.
     """
     if not expected_plan_hash or not _PLAN_HASH.fullmatch(expected_plan_hash):
-        return ApprovalSignalDecision(False, "there is no approved plan hash to approve against")
+        return ApprovalSignalDecision(
+            False, "there is no approved plan hash to approve against"
+        )
     if signal.workflow_id != expected_workflow_id:
         return ApprovalSignalDecision(False, "approval names a different workflow")
     if signal.plan_hash != expected_plan_hash:
-        return ApprovalSignalDecision(False, "approval plan hash does not match the planned remediation")
+        return ApprovalSignalDecision(
+            False, "approval plan hash does not match the planned remediation"
+        )
     if not str(signal.approver).strip():
         return ApprovalSignalDecision(False, "approval does not name an approver")
     if not str(signal.signature).strip():
         return ApprovalSignalDecision(False, "approval carries no signature to verify")
-    return ApprovalSignalDecision(True, "approval is bound to this workflow and plan hash")
+    return ApprovalSignalDecision(
+        True, "approval is bound to this workflow and plan hash"
+    )
 
 
 @dataclass
@@ -301,19 +316,29 @@ _PROCEED = StepDecision(True, "", "")
 
 def decide_after_plan(plan: RemediationPlanResult) -> StepDecision:
     if not plan.planned or not plan.runbook_id or not plan.plan_hash:
-        return StepDecision(False, "escalate", plan.reason or "no certified runbook matched the evidence")
+        return StepDecision(
+            False,
+            "escalate",
+            plan.reason or "no certified runbook matched the evidence",
+        )
     return _PROCEED
 
 
 def decide_after_approval(verification: ApprovalVerification) -> StepDecision:
     if not verification.verified:
-        return StepDecision(False, "escalate", verification.reason or "human approval could not be verified")
+        return StepDecision(
+            False,
+            "escalate",
+            verification.reason or "human approval could not be verified",
+        )
     return _PROCEED
 
 
 def decide_after_policy(verdict: PolicyVerdict) -> StepDecision:
     if not verdict.allowed:
-        return StepDecision(False, "denied", verdict.reason or "policy denied the remediation")
+        return StepDecision(
+            False, "denied", verdict.reason or "policy denied the remediation"
+        )
     return _PROCEED
 
 
@@ -356,7 +381,10 @@ _STEP_RETRY = RetryPolicy(
 # production action against evidence that is no longer known to hold.
 _ACTION_RETRY = RetryPolicy(
     maximum_attempts=1,
-    non_retryable_error_types=["RemediationWorkflowsDisabled", "RemediationConfigurationError"],
+    non_retryable_error_types=[
+        "RemediationWorkflowsDisabled",
+        "RemediationConfigurationError",
+    ],
 )
 _STEP_TIMEOUT = timedelta(minutes=5)
 _ACTION_TIMEOUT = timedelta(minutes=15)
@@ -490,7 +518,9 @@ class RemediationWorkflow:
             if remaining <= timedelta(0):
                 return None
             try:
-                await workflow.wait_condition(lambda: bool(self._pending), timeout=remaining)
+                await workflow.wait_condition(
+                    lambda: bool(self._pending), timeout=remaining
+                )
             except asyncio.TimeoutError:
                 return None
             while self._pending:

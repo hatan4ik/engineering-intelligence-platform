@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from .catalog import Runbook
+from .kubernetes_payload import integer_field, object_field, object_list, parse_object
 from .policy import ActionRequest
 
 
@@ -71,7 +72,9 @@ class KubernetesActionAdapter:
     def _safe_label_key(value: str) -> str:
         if not value or len(value) > 253:
             raise ValueError("invalid Kubernetes label key")
-        allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/")
+        allowed = set(
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._/"
+        )
         if any(ch not in allowed for ch in value):
             raise ValueError("invalid Kubernetes label key")
         return value
@@ -85,40 +88,56 @@ class KubernetesActionAdapter:
     def _deployment(self, request: ActionRequest) -> dict[str, object]:
         deployment = self._safe_name(request.service)
         result = self._kubectl("get", f"deployment/{deployment}", "-o", "json")
-        return json.loads(result.stdout)
+        return dict(parse_object(result.stdout, context="deployment"))
 
     def _pods(self, request: ActionRequest) -> list[dict[str, object]]:
         deployment = self._safe_name(request.service)
         result = self._kubectl(
             "get", "pods", "-l", f"{self.workload_label_key}={deployment}", "-o", "json"
         )
-        payload = json.loads(result.stdout)
-        return list(payload.get("items") or [])
+        payload = parse_object(result.stdout, context="pod list")
+        return [
+            dict(entry)
+            for entry in object_list(payload.get("items"), context="pod list items")
+        ]
 
     @staticmethod
     def _is_degraded(payload: dict[str, object]) -> bool:
-        spec = payload.get("spec") or {}
-        status = payload.get("status") or {}
-        desired = int(spec.get("replicas") or 1)
-        ready = int(status.get("readyReplicas") or 0)
-        available = int(status.get("availableReplicas") or 0)
+        spec = object_field(payload, "spec")
+        status = object_field(payload, "status")
+        desired = integer_field(spec, "replicas", default=1, minimum=1)
+        ready = integer_field(status, "readyReplicas", default=0, minimum=0)
+        available = integer_field(status, "availableReplicas", default=0, minimum=0)
         return ready < desired or available < desired
 
     @staticmethod
-    def _pod_reason_present(pods: list[dict[str, object]], reasons: set[str]) -> bool:
+    def _pod_reason_present(
+        pods: Sequence[dict[str, object]], reasons: set[str]
+    ) -> bool:
         for pod in pods:
-            statuses = (pod.get("status") or {}).get("containerStatuses") or []
+            status = object_field(pod, "status")
+            statuses = object_list(
+                status.get("containerStatuses"), context="pod containerStatuses"
+            )
             for status in statuses:
-                current = (status.get("state") or {}).get("waiting") or {}
-                previous = (status.get("lastState") or {}).get("terminated") or {}
-                if str(current.get("reason") or "") in reasons or str(previous.get("reason") or "") in reasons:
+                current = object_field(object_field(status, "state"), "waiting")
+                previous = object_field(object_field(status, "lastState"), "terminated")
+                if (
+                    str(current.get("reason") or "") in reasons
+                    or str(previous.get("reason") or "") in reasons
+                ):
                     return True
         return False
 
     def preflight(self, runbook: Runbook, request: ActionRequest) -> tuple[bool, str]:
-        pending = tuple(c for c in runbook.preconditions if c not in self.trusted_preconditions)
+        pending = tuple(
+            c for c in runbook.preconditions if c not in self.trusted_preconditions
+        )
         if not pending:
-            return True, "all runbook preconditions were validated against the source environment"
+            return (
+                True,
+                "all runbook preconditions were validated against the source environment",
+            )
         deployment = self._deployment(request)
         pods: list[dict[str, object]] | None = None
         for condition in pending:
@@ -131,20 +150,40 @@ class KubernetesActionAdapter:
             if condition == "rollout.history_available":
                 name = self._safe_name(request.service)
                 history = self._kubectl("rollout", "history", f"deployment/{name}")
-                revisions = [line for line in history.stdout.splitlines() if line.strip()[:1].isdigit()]
+                revisions = [
+                    line
+                    for line in history.stdout.splitlines()
+                    if line.strip()[:1].isdigit()
+                ]
                 if len(revisions) < 2:
-                    return False, "precondition failed: rollback history has fewer than two revisions"
+                    return (
+                        False,
+                        "precondition failed: rollback history has fewer than two revisions",
+                    )
                 continue
             if condition in {"pods.crashloop_present", "pods.oomkilled_present"}:
                 pods = pods if pods is not None else self._pods(request)
-                reasons = {"CrashLoopBackOff"} if condition == "pods.crashloop_present" else {"OOMKilled"}
+                reasons = (
+                    {"CrashLoopBackOff"}
+                    if condition == "pods.crashloop_present"
+                    else {"OOMKilled"}
+                )
                 if not self._pod_reason_present(pods, reasons):
                     return False, f"precondition failed: {condition}"
                 continue
             if condition == "memory.profile_preapproved":
-                annotations = (deployment.get("metadata") or {}).get("annotations") or {}
-                if str(annotations.get("eip.simdream.io/memory-profile-approved", "")).lower() != "true":
-                    return False, "precondition failed: memory profile is not pre-approved"
+                metadata = object_field(deployment, "metadata")
+                annotations = object_field(metadata, "annotations")
+                if (
+                    str(
+                        annotations.get("eip.simdream.io/memory-profile-approved", "")
+                    ).lower()
+                    != "true"
+                ):
+                    return (
+                        False,
+                        "precondition failed: memory profile is not pre-approved",
+                    )
                 continue
             return False, f"unsupported precondition: {condition}"
         return True, "all certified runbook preconditions satisfied"
@@ -153,18 +192,28 @@ class KubernetesActionAdapter:
         deployment = self._safe_name(request.service)
         if runbook_id in {"aks.rollout.undo", "aks.rollback.readiness"}:
             result = self._kubectl("rollout", "undo", f"deployment/{deployment}")
-        elif runbook_id in {"aks.restart.workload", "aks.restart.crashloop", "aks.restart.oom"}:
+        elif runbook_id in {
+            "aks.restart.workload",
+            "aks.restart.crashloop",
+            "aks.restart.oom",
+        }:
             result = self._kubectl("rollout", "restart", f"deployment/{deployment}")
         elif runbook_id == "aks.scale.memory":
             payload = self._deployment(request)
-            annotations = (payload.get("metadata") or {}).get("annotations") or {}
+            metadata = object_field(payload, "metadata")
+            annotations = object_field(metadata, "annotations")
             limit = str(annotations.get("eip.simdream.io/memory-limit") or "")
-            request_memory = str(annotations.get("eip.simdream.io/memory-request") or "")
+            request_memory = str(
+                annotations.get("eip.simdream.io/memory-request") or ""
+            )
             if not limit or not request_memory:
                 raise RuntimeError("pre-approved memory profile values are missing")
             result = self._kubectl(
-                "set", "resources", f"deployment/{deployment}",
-                f"--limits=memory={limit}", f"--requests=memory={request_memory}",
+                "set",
+                "resources",
+                f"deployment/{deployment}",
+                f"--limits=memory={limit}",
+                f"--requests=memory={request_memory}",
             )
         else:
             raise ValueError(f"runbook has no Kubernetes action adapter: {runbook_id}")
@@ -173,11 +222,11 @@ class KubernetesActionAdapter:
     def verify(self, signal: str, request: ActionRequest) -> bool:
         if signal in {"deployment.available_replicas", "deployment.ready_replicas"}:
             payload = self._deployment(request)
-            status = payload.get("status") or {}
-            spec = payload.get("spec") or {}
-            desired = int(spec.get("replicas") or 1)
-            available = int(status.get("availableReplicas") or 0)
-            ready = int(status.get("readyReplicas") or 0)
+            status = object_field(payload, "status")
+            spec = object_field(payload, "spec")
+            desired = integer_field(spec, "replicas", default=1, minimum=1)
+            available = integer_field(status, "availableReplicas", default=0, minimum=0)
+            ready = integer_field(status, "readyReplicas", default=0, minimum=0)
             if signal == "deployment.available_replicas":
                 return available >= desired
             return ready >= desired
@@ -193,14 +242,20 @@ class KubernetesActionAdapter:
             )
         if rollback_id == "aks.scale.memory.rollback":
             payload = self._deployment(request)
-            annotations = (payload.get("metadata") or {}).get("annotations") or {}
+            metadata = object_field(payload, "metadata")
+            annotations = object_field(metadata, "annotations")
             limit = str(annotations.get("eip.simdream.io/memory-previous-limit") or "")
-            request_memory = str(annotations.get("eip.simdream.io/memory-previous-request") or "")
+            request_memory = str(
+                annotations.get("eip.simdream.io/memory-previous-request") or ""
+            )
             if not limit or not request_memory:
                 raise RuntimeError("previous memory profile is unavailable; escalate")
             result = self._kubectl(
-                "set", "resources", f"deployment/{deployment}",
-                f"--limits=memory={limit}", f"--requests=memory={request_memory}",
+                "set",
+                "resources",
+                f"deployment/{deployment}",
+                f"--limits=memory={limit}",
+                f"--requests=memory={request_memory}",
             )
             return result.stdout.strip() or f"kubectl:{rollback_id}:{deployment}"
         raise ValueError(f"rollback has no Kubernetes action adapter: {rollback_id}")

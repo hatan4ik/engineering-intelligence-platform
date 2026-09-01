@@ -1,4 +1,5 @@
 """Static-analysis debt is a parsed, non-increasing contract."""
+
 from __future__ import annotations
 
 import json
@@ -26,13 +27,21 @@ def test_checked_in_baseline_has_the_expected_core_scope_and_tool_versions():
     assert baseline.scope == (
         "app",
         "company_brain",
+        "control_plane",
+        "feedback",
+        "finops",
+        "ingestion",
+        "integrations",
         "intelligence",
+        "orchestration",
+        "portal",
         "product",
         "remediation",
         "resilience",
-        "control_plane",
+        "security",
         "state",
-        "integrations",
+        "telemetry",
+        "topology",
     )
     assert [(tool.name, tool.version) for tool in baseline.tools] == [
         ("ruff", "0.16.4"),
@@ -72,7 +81,9 @@ def test_dynamic_budget_is_an_explicit_part_of_the_contract():
     baseline = StaticAnalysisBaseline(
         scope=("app",),
         tools=(ToolBudget("ruff", "0.16.4", 3), ToolBudget("mypy", "2.3.1", 43)),
-        dynamic_typing=DynamicTypingBudget(maximum_any_references=10, maximum_type_ignores=1),
+        dynamic_typing=DynamicTypingBudget(
+            maximum_any_references=10, maximum_type_ignores=1
+        ),
     )
 
     assert baseline.dynamic_typing.maximum_any_references == 10

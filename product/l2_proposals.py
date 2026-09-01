@@ -13,13 +13,19 @@ API image closure (see ``app/import_closure.py`` and ``.dockerignore``), so this
 module must not import it. ``tests/test_l2_proposals.py`` imports the real catalog
 and asserts these identifiers still exist there, so the copy cannot drift silently.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Final, Iterable, Literal, Mapping, Sequence
 
 from intelligence.deployment_failures import DeploymentFailureAnalysis
-from intelligence.incidents import EvidenceEvent, EvidenceKind, Hypothesis, IncidentAnalysis
+from intelligence.incidents import (
+    EvidenceEvent,
+    EvidenceKind,
+    Hypothesis,
+    IncidentAnalysis,
+)
 
 ProposalKind = Literal["runbook", "corrective-pr", "ticket"]
 
@@ -27,10 +33,19 @@ ProposalKind = Literal["runbook", "corrective-pr", "ticket"]
 REQUIRES_HUMAN: Final[Literal[True]] = True
 
 #: Attribute keys that may carry the commit a deployment shipped.
-_COMMIT_KEYS: Final[tuple[str, ...]] = ("commit", "commit_sha", "sourceVersion", "source_version")
+_COMMIT_KEYS: Final[tuple[str, ...]] = (
+    "commit",
+    "commit_sha",
+    "sourceVersion",
+    "source_version",
+)
 
 #: Attribute keys that may carry the last known-good commit for a deployment.
-_LAST_GOOD_KEYS: Final[tuple[str, ...]] = ("last_good_commit", "previous_commit", "previousCommit")
+_LAST_GOOD_KEYS: Final[tuple[str, ...]] = (
+    "last_good_commit",
+    "previous_commit",
+    "previousCommit",
+)
 
 
 @dataclass(frozen=True)
@@ -126,21 +141,35 @@ def build_proposals(
     if revert is not None:
         proposals.append(revert)
 
-    runbook = _runbook(hypotheses, service=service, environment=environment, subject=subject)
+    runbook = _runbook(
+        hypotheses, service=service, environment=environment, subject=subject
+    )
     if runbook is not None:
         proposals.append(runbook)
 
     if not proposals:
-        proposals.append(_ticket(hypotheses, timeline, service=service, environment=environment, subject=subject))
+        proposals.append(
+            _ticket(
+                hypotheses,
+                timeline,
+                service=service,
+                environment=environment,
+                subject=subject,
+            )
+        )
 
     return tuple(proposals)
 
 
-def _analysis_timeline(analysis: IncidentAnalysis | DeploymentFailureAnalysis) -> tuple[EvidenceEvent, ...]:
+def _analysis_timeline(
+    analysis: IncidentAnalysis | DeploymentFailureAnalysis,
+) -> tuple[EvidenceEvent, ...]:
     return tuple(getattr(analysis, "timeline", ()))
 
 
-def _anchor_deployment_id(analysis: IncidentAnalysis | DeploymentFailureAnalysis) -> str | None:
+def _anchor_deployment_id(
+    analysis: IncidentAnalysis | DeploymentFailureAnalysis,
+) -> str | None:
     """The deployment the analysis is about, when it is about one.
 
     ``investigate_deployment_failure`` anchors the whole analysis on the incoming
@@ -184,13 +213,16 @@ def _corrective_pr(
     """
 
     deployments = sorted(
-        (e for e in timeline if e.kind is EvidenceKind.DEPLOYMENT and e.service == service),
+        (
+            e
+            for e in timeline
+            if e.kind is EvidenceKind.DEPLOYMENT and e.service == service
+        ),
         key=lambda e: e.timestamp,
     )
     if not deployments:
         return None
 
-    index = len(deployments) - 1
     if anchor_id:
         index = next(
             (i for i, e in enumerate(deployments) if e.id == anchor_id),
@@ -200,6 +232,8 @@ def _corrective_pr(
             # The anchor is not in the evidence. Guessing from a later deployment
             # would name the wrong commit range, so propose no revert at all.
             return None
+    else:
+        index = len(deployments) - 1
     current = deployments[index]
     current_commit = _attribute(current, _COMMIT_KEYS)
     if not current_commit:
@@ -218,7 +252,9 @@ def _corrective_pr(
         return None
 
     commit_range = f"{last_good_commit}..{current_commit}"
-    evidence_refs = (current.id,) + ((last_good_event.id,) if last_good_event is not None else ())
+    evidence_refs = (current.id,) + (
+        (last_good_event.id,) if last_good_event is not None else ()
+    )
     return L2Proposal(
         kind="corrective-pr",
         title=f"Revert {service} in {environment} to last known-good commit {last_good_commit}",
@@ -302,7 +338,11 @@ def _ticket(
     subject: str,
 ) -> L2Proposal:
     evidence_refs = tuple(dict.fromkeys([e.id for e in timeline]))
-    headline = hypotheses[0].title if hypotheses else "no evidence-backed hypothesis was reached"
+    headline = (
+        hypotheses[0].title
+        if hypotheses
+        else "no evidence-backed hypothesis was reached"
+    )
     return L2Proposal(
         kind="ticket",
         title=f"Investigate {service} in {environment}: {headline}",
