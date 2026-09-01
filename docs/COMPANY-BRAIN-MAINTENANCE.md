@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | Reference implementation — deterministic review-only planning, not a scheduled publisher or production workflow |
-| **Code** | [`company_brain/maintenance.py`](../company_brain/maintenance.py) and [`scripts/plan_company_brain_maintenance.py`](../scripts/plan_company_brain_maintenance.py) |
+| **Status** | Reference implementation — deterministic review-only planning and outcome correlation, not a scheduled publisher or production workflow |
+| **Code** | [`company_brain/maintenance.py`](../company_brain/maintenance.py), [`company_brain/maintenance_outcomes.py`](../company_brain/maintenance_outcomes.py), [`scripts/plan_company_brain_maintenance.py`](../scripts/plan_company_brain_maintenance.py), and [`scripts/validate_company_brain_maintenance_outcome.py`](../scripts/validate_company_brain_maintenance_outcome.py) |
 | **Depends on** | [Durable Store Contract](COMPANY-BRAIN-STORE.md) and [Governed Memory Synchronization](COMPANY-BRAIN-MEMORY-SYNC.md) |
 
 ## Purpose
@@ -17,12 +17,20 @@ the source system, tombstone a Company Brain record, publish an issue, or grant 
 active tenant-scoped source facts + provenance + owner relationships
   -> deterministic maintenance planner (explicit policy + as-of time)
   -> review-only proposal artifact
-  -> human reviews and updates the source of truth
+  -> explicit human disposition
+  -> independent observation of the authoritative source revision
   -> governed ingestion reconciles the resulting source lifecycle change
 ```
 
 This ordering is intentional: the source system remains authoritative, and the Brain records the
 new state only through its existing governed projection path.
+
+An accepted disposition alone is not recorded as a successful maintenance result. The outcome
+contract emits `accepted-awaiting-source-observation` until a different identity observes a
+changed revision for the exact tenant, source ID, source system, and source record after the
+review. `rejected` and `expired` remain explicit non-success outcomes. The validator at
+[`scripts/validate_company_brain_maintenance_outcome.py`](../scripts/validate_company_brain_maintenance_outcome.py)
+parses bounded proposal/decision/observation artifacts and makes no source-system calls.
 
 ## Inputs and detection rules
 
@@ -86,8 +94,9 @@ prove a live source sync, ticket integration, owner response, or freshness SLO.
 
 1. Add an approved, source-specific publisher that routes a proposal to a human owner without
    changing source truth directly.
-2. Record explicit reviewer disposition and independently observe the resulting source revision,
-   rather than assuming a proposal was accepted.
+2. Connect explicit reviewer dispositions and independent source observations to an approved,
+   source-specific system of record. The checked-in contract validates their shape and correlation,
+   but no external integration or retained outcome evidence exists yet.
 3. Define freshness/owner-response SLOs and retain pilot evidence before claiming operational
    effectiveness.
 4. Add policy-reviewed eligibility for other knowledge types only when their lifecycle semantics

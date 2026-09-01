@@ -14,7 +14,12 @@ from .model import (
     EntityKind,
     RelationshipKind,
 )
-from .projector import CompanyBrainProjector, ProjectionResult, repository_id, service_id
+from .projector import (
+    CompanyBrainProjector,
+    ProjectionResult,
+    repository_id,
+    service_id,
+)
 from .store import (
     BrainAuditEvent,
     BrainProvenance,
@@ -60,6 +65,7 @@ from .product_contracts import (
     ProductOutcome,
     ProductSubject,
 )
+from .feedback import CompanyBrainFeedbackProjector
 from .maintenance import (
     CompanyBrainMaintenanceError,
     CompanyBrainMaintenanceReader,
@@ -70,6 +76,17 @@ from .maintenance import (
     MemoryMaintenancePolicy,
     MemoryMaintenanceProposal,
     plan_company_brain_maintenance,
+)
+from .maintenance_outcomes import (
+    MaintenanceOutcome,
+    MaintenanceOutcomeState,
+    MaintenanceReviewDecision,
+    MaintenanceReviewDisposition,
+    SourceRevisionObservation,
+    evaluate_maintenance_outcome,
+    parse_maintenance_proposal,
+    parse_maintenance_review_decision,
+    parse_source_revision_observation,
 )
 
 __all__ = [
@@ -122,6 +139,7 @@ __all__ = [
     "ProductFinding",
     "ProductOutcome",
     "ProductSubject",
+    "CompanyBrainFeedbackProjector",
     "CompanyBrainMaintenanceError",
     "CompanyBrainMaintenanceReader",
     "DEFAULT_MAINTENANCE_KINDS",
@@ -131,4 +149,13 @@ __all__ = [
     "MemoryMaintenancePolicy",
     "MemoryMaintenanceProposal",
     "plan_company_brain_maintenance",
+    "MaintenanceOutcome",
+    "MaintenanceOutcomeState",
+    "MaintenanceReviewDecision",
+    "MaintenanceReviewDisposition",
+    "SourceRevisionObservation",
+    "evaluate_maintenance_outcome",
+    "parse_maintenance_proposal",
+    "parse_maintenance_review_decision",
+    "parse_source_revision_observation",
 ]
