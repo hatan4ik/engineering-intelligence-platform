@@ -2,38 +2,118 @@ name: Integration Proof
 
 # The probe is read-only. It never applies Terraform, Helm, schema, or source
 # changes, and it refuses to run at all unless every documented variable in
-# docs/INTEGRATION-PROOF-RUNBOOK.md is present.
+# docs/INTEGRATION-PROOF-RUNBOOK.md is present. It is deliberately manual and
+# private-runner-only: a GitHub-hosted runner cannot prove a private path.
 
 on:
   workflow_dispatch:
-  schedule:
-    # Weekly, so a configuration or private-path regression surfaces without
-    # waiting for someone to remember to dispatch the run.
-    - cron: '17 4 * * 1'
+    inputs:
+      run_private_integration:
+        description: >-
+          Confirm that this is an approved private integration runner with a
+          named environment and retained-evidence destination.
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
+  not-requested:
+    name: Integration proof not requested
+    if: ${{ !inputs.run_private_integration }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain why no probe ran
+        shell: bash
+        run: |
+          {
+            echo "### Integration proof not run"
+            echo ""
+            echo "This workflow never runs against Azure on a schedule or a GitHub-hosted runner."
+            echo "Dispatch it with \`run_private_integration=true\` only after an approved private runner,"
+            echo "named environment, and retained-evidence destination are configured."
+            echo "This successful no-op is not integration or production evidence."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   evidence:
     name: Real Environment Evidence
-    runs-on: ubuntu-latest
+    if: ${{ inputs.run_private_integration }}
+    permissions:
+      contents: read
+      id-token: write
+    # This label is an explicit operational prerequisite. Do not replace it
+    # with ubuntu-latest: the probe verifies private AKS and private endpoints.
+    runs-on: [self-hosted, eip-private-integration]
     # Gated by the GitHub environment that holds the integration credentials and
     # configuration; without it the job cannot read any of the values below.
     environment: integration
+    env:
+      # Required contract — validation/integration_probe.REQUIRED_ENVIRONMENT.
+      EIP_BASE_URL: ${{ vars.EIP_BASE_URL }}
+      EIP_INTEGRATION_ALLOWED_BEARER_FILE: ${{ vars.EIP_INTEGRATION_ALLOWED_BEARER_FILE }}
+      EIP_INTEGRATION_DENIED_BEARER_FILE: ${{ vars.EIP_INTEGRATION_DENIED_BEARER_FILE }}
+      EIP_INTEGRATION_ALLOWED_QUERY: ${{ secrets.EIP_INTEGRATION_ALLOWED_QUERY }}
+      EIP_INTEGRATION_DENIED_QUERY: ${{ secrets.EIP_INTEGRATION_DENIED_QUERY }}
+      EIP_INTEGRATION_ALLOWED_SOURCE: ${{ secrets.EIP_INTEGRATION_ALLOWED_SOURCE }}
+      AZURE_SEARCH_HOST: ${{ vars.AZURE_SEARCH_HOST }}
+      AZURE_OPENAI_HOST: ${{ vars.AZURE_OPENAI_HOST }}
+      AZURE_KEYVAULT_HOST: ${{ vars.AZURE_KEYVAULT_HOST }}
+      EIP_COSMOS_HOST: ${{ vars.EIP_COSMOS_HOST }}
+      AZURE_POSTGRESQL_HOST: ${{ vars.AZURE_POSTGRESQL_HOST }}
+      EIP_TEMPORAL_HOST: ${{ vars.EIP_TEMPORAL_HOST }}
+      EIP_INTEGRATION_SCOPE: ${{ vars.EIP_INTEGRATION_SCOPE }}
+      # The runbook requires the evidence path to be outside the source
+      # checkout, so the record cannot be confused with a tracked file.
+      EIP_INTEGRATION_EVIDENCE: ${{ runner.temp }}/integration-evidence.json
+      # Optional contract — validation/integration_probe.OPTIONAL_ENVIRONMENT.
+      EIP_INTEGRATION_ALLOWED_REPOSITORY: ${{ secrets.EIP_INTEGRATION_ALLOWED_REPOSITORY }}
+      EIP_INTEGRATION_DENIED_REPOSITORY: ${{ secrets.EIP_INTEGRATION_DENIED_REPOSITORY }}
+      # Workflow-only prerequisites. These are checked before Azure login or
+      # AKS context acquisition, so a partial manual configuration is refused.
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AKS_RESOURCE_GROUP: ${{ vars.AKS_RESOURCE_GROUP }}
+      AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      - name: Validate private integration configuration before Azure login
+        id: configuration
+        continue-on-error: true
+        run: python validation/integration_probe.py --check-workflow-configuration
+
+      - name: Report incomplete configuration
+        if: ${{ steps.configuration.outcome == 'failure' }}
+        shell: bash
+        run: |
+          evidence="${RUNNER_TEMP}/integration-evidence.json"
+          missing=$(jq -r '.results[]? | select(.probe == "configuration") | .missing[]?' "$evidence")
+          {
+            echo "### Integration proof did not run"
+            echo ""
+            echo "The private runner refused the probe because required configuration is missing."
+            echo "No Azure login, private-path probe, or product claim was attempted."
+            echo ""
+            echo "Missing variables (see \`docs/INTEGRATION-PROOF-RUNBOOK.md\`):"
+            echo ""
+            printf '%s\n' "$missing" | sed 's/^/- `/; s/$/`/'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        if: ${{ steps.configuration.outcome == 'success' }}
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4.0.1
+        if: ${{ steps.configuration.outcome == 'success' }}
 
       - name: Configure AKS context
+        if: ${{ steps.configuration.outcome == 'success' }}
         run: >-
           az aks get-credentials
           --resource-group "${{ vars.AKS_RESOURCE_GROUP }}"
@@ -41,54 +121,18 @@ jobs:
           --overwrite-existing
 
       - name: Collect integration evidence
-        env:
-          # Required contract — validation/integration_probe.REQUIRED_ENVIRONMENT.
-          EIP_BASE_URL: ${{ vars.EIP_BASE_URL }}
-          EIP_INTEGRATION_ALLOWED_BEARER_FILE: ${{ vars.EIP_INTEGRATION_ALLOWED_BEARER_FILE }}
-          EIP_INTEGRATION_DENIED_BEARER_FILE: ${{ vars.EIP_INTEGRATION_DENIED_BEARER_FILE }}
-          EIP_INTEGRATION_ALLOWED_QUERY: ${{ secrets.EIP_INTEGRATION_ALLOWED_QUERY }}
-          EIP_INTEGRATION_DENIED_QUERY: ${{ secrets.EIP_INTEGRATION_DENIED_QUERY }}
-          EIP_INTEGRATION_ALLOWED_SOURCE: ${{ secrets.EIP_INTEGRATION_ALLOWED_SOURCE }}
-          AZURE_SEARCH_HOST: ${{ vars.AZURE_SEARCH_HOST }}
-          AZURE_OPENAI_HOST: ${{ vars.AZURE_OPENAI_HOST }}
-          AZURE_KEYVAULT_HOST: ${{ vars.AZURE_KEYVAULT_HOST }}
-          EIP_COSMOS_HOST: ${{ vars.EIP_COSMOS_HOST }}
-          AZURE_POSTGRESQL_HOST: ${{ vars.AZURE_POSTGRESQL_HOST }}
-          EIP_TEMPORAL_HOST: ${{ vars.EIP_TEMPORAL_HOST }}
-          EIP_INTEGRATION_SCOPE: ${{ vars.EIP_INTEGRATION_SCOPE }}
-          # The runbook requires the evidence path to be outside the source
-          # checkout, so the record cannot be confused with a tracked file.
-          EIP_INTEGRATION_EVIDENCE: ${{ runner.temp }}/integration-evidence.json
-          # Optional contract — validation/integration_probe.OPTIONAL_ENVIRONMENT.
-          EIP_INTEGRATION_ALLOWED_REPOSITORY: ${{ secrets.EIP_INTEGRATION_ALLOWED_REPOSITORY }}
-          EIP_INTEGRATION_DENIED_REPOSITORY: ${{ secrets.EIP_INTEGRATION_DENIED_REPOSITORY }}
+        id: collect
+        if: ${{ steps.configuration.outcome == 'success' }}
         run: python validation/integration_probe.py
 
-      - name: Report incomplete configuration
-        if: failure()
-        shell: bash
-        run: |
-          evidence="${RUNNER_TEMP}/integration-evidence.json"
-          if [ ! -f "$evidence" ]; then
-            exit 0
-          fi
-          missing=$(jq -r '.results[]? | select(.probe == "configuration") | .missing[]?' "$evidence")
-          if [ -z "$missing" ]; then
-            exit 0
-          fi
-          {
-            echo "### Integration proof did not run"
-            echo ""
-            echo "The probe failed closed: the integration environment is missing required configuration."
-            echo "No probe was executed, so this run is not evidence of anything."
-            echo ""
-            echo "Missing variables (see \`docs/INTEGRATION-PROOF-RUNBOOK.md\`):"
-            echo ""
-            printf '%s\n' "$missing" | sed 's/^/- `/; s/$/`/'
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail closed for incomplete configuration
+        if: ${{ steps.configuration.outcome == 'failure' }}
+        run: exit 1
 
       - name: Upload evidence
-        if: always()
+        if: >-
+          ${{ always() && (steps.configuration.outcome == 'failure' ||
+          steps.collect.outcome == 'success' || steps.collect.outcome == 'failure') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: integration-evidence-${{ github.run_id }}
