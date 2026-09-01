@@ -69,17 +69,21 @@ labels fail the closure record rather than silently choosing one.
 
 ## Pilot operation
 
-1. Enable the three checked-in workflows and verify that `PR Guardian Shadow (non-blocking)` is
+1. Before enabling anything, create and validate a repository-owned shadow-pilot manifest using
+   [`PR-GUARDIAN-PILOT-ONBOARDING.md`](PR-GUARDIAN-PILOT-ONBOARDING.md). It records the actual
+   accountable owners, retention controls, and workflow safety posture, but cannot activate a
+   pilot or authorize advisory/enforcement mode.
+2. Enable the three checked-in workflows and verify that `PR Guardian Shadow (non-blocking)` is
    not a required status check/ruleset condition.
-2. Collect a representative sample across the selected repository or repositories. Add reviewer
+3. Collect a representative sample across the selected repository or repositories. Add reviewer
    labels to every material finding, including negative feedback.
-3. At closure, confirm the retained artifact records the matching shadow score and reviewer signal.
+4. At closure, confirm the retained artifact records the matching shadow score and reviewer signal.
    The `PR Guardian shadow-pilot closure record` comment is a convenience surface; if it is missing,
    investigate its recorded publication state. A missing match is a data-quality gap, not a benign result.
-4. Export the short-retention closure artifacts to the approved immutable evidence system with
+5. Export the short-retention closure artifacts to the approved immutable evidence system with
    repository, time window, workflow revision, reviewer, and access-control metadata. An Actions
    artifact or PR comment alone is not an evidence record.
-5. Run the offline report over that approved export. For example, from a read-only export copy:
+6. Run the offline report over that approved export. For example, from a read-only export copy:
 
    ```bash
    python scripts/summarize_pr_guardian_shadow.py approved-shadow-export/ \
