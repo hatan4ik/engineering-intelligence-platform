@@ -16,6 +16,9 @@
 - **`sample`** — how many closure records were read, how many joined a prior shadow observation,
   how many carry an explicit reviewer classification, how many were confirmed risks, and how many
   carry a utility signal.
+- **`input_provenance`** — the canonical SHA-256 digest of the validated closure-record set,
+  its record count, and the canonicalization rule. This lets a later review packet bind its
+  reported metrics to the exported feedback data rather than a filename or mutable artifact.
 - **`simulated_block_decision`** — the confusion matrix of the *simulated* block decision against
   the reviewer labels, with precision and recall. `null` where the denominator is zero.
 - **`utility`** — reviewer `useful` / `not-useful` counts and rate.
@@ -95,9 +98,18 @@ PYTHONPATH=. python scripts/summarize_pr_guardian_shadow.py approved-shadow-expo
 The script exits 0 on an empty input set and writes a report with `sample.closure_records: 0` and
 `decision: "shadow-only"` rather than failing or inventing a sample.
 
+The input digest is calculated from schema-validated closure records, sorted by repository, PR
+number, head SHA, and record time, then serialized as canonical JSON. It is therefore stable across
+JSON versus JSONL file layout and input order. It is an integrity fingerprint only: it does not
+prove that the export was retained, complete, or independently reviewed.
+
 ## What this report is not
 
 An Actions artifact is not an evidence record. The report is an *input* to the approved evidence
 process: the closure records must still be exported to the immutable evidence system with
 repository, time window, workflow revision, reviewer, and access-control metadata. Reviewer labels
 are calibration signal, not post-merge incident or rollback outcomes.
+
+When the report becomes an `advisory-candidate`, bind it to retained references with
+[`PR-GUARDIAN-PROMOTION-REVIEW.md`](PR-GUARDIAN-PROMOTION-REVIEW.md). That validation still only
+prepares a human review; it cannot change `mode`, a GitHub check, or branch protection.
