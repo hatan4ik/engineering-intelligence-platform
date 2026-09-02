@@ -49,7 +49,8 @@ class PRGuardianResult:
     changed_services: tuple[str, ...]
     changed_files: tuple[str, ...]
     mode: str
-    would_block: bool
+    simulated_policy_would_block: bool
+    repository_enforcement_would_block: bool
     enforcement: EnforcementDecision
     finding: PRFinding | None
     company_context: PRGuardianCompanyContext | None
@@ -216,7 +217,8 @@ class PRGuardianService:
             changed_services=review.changed_services,
             changed_files=review.filenames,
             mode=self.mode,
-            would_block=policy.block_merge,
+            simulated_policy_would_block=policy.block_merge,
+            repository_enforcement_would_block=decision.would_block,
             enforcement=decision,
             finding=finding,
             company_context=review.company_context,
