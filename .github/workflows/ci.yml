@@ -73,7 +73,7 @@ jobs:
           fi
           grep --quiet "temporalDatabase.host is required" /tmp/eip-temporal-default.err
 
-  policy-security:
+  policy_security:
     name: Policy and security
     runs-on: ubuntu-latest
     env:
@@ -173,14 +173,14 @@ jobs:
   test:
     name: test
     if: always()
-    needs: [quality, infrastructure, policy-security, artifact]
+    needs: [quality, infrastructure, policy_security, artifact]
     runs-on: ubuntu-latest
     steps:
       - name: Require every independent gate
         env:
           QUALITY: ${{ needs.quality.result }}
           INFRASTRUCTURE: ${{ needs.infrastructure.result }}
-          POLICY_SECURITY: ${{ needs.policy-security.result }}
+          POLICY_SECURITY: ${{ needs.policy_security.result }}
           ARTIFACT: ${{ needs.artifact.result }}
         run: |
           printf 'quality=%s\ninfrastructure=%s\npolicy-security=%s\nartifact=%s\n' \
