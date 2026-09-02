@@ -43,9 +43,6 @@ from state.audit import SqliteAuditLog
 from state.store import SqliteStateStore
 
 
-# A pull request that rewrites a huge generated file should not turn into a
-# hundred content requests; Architecture Guard is advisory, so a partial review
-# is acceptable and is reported as such.
 MAX_REVIEWED_FILES = 200
 MAX_CONTENT_BYTES = 512_000
 
@@ -74,9 +71,6 @@ class GitHubFileContents:
             with urllib.request.urlopen(request, timeout=20) as response:
                 payload = json.loads(response.read())
         except urllib.error.HTTPError as exc:
-            # A deleted file, a submodule, or a transient API error must not
-            # fail an advisory review — but it is reported, not treated as
-            # a clean file.
             return FileContent.unavailable(f"contents API returned {exc.code}")
         except (urllib.error.URLError, json.JSONDecodeError):
             return FileContent.unavailable("contents API was unreachable or unreadable")
@@ -113,19 +107,15 @@ async def evaluate_pull_request(
         changed_services=result.changed_services,
         would_require_extended_tests=result.policy.require_extended_tests,
         would_require_additional_approval=result.policy.require_additional_approval,
-        would_block=result.would_block,
+        would_block=result.simulated_policy_would_block,
         audit_chain_verified=audit.verify_chain(),
         mode=result.mode,
         enforcement=result.enforcement.as_dict(),
         architecture={
             "violations": violation_records(review.violations),
-            # Coverage travels with the findings: a file whose content could
-            # not be fetched is reported as skipped, never as clean.
             "in_scope": review.in_scope,
             "reviewed": review.reviewed,
             "skipped": skipped_records(review.skipped),
-            # Architecture Guard is advisory in this stage: its findings are
-            # recorded and rendered, and never change a check conclusion.
             "summary": review.summary,
         },
     )
@@ -165,8 +155,6 @@ def _evaluate_and_write() -> int:
         return 0
 
     checkout = Path(os.environ.get("EIP_PR_GUARDIAN_CONFIG_ROOT", "."))
-    # The evaluation job is never the gate, so an unreadable configuration
-    # degrades to shadow here and is reported loudly rather than raising.
     config, config_error = load_effective_config(checkout, repository=event.repository)
     if config_error is not None:
         print(
@@ -186,10 +174,6 @@ def _evaluate_and_write() -> int:
         workflows=workflows,
         config=config,
     )
-    # ``ControlPlaneWorkflows`` is asynchronous, so the product service is a
-    # coroutine even in the local/reference runner.  This entry point is a
-    # synchronous CLI boundary; run the evaluation (risk + Architecture Guard)
-    # to completion before serializing the transferable observation.
     observation = asyncio.run(
         evaluate_pull_request(
             event,
@@ -213,7 +197,6 @@ def _evaluate_and_write() -> int:
         f"({architecture['reviewed']}/{architecture['in_scope']} file(s) reviewed) "
         f"workflow={observation['workflow']['id']} result={result_path}"
     )
-    # A simulated policy result must never change the workflow exit status.
     return 0
 
 
