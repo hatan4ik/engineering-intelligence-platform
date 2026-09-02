@@ -77,7 +77,9 @@ def test_pr_guardian_maps_services_scores_persists_and_publishes(tmp_path):
     assert github.checks[0]["head_sha"] == "deadbeef"
     assert github.checks[0]["name"] == "Engineering Intelligence / PR Guardian (shadow)"
     assert github.checks[0]["conclusion"] == "neutral"
-    assert result.would_block is False
+    assert result.simulated_policy_would_block is False
+    assert result.repository_enforcement_would_block is False
+    assert result.repository_enforcement_would_block == result.enforcement.would_block
     assert github.comments and "Risk score" in github.comments[0]["body"]
 
 
