@@ -55,6 +55,17 @@ class PRGuardianResult:
     finding: PRFinding | None
     company_context: PRGuardianCompanyContext | None
 
+    @property
+    def would_block(self) -> bool:
+        """Compatibility alias for the simulated policy result.
+
+        New callers must use ``simulated_policy_would_block`` or
+        ``repository_enforcement_would_block`` so shadow/advisory policy output
+        cannot be confused with the repository-owned enforcement decision.
+        """
+
+        return self.simulated_policy_would_block
+
 
 @dataclass(frozen=True)
 class PRGuardianDependencies:
@@ -105,10 +116,6 @@ class PRGuardianService:
         findings: PRGuardianFindingStore | None = None,
         policy_version: str = "pr-policy-v1",
     ) -> None:
-        # The mode is a property of the evaluated repository, not of this
-        # process. Without a repository configuration the only defensible
-        # answer is shadow, so a caller cannot request advisory or enforce
-        # from a flag alone.
         if config is not None:
             resolved = str(config.mode)
         elif mode == "shadow":
@@ -191,8 +198,6 @@ class PRGuardianService:
             environ=self._dependencies.environ,
         )
         if review.company_context is not None and not review.company_context.qualified:
-            # A caller that asks the Company Brain to qualify its context
-            # cannot fall back to raw graph data when that qualification fails.
             decision = EnforcementDecision(
                 False,
                 REASON_CONTEXT_UNQUALIFIED,
