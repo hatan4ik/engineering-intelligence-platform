@@ -39,9 +39,6 @@ def test_cli_awaits_the_async_product_evaluation(tmp_path, monkeypatch):
         def __init__(self, **kwargs):
             pass
 
-        # The fake honours the real PRGuardianService.evaluate contract: the
-        # CLI passes ``now`` and reads changed_files / mode / enforcement so it
-        # can run Architecture Guard and record the repository's mode.
         async def evaluate(self, event, *, publish, now=None):
             nonlocal called
             called = True
@@ -54,7 +51,8 @@ def test_cli_awaits_the_async_product_evaluation(tmp_path, monkeypatch):
                     require_extended_tests=False,
                     require_additional_approval=False,
                 ),
-                would_block=False,
+                simulated_policy_would_block=False,
+                repository_enforcement_would_block=False,
                 mode="shadow",
                 enforcement=EnforcementDecision(False, "shadow-mode", None),
             )
