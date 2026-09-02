@@ -2,23 +2,25 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from opentelemetry.trace import SpanKind
+from starlette.responses import Response
 
+from app.bootstrap_settings import BootstrapSettings
 from app.observability import configure_tracing, tracer
 from app.request_context import bind_request_context, request_trace_context
-from app.settings import observability_endpoint_from_environment
-from starlette.responses import Response
 from telemetry.trace_context import TraceContext
 
-# Configure before importing routers so their tracer handles bind to the
-# process provider when OTLP is enabled.
-configure_tracing(observability_endpoint_from_environment())
+# Router modules take tracer handles at import time, so the one genuinely early
+# process setting is parsed into an immutable bootstrap record first. Request
+# serving configuration still belongs to ApplicationSettings and the lifespan.
+_BOOTSTRAP_SETTINGS = BootstrapSettings.from_environment()
+configure_tracing(_BOOTSTRAP_SETTINGS.otlp_endpoint)
 
 from app.operations.routes import router as operations_router  # noqa: E402
 from app.portal_api import router as portal_router  # noqa: E402
