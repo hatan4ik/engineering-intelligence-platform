@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 
 from .config import parse_repository_config
-from .contracts import PilotDataClassification if False else ProductMode
+from .contracts import ProductMode
 from .pilot import (
     EVALUATION_PERMISSIONS,
     OUTCOME_PERMISSIONS,
