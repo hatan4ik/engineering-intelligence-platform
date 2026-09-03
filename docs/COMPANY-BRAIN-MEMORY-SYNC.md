@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Local/reference implementation — connector lifecycle contract, not a deployed data plane |
+| **Classification** | Reference contract — connector lifecycle, not a deployed data plane |
 | **Code** | [`company_brain/memory.py`](../company_brain/memory.py) |
 | **Depends on** | [Durable Store Contract](COMPANY-BRAIN-STORE.md) |
 

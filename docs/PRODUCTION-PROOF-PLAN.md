@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Target promotion plan; not itself evidence that a gate has passed |
+| **Classification** | Target promotion plan — not itself evidence that a gate has passed |
 | **Evidence contract** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |
 | **Operational requirements** | [`../architecture/non-functional-requirements.md`](../architecture/non-functional-requirements.md) |
 

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Current implementation contract — source-only, reference capability mapping; not deployment or production evidence |
+| **Classification** | Reference contract — source-only capability mapping, not deployment or production evidence |
 | **Canonical source** | [`../requirements/runtime-capability-baseline.json`](../requirements/runtime-capability-baseline.json) |
 | **Validation** | `python scripts/verify_runtime_capability_contract.py --check-rendered` |
 | **Current position** | [`CURRENT-POSITION.md`](CURRENT-POSITION.md) |

@@ -1,10 +1,22 @@
 # Skill-Driven Documentation & Design Review
 
-Applying the **Enterprise AI Transformation 22-Skill Operating Stack** to this repository's
+| | |
+|---|---|
+| **Classification** | Historical documentation and design review |
+| **Baseline** | `main` at `f598967` plus safety-fix branch context (PR #74) |
+| **Current state** | [Current Position](../CURRENT-POSITION.md) |
+| **Finding dispositions** | [Review Findings Register](REVIEW-STATUS-REGISTER.md) |
+
+This historical review applied the **Enterprise AI Transformation 22-Skill Operating Stack** to this repository's
 product, process, and design documentation. Each applicable skill was run against the repo's
 actual documents following its output specification and ruthlessness clause. Findings are
 specific to the supplied documents; anything not traceable to a document is labelled
 `[ASSUMPTION]`. Every audit ends with an **Operator Handoff** — what a human still owns.
+
+Everything below is date-bound to its stated baseline. It is not a current product specification,
+delivery sequence, or capability claim; use [Current Position](../CURRENT-POSITION.md), the
+[Review Findings Register](REVIEW-STATUS-REGISTER.md), and the
+[Outcome-Gated Roadmap](../../roadmap/technical-roadmap-24-months.md) for those purposes.
 
 **Reviewed at:** `main` @ `f598967` + safety-fix branch (PR #74).
 **Citation note (added 2026-08-26):** this review cites a "board review" (`P-F2`, `P-F3`, `P-F7`, `R-F2`, `R-F3`, `R-F6`, `S-F5`, `S-F8`) and a "board plan" (`PR-9`–`PR-12`) that are not in the repository. Treat those references as external context, not as repository evidence; the eight handoff items stand on their own.

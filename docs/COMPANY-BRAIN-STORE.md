@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Local/reference implementation only — not a deployed production data plane |
+| **Classification** | Reference contract — local implementation only, not a deployed production data plane |
 | **Code** | [`company_brain/store.py`](../company_brain/store.py) |
 | **Purpose** | Preserve Company Brain facts, evidence pointers, and relationships as governed records rather than search-index documents |
 

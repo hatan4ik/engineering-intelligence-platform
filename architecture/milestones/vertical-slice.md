@@ -2,11 +2,12 @@
 
 | | |
 |---|---|
-| **Classification** | Current implementation state |
+| **Classification** | Historical implementation milestone — reference E2E slice, not current operational status |
 | **Owner** | Platform Engineering |
 | **Reviewed** | 2026-08-26 |
 | **Assertions are** | reference E2E slice; not deployed |
 | **Authoritative current state** | [`CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
+| **Current capability detail** | [`CAPABILITY-RECONCILIATION.md`](../CAPABILITY-RECONCILIATION.md) |
 
 
 ## Flow

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Reference implementation — deterministic review-only planning and outcome correlation, not a scheduled publisher or production workflow |
+| **Classification** | Reference contract — deterministic review-only planning and outcome correlation, not a scheduled publisher or production workflow |
 | **Code** | [`company_brain/maintenance.py`](../company_brain/maintenance.py), [`company_brain/maintenance_outcomes.py`](../company_brain/maintenance_outcomes.py), [`scripts/plan_company_brain_maintenance.py`](../scripts/plan_company_brain_maintenance.py), and [`scripts/validate_company_brain_maintenance_outcome.py`](../scripts/validate_company_brain_maintenance_outcome.py) |
 | **Depends on** | [Durable Store Contract](COMPANY-BRAIN-STORE.md) and [Governed Memory Synchronization](COMPANY-BRAIN-MEMORY-SYNC.md) |
 

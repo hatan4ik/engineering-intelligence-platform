@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Current product boundary — versioned reference contracts, not a pilot result |
+| **Classification** | Current product boundary — versioned reference contracts, not a pilot result |
 | **Owner** | Engineering Intelligence lead + Developer Experience |
 | **Product decision** | [PR Guardian strategy](PRODUCT-STRATEGY.md) |
 | **Delivery sequence** | [Outcome-gated roadmap](../roadmap/technical-roadmap-24-months.md) |

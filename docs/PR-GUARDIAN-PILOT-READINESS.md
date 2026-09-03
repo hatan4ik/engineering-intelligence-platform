@@ -1,6 +1,21 @@
 # PR Guardian Shadow-Pilot Readiness
 
+| | |
+|---|---|
+| **Classification** | Operator preflight for a shadow-only target repository |
+| **Owner** | Target repository service owner with Platform Engineering |
+| **Current stage** | Stage 0 source capability; not a named pilot or operational evidence |
+| **Pilot sequence** | [Pilot Onboarding](PR-GUARDIAN-PILOT-ONBOARDING.md) → this preflight → [Shadow Pilot](PR-GUARDIAN-SHADOW-PILOT.md) → [Shadow Report](PR-GUARDIAN-SHADOW-REPORT.md) → [Promotion Review](PR-GUARDIAN-PROMOTION-REVIEW.md) |
+| **Evidence standard** | [Production Evidence](PRODUCTION-EVIDENCE.md) |
+
 This is the operator-facing bridge between the checked-in onboarding contracts and a real target-repository pilot. It is deliberately read-only and non-authorizing.
+
+## When to use this document
+
+Use this document after the target repository has a proposed shadow-pilot manifest and runtime
+configuration, but before enabling any workflow. A contract-ready result verifies only the
+repository-local inputs. It never replaces the external approvals, GitHub settings checks, or
+evidence-retention requirements in the rest of the pilot sequence.
 
 Run it against a trusted checkout of the intended target repository:
 

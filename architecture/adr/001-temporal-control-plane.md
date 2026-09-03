@@ -2,9 +2,11 @@
 
 | | |
 |---|---|
-| **Status** | Accepted target architecture; current work is product implementation, not operational validation |
+| **Classification** | Accepted architecture decision — target architecture; current work is product implementation, not operational validation |
+| **Owner** | Platform Engineering |
 | **Decision date** | 2026-08-26 |
 | **Scope** | Durable workflow execution only; not a production certification or deployment record |
+| **Authoritative current state** | [`../../docs/CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
 
 ## Context
 

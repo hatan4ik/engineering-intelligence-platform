@@ -4,6 +4,8 @@
 |---|---|
 | **Classification** | Current design — mixing implemented architecture and explicitly-labeled proposed target architecture |
 | **Owners** | Platform Engineering |
+| **Reviewed** | 2026-09-03 against `origin/main` at `f556e16`; design review, not deployment evidence |
+| **Authoritative current state** | [`../docs/CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
 | **Current implementation state** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md) |
 | **Product decision** | [`../docs/PRODUCT-STRATEGY.md`](../docs/PRODUCT-STRATEGY.md) |
 | **NFRs and production evidence** | [`non-functional-requirements.md`](non-functional-requirements.md) · [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |

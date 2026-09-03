@@ -1,7 +1,13 @@
-# ADR 002: Prompt Injection Guardrails and Semantic Cache Lifecycle
+# ADR-002: Prompt Injection Guardrails and Semantic Cache Lifecycle
 
-## Status
-**Proposed**
+| | |
+|---|---|
+| **Classification** | Proposed architecture decision — not an implemented-control claim |
+| **Owner** | Platform Engineering and Security |
+| **Decision date** | 2026-08-26 |
+| **Scope** | RAG prompt-injection guardrails and semantic-cache lifecycle |
+| **Authoritative current state** | [`../../docs/CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
+| **Current control status** | [`../../governance/security-threat-model.md`](../../governance/security-threat-model.md) |
 
 ## Context
 During the Principal Architecture Review, two target-state requirements were identified for the RAG and Retrieval planes:

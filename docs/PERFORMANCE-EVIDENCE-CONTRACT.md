@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Current design: target performance contract. It is not a measured result or a production-readiness claim. |
+| **Classification** | Evidence contract — target performance contract, not a measured result or a production-readiness claim |
 | **Owners** | Platform Engineering and SRE; the named service owner accepts a target for its own scope. |
 | **Canonical source** | [`../requirements/performance-baseline.json`](../requirements/performance-baseline.json) |
 | **Evidence registry** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) and [`evidence/README.md`](evidence/README.md) |

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Implemented reference contract; not a pilot, merge gate, or production assertion |
+| **Classification** | Reference contract — not a pilot, merge gate, or production assertion |
 | **Product** | [PR Guardian](PRODUCT-STRATEGY.md), the first Company Brain interface |
 | **Core query** | [`company_brain/world_model.py`](../company_brain/world_model.py) |
 | **Adapter** | [`product/pr_guardian/company_brain.py`](../product/pr_guardian/company_brain.py) |

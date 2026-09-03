@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Current implementation-quality contract; source-level evidence only |
+| **Classification** | Reference quality contract — source-level evidence only |
 | **Owner** | Platform Engineering |
 | **Command** | `python scripts/verify_targeted_mutations.py` |
 | **Scope** | `resilience/dependencies.py` and `tests/test_dependency_boundary.py` |

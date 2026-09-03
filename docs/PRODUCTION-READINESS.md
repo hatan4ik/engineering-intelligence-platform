@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Certification requirements; a completed document is not a passed certification |
+| **Classification** | Certification requirements — a completed document is not a passed certification |
 | **Evidence records** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |
 | **NFRs** | [`../architecture/non-functional-requirements.md`](../architecture/non-functional-requirements.md) |
 

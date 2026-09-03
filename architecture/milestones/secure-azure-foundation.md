@@ -2,11 +2,12 @@
 
 | | |
 |---|---|
-| **Classification** | Current implementation state |
+| **Classification** | Historical implementation milestone — reference IaC, not current deployment status |
 | **Owner** | Platform Engineering |
 | **Reviewed** | 2026-08-26 |
 | **Assertions are** | reference IaC; never planned or applied against a subscription |
 | **Authoritative current state** | [`CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
+| **Current capability detail** | [`CAPABILITY-RECONCILIATION.md`](../CAPABILITY-RECONCILIATION.md) |
 
 
 This slice closes the largest implementation gap identified in the historical [alignment review](../ALIGNMENT-REVIEW.md) (its correction wave "P1", unrelated to finding severities elsewhere): the original architecture required a private Azure trust boundary, while the initial Terraform only created a VNet, AKS, Search and Log Analytics with default public service access.

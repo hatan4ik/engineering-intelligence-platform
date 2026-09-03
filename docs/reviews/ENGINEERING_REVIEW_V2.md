@@ -1,16 +1,21 @@
-# Engineering Review — Company Brain (V2: post-quality-wave correction)
+# Historical Engineering Review Addendum — Company Brain (2026-09)
 
 | | |
 |---|---|
-| **Classification** | Current implementation review addendum |
+| **Classification** | Historical implementation review addendum |
 | **Owner** | Platform Engineering |
 | **Baseline reviewed** | `origin/main` at `6d07867` (2026-09-01) |
 | **Canonical review** | [Engineering Review](ENGINEERING_REVIEW.md) — historical baseline, findings, and dated reconciliation |
 | **Authoritative current state** | [Current Position](../CURRENT-POSITION.md) |
+| **Current finding dispositions** | [Review Findings Register](REVIEW-STATUS-REGISTER.md) |
 | **Verification** | [Reference Implementation CI run 33491436652](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33491436652) succeeded for this baseline |
 | **Evidence rule** | Source and CI establish reference behavior only; they do not establish a named pilot, deployed runtime, production readiness, or autonomy certification. |
 
-## Executive assessment
+## Historical executive assessment
+
+Everything below is date-bound to the cited baseline. For present source/evidence state and the
+disposition of its findings, use [Current Position](../CURRENT-POSITION.md) and the
+[Review Findings Register](REVIEW-STATUS-REGISTER.md).
 
 The P0/P1 quality wave materially improved the Company Brain reference implementation: PR Guardian
 now has cohesive pipeline components, operational intelligence has typed ingress and presentation
@@ -60,7 +65,7 @@ independent assessment rather than an assertion made by the implementation chang
 4. Keep L3/L4 work behind the existing scoped certification, rehearsal, and independent-evidence
    requirements in [Current Position](../CURRENT-POSITION.md) and the [production-evidence registry](../PRODUCTION-EVIDENCE.md).
 
-## Decision
+## Historical conclusion
 
 The next product milestone remains a trustworthy PR Guardian shadow pilot, not broader platform
 surface area or autonomous remediation. This document corrects an inaccurate draft; it does not

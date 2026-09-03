@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Current requirements baseline; operational evidence is explicitly tracked, not implied |
+| **Classification** | Reference contract — current requirements baseline; operational evidence is explicitly tracked, not implied |
 | **Authoritative source** | [`../requirements/baseline.json`](../requirements/baseline.json) |
 | **Validation** | `python scripts/verify_requirements_baseline.py --check-rendered` |
 | **Evidence registry** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |

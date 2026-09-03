@@ -1,16 +1,17 @@
-# Engineering Intelligence Platform — Original Architecture Maturity Scorecard
+# Company Brain Architecture Maturity Scorecard
 
 | | |
 |---|---|
 | **Classification** | Current repository assessment — directional, not production evidence |
 | **Owner** | Platform Engineering |
+| **Reviewed** | 2026-09-03 against `origin/main` at `f556e16`; source assessment only |
+| **Authoritative current state** | [`../docs/CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
 | **Production evidence** | [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 
-This scorecard prevents implementation drift. It measures the repository against the **original
-Engineering Intelligence Platform architecture**, not against the amount of code in any one
-subsystem. Scores are deliberately capped at reference maturity until environment-scoped,
-retained operational evidence exists; a checked-in adapter, test, or diagram is not a level-4
-claim.
+This scorecard prevents implementation drift. It measures the repository against the **Company
+Brain target architecture**, not against the amount of code in any one subsystem. Scores are
+deliberately capped at reference maturity until environment-scoped, retained operational evidence
+exists; a checked-in adapter, test, or diagram is not a level-4 claim.
 
 ## Maturity scale
 
@@ -23,7 +24,7 @@ claim.
 
 ## Current scorecard
 
-| Original capability | Maturity | Evidence now present | To reach next level |
+| Company Brain capability | Maturity | Evidence now present | To reach next level |
 |---|---:|---|---|
 | Architecture coherence / governance | **3.5** | north-star, ADR invariants, capability reconciliation, L0–L4 boundary | operate the model with named owners and outcome evidence |
 | Secure Azure foundation | **2.5** | private AI/Search/Key Vault, Private Link/DNS, AKS Workload Identity reference IaC | production ingress/egress, hardened workload, state/queue, scale and DR exercises |
@@ -32,7 +33,7 @@ claim.
 | Hybrid/vector RAG | **2.5** | vector/hybrid retrieval and ACL-trimming reference path | real retriever evaluation, corpus-scale tuning, calibration, and production quality SLOs |
 | AI Gateway | **2.5** | Entra JWT, trusted claims, redaction, model-routing and budget contracts | rate/concurrency enforcement, Graph resolver, deployment hardening, and real proof |
 | Service/resource intelligence graph | **3.0** | topology/service/API/data/queue/owner/SLO projections | automated runtime/IaC discovery and organization-scale evidence |
-| PR Guardian | **3.0** | GitHub event -> diff -> topology/risk -> shadow workflow -> neutral check/comment plus explicit reviewer-label closure record | durable finding/evidence/outcome store, independent post-merge correlation, precision/recall calibration, and governed enforcement decision |
+| PR Guardian | **3.0** | GitHub event -> diff -> topology/risk -> shadow workflow -> neutral check/comment; durable finding/outcome reference store; reviewer-label closure record; shadow-only readiness/bootstrap/promotion contracts | named pilot, retained independent evidence, precision/recall calibration, and governed advisory/enforcement decision |
 | Architecture Guard | **2.5** | deterministic ADR/reference rules and reviewable SDLC result | broader rule library, live publishing, waiver governance, and outcomes |
 | Deployment Failure Investigator | **2.5** | pipeline-failure evidence/last-good correlation and workflow | provider breadth, richer logs/timeline UX, and calibration |
 | Incident Intelligence | **3.0** | Azure Monitor/App Insights/OTel/K8s adapters and correlation primitives | real incident-system publishing, richer queries, and outcome calibration |
@@ -80,7 +81,7 @@ must not increase L4 depth while the upper product layers lack measured outcomes
 
 ## Grooming guardrails
 
-1. **Original architecture first.** Every PR names the original capability it advances.
+1. **Company Brain architecture first.** Every PR names the capability it advances.
 2. **No autonomy-first drift.** Do not add new L4 machinery while Organizational Knowledge, SDLC Intelligence, Operational Intelligence, Portal/Feedback or Executive UX is below 4.0 unless required for a critical safety defect.
 3. **Evidence beats maturity claims.** Reference implementations do not count as production-proven.
 4. **Feedback cannot weaken authorization.** Learned thresholds may improve ranking/risk bands; they cannot change ACL or OPA mutation rights.

@@ -5,10 +5,10 @@
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](app/requirements.txt)
 [![License: LGPL-2.1](https://img.shields.io/badge/license-LGPL--2.1-green.svg)](LICENSE)
 
-A governed intelligence layer for the SDLC: repositories, work items, ADRs, runbooks, CI/CD
-history, and operational telemetry become **evidence-backed, ACL-trimmed answers and
-recommendations** — and, for certified failure classes, **supervised self-healing** on
-Azure/AKS.
+**Company Brain** is the product built in this repository: a governed intelligence layer for the
+SDLC. Repositories, work items, ADRs, runbooks, CI/CD history, and operational telemetry become
+**evidence-backed, ACL-trimmed answers and recommendations** — and, for certified failure classes,
+**supervised self-healing** on Azure/AKS.
 
 > **The invariant:** AI reasons and recommends → identity and ACLs constrain evidence →
 > deterministic policy authorizes → allow-listed runbooks execute → independent signals
@@ -18,12 +18,14 @@ Azure/AKS.
 **Status:** working reference implementation plus target-state architecture — not yet a
 production-ready autonomous control plane. “Implemented” means an executable, CI-covered
 reference path unless an environment-scoped evidence record says otherwise; it does not mean
-production-certified.
+production-certified. [Current Position](docs/CURRENT-POSITION.md) is the authoritative answer
+to what is true today.
 
 The current product wedge is **PR Guardian**: evidence-backed, initially non-blocking pull
 request intelligence for one or two Azure engineering repositories. See
-[`docs/PRODUCT-STRATEGY.md`](docs/PRODUCT-STRATEGY.md). The capability matrix owns the current
-repository assessment; production claims require retained evidence under
+[`docs/PRODUCT-STRATEGY.md`](docs/PRODUCT-STRATEGY.md). Detailed source capability assessment is
+in [`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md), and
+production claims require retained evidence under
 [`docs/PRODUCTION-EVIDENCE.md`](docs/PRODUCTION-EVIDENCE.md).
 
 ## Contents
@@ -35,7 +37,7 @@ repository assessment; production claims require retained evidence under
 - [Documentation](#documentation)
 - [Repository map](#repository-map)
 - [Development](#development)
-- [Transformation path](#transformation-path)
+- [Capability progression](#capability-progression)
 
 ## Architecture at a glance
 
@@ -121,23 +123,20 @@ authoritative state/audit or remediation execution path.
 | Available reference capability | Not yet a production claim |
 |---|---|
 | Local deterministic query demo; Azure retrieval/gateway adapters; GitHub PR Guardian workflow; policy/runbook and digital-twin reference paths | A released production container/chart, calibrated retrieval or PR-risk quality, real-data production proof, managed durable queue/audit export, or L3/L4 certification |
-| PR Guardian is the first product surface; it starts as evidence-backed advisory feedback | General engineering chat, enterprise-wide source rollout, blocking controls without calibration, and production self-healing |
+| PR Guardian is the first product surface; it starts as shadow-only, evidence-backed feedback | General engineering chat, enterprise-wide source rollout, advisory/enforcement without evidence review, and production self-healing |
 
-The exact status, owner, and remaining depth are in
-[`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md). Do not
-infer deployment readiness from a demo, test, or maturity score.
+The exact current position, owner, and remaining external gates are in
+[`docs/CURRENT-POSITION.md`](docs/CURRENT-POSITION.md). The
+[`architecture/CAPABILITY-RECONCILIATION.md`](architecture/CAPABILITY-RECONCILIATION.md) provides
+the capability-by-capability source assessment. Do not infer deployment readiness from a demo,
+test, or maturity score.
 
 ## Documentation
 
-The platform's documentation is organized as a centralized **Developer Portal**, separating high-level strategic vision from deep architectural operations.
-
-**👉 [View the Developer Portal & Master Index (docs/README.md)](docs/README.md)**
-
-The portal is organized into:
-1. **Strategic Vision & Executive Context** (The "Why")
-2. **Core Architecture** (The Master Design & Security)
-3. **Component Deep Dives** (Ingestion, Control Plane, RAG)
-4. **Operations & Governance** (FinOps, KPIs, Certification)
+Use the [Company Brain Documentation portal](docs/README.md) for role-based reading paths and
+the [Documentation Governance and Register](docs/DOCUMENT-STATUS.md) for the authoritative
+source, lifecycle, and owner of every maintained document. This README intentionally stays a
+concise repository entry point rather than duplicating the portal.
 
 ## Repository map
 
@@ -201,7 +200,11 @@ pytest -q  # contracts, durability, composition, API, and policy tests
   [reconciliation](architecture/CAPABILITY-RECONCILIATION.md) and improve a measurable
   outcome.
 
-## Transformation path
+## Capability progression
+
+These are the target product capabilities, not a second delivery sequence. The
+[outcome-gated roadmap](roadmap/technical-roadmap-24-months.md) is the authoritative ordering and
+requires evidence at every promotion gate.
 
 1. **Engineering Knowledge** — secure, ACL-aware organizational memory and evidence-backed RAG
 2. **AI-native SDLC** — PR Guardian, Architecture Guard, deployment intelligence

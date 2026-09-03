@@ -4,12 +4,13 @@
 |---|---|
 | **Classification** | Current design |
 | **Owner** | Platform Engineering |
-| **Reviewed** | 2026-08-26 |
+| **Reviewed** | 2026-09-03 |
 | **Assertions are** | index of decision records |
 | **Authoritative current state** | [`CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
 
 
-ADRs capture decisions that constrain the Engineering Intelligence Platform. Use short, immutable records; supersede old decisions rather than silently rewriting history.
+ADRs capture decisions that constrain the Company Brain architecture. Use short, immutable
+records; supersede old decisions rather than silently rewriting history.
 
 ## Required sections
 
@@ -45,4 +46,4 @@ ADRs capture decisions that constrain the Engineering Intelligence Platform. Use
 
 ## Naming
 
-Use `NNNN-short-decision-title.md`, e.g. `0001-llm-not-authorization-boundary.md`.
+Use `NNN-short-decision-title.md`, e.g. `001-llm-not-authorization-boundary.md`.

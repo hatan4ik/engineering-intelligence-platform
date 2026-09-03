@@ -14,6 +14,15 @@ from pathlib import Path, PurePosixPath
 
 
 LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+DOCUMENTATION_REGISTER = "docs/DOCUMENT-STATUS.md"
+DOCUMENTATION_PREFIXES = (
+    "docs/",
+    "architecture/",
+    "roadmap/",
+    "governance/",
+    "finops/",
+    "helm/temporal/",
+)
 
 
 def repository_paths(root: Path) -> set[str]:
@@ -59,6 +68,40 @@ def repository_relative(source: str, target: str) -> str | None:
     return "/".join(parts)
 
 
+def maintained_documentation_paths(paths: set[str]) -> set[str]:
+    """Return Markdown documents that must appear in the documentation register."""
+    return {
+        path
+        for path in paths
+        if path.endswith(".md")
+        and (path == "README.md" or path.startswith(DOCUMENTATION_PREFIXES))
+    }
+
+
+def find_document_register_failures(root: Path, paths: set[str]) -> list[str]:
+    """Ensure every maintained document is discoverable from the authoritative register."""
+    if DOCUMENTATION_REGISTER not in paths:
+        return [f"Missing documentation register: {DOCUMENTATION_REGISTER}"]
+
+    register = (root / DOCUMENTATION_REGISTER).read_text(encoding="utf-8")
+    registered_paths: set[str] = set()
+    for raw_link in LINK.findall(register):
+        target = destination(raw_link)
+        if target is None:
+            continue
+        relative = repository_relative(DOCUMENTATION_REGISTER, target)
+        if relative is not None and relative.endswith(".md"):
+            registered_paths.add(relative)
+
+    expected_paths = maintained_documentation_paths(paths)
+    expected_paths.discard(DOCUMENTATION_REGISTER)
+    missing_paths = sorted(expected_paths - registered_paths)
+    return [
+        f"Documentation register omits maintained document: {path}"
+        for path in missing_paths
+    ]
+
+
 def find_failures(root: Path) -> list[str]:
     paths = repository_paths(root)
     canonical_case = {path.casefold(): path for path in paths}
@@ -90,6 +133,7 @@ def find_failures(root: Path) -> list[str]:
                 )
             else:
                 failures.append(f"Broken link in {source}: {raw_link}")
+    failures.extend(find_document_register_failures(root, paths))
     return failures
 
 
