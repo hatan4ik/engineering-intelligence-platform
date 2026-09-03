@@ -4,7 +4,9 @@
 |---|---|
 | **Classification** | Target proposal — delivery sequence, not a production claim |
 | **Owner** | Engineering Intelligence lead + Developer Experience |
+| **Reviewed** | 2026-09-03 against `origin/main` at `f556e16`; no stage exit claimed |
 | **Active product** | [PR Guardian](../docs/PRODUCT-STRATEGY.md) for one or two named repositories |
+| **Authoritative current state** | [Current Position](../docs/CURRENT-POSITION.md) |
 | **Evidence standard** | [Production evidence contract](../docs/PRODUCTION-EVIDENCE.md) |
 
 ## Decision
@@ -54,14 +56,16 @@ with PR Guardian for the first pilot's scope.
 
 | Area | Repository state | Maturity implication |
 |---|---|---|
-| PR Guardian | Read-only/shadow workflow split; repository-owned `shadow` / `advisory` / `enforce` modes with owner approval, expiry, waivers, and a kill switch; trusted publisher is the only writer; Architecture Guard on the PR path | A **mode-capable shadow product** — advisory or enforce is a repository owner's decision, and no repository has made it |
+| PR Guardian | Read-only/shadow workflow split; repository-owned `shadow` / `advisory` / `enforce` modes with owner approval, expiry, waivers, and a kill switch; trusted publisher is the only writer; Architecture Guard on the PR path; shadow-only onboarding, readiness, and bootstrap tools | A **mode-capable shadow product** — advisory or enforce is a repository owner's decision, and no repository has made it |
 | Feedback | Reviewer labels, a closure report that computes a real decision, calibration as a recommendation, a scheduled report workflow | Calibration numbers are recommendations until a named repository accumulates ≥30 classified observations |
 | Knowledge | Runtime ingestion trigger (CLI + workflow) over the governed pipeline; evidence registry; fail-closed integration proof | Still unproven against a real Azure index; the registry is empty by design |
 | Control plane | `temporal` mode constructible over Cosmos; opt-in remediation workflow with plan-hash approval; L1/L2 operations routes | The worker remains evidence-only by default; consequential activities stay behind the flag and are unproven |
 | Rehearsal and certification | Soak, readiness, and L3 exercise runners; scoped L4 eligibility and an executor/OPA gate that refuses uncertified L4 | Simulated exercises are `rehearsal` grade and never count; nothing is certified |
 
-The engineering half of every stage below now exists; the evidence half of none has been earned.
-[`../docs/CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) carries the per-stage table.
+Reference paths exist across later stages, but no stage's engineering exit criteria should be
+considered complete merely because a source path exists. The evidence half of no stage has been
+earned. [`../docs/CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) is the authoritative
+per-stage source/evidence table.
 
 ## Delivery timeline and gates
 

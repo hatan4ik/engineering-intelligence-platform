@@ -1,16 +1,17 @@
-# Engineering Review — Company Brain
+# Historical Engineering Review — Company Brain (2026-08)
 
 | | |
 |---|---|
-| **Review type** | Architecture, codebase, and product-maturity review |
+| **Classification** | Historical architecture, codebase, and product-maturity review |
 | **Baseline reviewed** | origin/main at fc3b885 (2026-08-27) |
 | **Review date** | 2026-08-28 |
 | **Review sources** | Primary architecture/code review; independently evidenced code review at the same baseline; skill-driven documentation/process audit. Older or externally cited audit claims are marked for revalidation, not treated as implementation facts. |
 | **Product truth** | Company Brain is the product; PR Guardian is its first, deliberately narrow, non-blocking wedge. |
 | **Evidence rule** | Repository code and CI demonstrate reference behavior. They do not demonstrate a deployed pilot, production readiness, or autonomy certification. |
 | **Implementation reconciliation** | `origin/main` at `83f4ca3` (2026-08-30), limited to the delivery rows below. The historical scorecard remains scoped to `fc3b885`. |
+| **Current state and dispositions** | [Current Position](../CURRENT-POSITION.md) and the [Review Findings Register](REVIEW-STATUS-REGISTER.md) |
 
-## Executive verdict
+## Historical executive verdict
 
 The repository has a strong **reference architecture** for a Company Brain: it turns company
 knowledge and operational signals into evidence-backed decisions, and keeps any consequential
@@ -25,9 +26,9 @@ needs a focused round of Python type-boundary, module-boundary, and packaging cl
 new product surfaces are added. Those are normal and tractable next steps, not a reason to
 broaden the architecture or claim a premature platform completion.
 
-## Current implementation reconciliation
+## Dated implementation reconciliation (2026-08-30)
 
-This section reconciles the historical review with the current source tree at `83f4ca3`. It
+This section reconciles the historical review with the then-current source tree at `83f4ca3`. It
 supersedes the stale completion annotations on `refactor/pr-guardian-decomposition`: that branch
 was based on the already-merged PR Guardian decomposition and its only unmerged change was a
 review-status edit. **Source implemented** means the named contract and regression coverage are
@@ -407,8 +408,9 @@ single, verifiable fact at the baseline unless explicitly identified as requirin
 
 ### Finding-to-plan mapping
 
-The final plan below is authoritative. These rows record how independently found issues map into
-it; they do not create a second execution queue.
+This table records the historical plan mapping. The current delivery sequence is the
+[Outcome-Gated Roadmap](../../roadmap/technical-roadmap-24-months.md); this review does not create
+a second execution queue.
 
 | Priority | Outcome | Deliverable and acceptance condition |
 |---|---|---|
@@ -427,7 +429,7 @@ and would report success with every gate skipped) and adding a Helm provider to 
 change is justified by a requirement; both would be justified only by the review text. They
 should not be applied.
 
-## Sequenced delivery plan
+## Historical delivery plan (2026-08)
 
 The aim is to reduce the riskiest uncertainty first while preserving the Company Brain direction.
 Each numbered slice should be a small, independently reviewable pull request; do not combine a
@@ -462,7 +464,7 @@ refactor, a new product surface, and a deployment claim.
 - Prefer one well-tested shared contract over a cross-product framework or a generic utils bag.
 - Do not mark any capability production-ready without a scoped, retained evidence record.
 
-## Definition of progress
+## Historical definition of progress
 
 The Company Brain is progressing when the organization can show, for a narrow user workflow,
 that it remembers authorized facts, forms a grounded and reviewable conclusion, produces a useful
@@ -481,7 +483,7 @@ shadow pilot that validates the Company Brain shared memory, evidence, reasoning
 loop. That creates the empirical foundation that later incident and remediation capabilities must
 reuse.
 
-## Cross-cutting documentation and operating-model audit
+## Historical cross-cutting documentation and operating-model audit
 
 The [Skill-Driven Documentation & Design Review](skill-driven-doc-review.md) adds useful
 governance, operational, and adoption questions. It was reviewed at an older revision

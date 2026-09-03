@@ -2,12 +2,18 @@
 
 | | |
 |---|---|
-| **Status** | Proposed Target Architecture |
+| **Classification** | Target proposal — multi-cloud and on-premises extension architecture |
 | **Primary owner** | Platform Engineering |
+| **Current implementation state** | [`CAPABILITY-RECONCILIATION.md`](CAPABILITY-RECONCILIATION.md) |
+| **Delivery decision** | Deferred until the Azure path has earned its product and evidence gates |
 
 ## Context
 
-While the initial implementation of the Engineering Intelligence Platform targets Azure-native services (Azure AI Search, Azure OpenAI, AKS), FAANG-tier scale requires true multi-cloud portability (AWS EKS, GCP GKE) and hybrid/on-premises deployments impose unique constraints. Many highly regulated environments, air-gapped data centers, or edge clusters cannot stream source code or operational telemetry to managed cloud AI providers, while enterprise strategies often require spreading workloads across AWS and GCP to prevent vendor lock-in.
+While the initial implementation of the Company Brain targets Azure-native services (Azure AI
+Search, Azure OpenAI, AKS), multi-cloud portability (AWS EKS, GCP GKE) and hybrid/on-premises
+deployments impose distinct constraints. This is a deliberately deferred extension: it describes
+what would be needed after the Azure product path has earned its evidence gates, not an active
+delivery commitment.
 
 This extension details the required architectural shifts to support multi-cloud deployments, strict on-premises environments, complex low-level Kubernetes troubleshooting, and proactive cluster-level self-healing.
 
@@ -15,10 +21,16 @@ This extension details the required architectural shifts to support multi-cloud 
 
 In multi-cloud or disconnected environments, the AI Gateway and Retrieval plane must swap out Azure dependencies for equivalent cloud-native or on-premises equivalents via the platform's abstraction interfaces.
 
-- **Multi-Cloud LLM Routing**: The `AI Gateway` supports dynamic routing to **AWS Bedrock** (Anthropic Claude 3.5, Llama) and **GCP Vertex AI** (Gemini 1.5 Pro) based on cost, latency, or data sovereignty requirements.
-- **Local LLM Hosting**: In fully air-gapped scenarios, inference is routed to a local cluster running models like Llama 3 or Mixtral via **vLLM** or **Ollama**. This requires dedicated GPU-enabled nodes managed within the on-premise cluster. To mitigate catastrophic FinOps burn from idle GPUs, the cluster must implement **KEDA (Kubernetes Event-driven Autoscaling)** for scale-to-zero, coupled with **Ray** for dynamic GPU multiplexing. PR events queue while weights load, absorbing the "cold start" latency without losing data.
-- **Cloud-Agnostic Vector Database**: `Azure AI Search` is replaced by open-source or managed vector datastores such as **Amazon OpenSearch Serverless**, **GCP AlloyDB (pgvector)**, **Qdrant**, or **Milvus**.
-- **Model Fallbacks**: The gateway natively handles degraded LLM latency or localized GPU saturation, queuing non-critical requests while prioritizing high-urgency remediation tasks.
+- **Multi-Cloud LLM Routing**: A future AI Gateway would need dynamic routing to AWS Bedrock,
+  GCP Vertex AI, or equivalent providers based on cost, latency, and data-sovereignty policy.
+- **Local LLM Hosting**: In fully air-gapped scenarios, inference could be routed to a local
+  cluster through vLLM or Ollama. This would require GPU-enabled nodes, scale-to-zero policy, and
+  a queue/cold-start design that preserves bounded PR workflow latency.
+- **Cloud-Agnostic Vector Database**: The retrieval projection would need a provider contract
+  that can map Azure AI Search semantics to an approved alternative such as OpenSearch, pgvector,
+  Qdrant, or Milvus without weakening ACL/provenance requirements.
+- **Model Fallbacks**: A future gateway would need bounded degradation, prioritization, and
+  fallback semantics before it can be considered portable.
 
 ## 2. Advanced Kubernetes Observability & Troubleshooting
 
@@ -40,15 +52,17 @@ When an anomaly fires (e.g., widespread CoreDNS timeouts):
 
 ### Admission Controllers
 Reactive CI/CD checks (like PR Guardian) are insufficient for drift introduced outside the pipeline (e.g., manual `kubectl` usage). 
-- The platform exports its deterministic policies into **Kyverno** or **OPA Gatekeeper**. 
+- The target platform would export deterministic policies into Kyverno or OPA Gatekeeper.
 - The K8s API server intercepts and blocks unauthorized or risky changes before they materialize in the cluster.
 
 ### Node-Level Remediation
-L4 Autonomy expands beyond workload scaling (HPA) to underlying infrastructure recovery:
+Only after scoped L3 evidence exists could L4 autonomy be considered beyond workload scaling (HPA)
+for underlying infrastructure recovery:
 - **Cordon and Drain**: Safe removal of a degraded node from the scheduling pool.
 - **Volume Detach/Reattach**: Coordinated recovery for workloads stuck waiting for Azure Disk / PersistentVolume mounts.
 - **Node Termination**: Issuing reboot or terminate commands to the underlying virtualization API or bare-metal hypervisor, allowing the cluster autoscaler to replace the tainted node.
 
 ## Conclusion
-By abstracting the AI model and retrieval engines behind clean interfaces, the Engineering Intelligence Platform can run natively inside isolated, on-premises Kubernetes environments, combining deep infrastructure observability with rigorous, evidence-gated self-healing.
-
+By preserving provider-neutral contracts for models and retrieval, the Company Brain could later
+support isolated on-premises Kubernetes environments. Such a deployment still requires its own
+security, reliability, cost, and evidence review; this proposal does not authorize it.

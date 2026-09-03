@@ -1,15 +1,18 @@
-# Engineering Intelligence Platform — A–Z Program Backlog
+# Company Brain — A–Z Capability Catalogue
 
 | | |
 |---|---|
-| **Classification** | Target proposal |
+| **Classification** | Target proposal — workstream catalogue, not a second delivery sequence |
 | **Owner** | Platform Engineering |
-| **Reviewed** | 2026-08-26 |
-| **Assertions are** | planning themes; sequencing is owned by the roadmap stages |
+| **Reviewed** | 2026-09-03 |
+| **Assertions are** | planning themes; sequencing is owned only by the outcome-gated roadmap |
 | **Authoritative current state** | [`CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
+| **Delivery sequence** | [`technical-roadmap-24-months.md`](technical-roadmap-24-months.md) |
 
 
-This backlog turns the reference implementation into an enterprise transformation program. Work is deliberately sequenced from evidence and safety foundations toward bounded autonomy.
+This catalogue turns the Company Brain target architecture into a set of legible workstreams. It
+is not a second roadmap: its alphabetical labels do not establish priority, commitment, or order.
+The outcome-gated roadmap is the sole delivery sequence.
 
 ## North-star architecture
 
@@ -48,46 +51,15 @@ The LLM is never the authorization boundary. Identity, ACLs, policy-as-code, bla
 | Y | Yield/Executive Metrics | Board-visible outcomes | DORA, MTTR, recurrence, hours saved, prevented incidents |
 | Z | Zero-Touch Bounded Autonomy | Policy-governed L4 autonomy | certified services self-heal within explicit budgets |
 
-## Delivery waves
+## Delivery and certification rules
 
-### Wave 1 — Platform product foundation
-A, B, C, D, E, L, N, O, P, T.
-
-### Wave 2 — Engineering intelligence
-G, I, W, K, Q, F.
-
-### Wave 3 — Guardrailed operations
-H, J, R, S, V.
-
-### Wave 4 — Enterprise scale
-M, U, X, Y.
-
-### Wave 5 — Bounded autonomy
-Z only after prior controls have production evidence.
-
-## Autonomy ladder
-
-- **L0 Observe:** collect/correlate only.
-- **L1 Recommend:** evidence-backed recommendation, no mutation.
-- **L2 Human execute:** system prepares exact action; human executes.
-- **L3 Approve and execute:** human approval authorizes an allow-listed runbook.
-- **L4 Bounded autonomous:** system may execute certified low-blast-radius actions inside error-budget, policy and time limits.
-- **L5 Unrestricted autonomy:** intentionally out of scope.
-
-## Definition of Done for every production agent
-
-1. Named owner and service tier.
-2. Input/output schema and authorization model.
-3. Golden-set and adversarial evaluation.
-4. SLO, latency and cost budget.
-5. OTel traces and immutable audit event.
-6. Failure modes, timeout and retry policy.
-7. Explicit permitted tools/actions.
-8. Blast-radius budget.
-9. Verification and rollback path.
-10. Kill switch and escalation path.
-11. Security review and threat-model update.
-12. Runbook and operator documentation.
+The [outcome-gated roadmap](technical-roadmap-24-months.md) defines the only delivery order.
+The [System Design](../architecture/design.md) and [Security Threat Model](../governance/security-threat-model.md)
+define the autonomy ladder. The [Non-Functional Requirements](../architecture/non-functional-requirements.md),
+[Production Readiness](../docs/PRODUCTION-READINESS.md), and [Production Evidence Registry](../docs/PRODUCTION-EVIDENCE.md)
+define the required quality, ownership, safety, and evidence gates for a real product capability.
+Keeping those rules in their canonical documents prevents this catalogue from drifting into a
+second certification checklist.
 
 ## Execution order
 

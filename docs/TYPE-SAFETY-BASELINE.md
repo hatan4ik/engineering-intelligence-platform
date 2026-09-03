@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Current implementation-quality contract; it does not prove production behavior or readiness. |
+| **Classification** | Reference quality contract — it does not prove production behavior or readiness |
 | **Canonical baseline** | [`../requirements/static-analysis-baseline.json`](../requirements/static-analysis-baseline.json) |
 | **Tool installation** | [`../requirements/dev.txt`](../requirements/dev.txt) |
 | **Related review** | [`reviews/ENGINEERING_REVIEW.md`](reviews/ENGINEERING_REVIEW.md) |

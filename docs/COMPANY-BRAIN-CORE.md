@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Reference implementation — canonical model and projections, not a deployed system of record |
+| **Classification** | Reference contract — canonical model and projections, not a deployed system of record |
 | **Owner** | Engineering Intelligence lead + Platform Engineering |
 | **Product thesis** | Company Brain: governed organizational memory, world model, reasoning, and controlled action |
 

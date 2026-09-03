@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Target requirements; this document does not claim that they are deployed |
+| **Classification** | Current design — target requirements; this document does not claim that they are deployed |
 | **Owners** | Platform Engineering, SRE, Security, Data Governance |
 | **Applies to** | Ingestion, AI gateway, PR Guardian, state/orchestration, remediation, and their Azure/AKS deployment |
 | **Promotion rule** | A requirement is met only when its evidence is recorded in [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |

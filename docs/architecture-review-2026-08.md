@@ -1,15 +1,25 @@
-# Architecture & Implementation Review — Internal AI Ecosystem
+# Historical Architecture & Implementation Review — Internal AI Ecosystem (2026-08)
 
-**Reviewed:** `main` @ `faa1ba4` (merge of PR #13, "M3: production ingestion, AST chunking and ACL propagation")
-**Date:** 2026-08-21
-**Frame of reference:** the internal-AI-ecosystem model — Phase 1 knowledge ingestion, Phase 2 RAG engine, Phase 3 agentic SDLC integration — plus the build-vs-buy position that the RAG plane and agents are built in-house while inference is routed through an enterprise provider under tenant isolation.
+| | |
+|---|---|
+| **Classification** | Historical review — do not use for current product, capability, or production status |
+| **Reviewed** | `main` at `faa1ba4` (merge of PR #13, "M3: production ingestion, AST chunking and ACL propagation") on 2026-08-21 |
+| **Frame of reference** | Internal-AI-ecosystem model: Phase 1 knowledge ingestion, Phase 2 RAG engine, and Phase 3 agentic SDLC integration |
+| **Current state** | [Current Position](CURRENT-POSITION.md) |
+| **Finding dispositions** | [Review Findings Register](reviews/REVIEW-STATUS-REGISTER.md) |
+
+This review records the build-vs-buy position at its baseline: the RAG plane and agents were
+designed in-house while inference was routed through an enterprise provider under tenant isolation.
+Its observations and recommendations are preserved for rationale only.
 
 ---
 
-## Finding status at 2026-08-26
+## Historical finding status (2026-08-26)
 
 This review is retained as a point-in-time record. The table records what later work closed so a
-reader can separate live findings from historical ones. Anything not listed is still open.
+reader can separate the original observation from the work that followed. Anything not listed was
+unresolved at that historical checkpoint; use the [Review Findings Register](reviews/REVIEW-STATUS-REGISTER.md)
+for its current disposition.
 
 | Finding | Status | Where |
 |---|---|---|

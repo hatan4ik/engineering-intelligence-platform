@@ -2,10 +2,12 @@
 
 | | |
 |---|---|
-| **Status** | Accepted target architecture; source-only design, not a deployment record |
+| **Classification** | Accepted architecture decision — source-only design, not a deployment record |
+| **Owner** | Platform Engineering |
 | **Decision date** | 2026-08-30 |
 | **Scope** | Company Brain data ownership, durable runtime topology, and recovery obligations |
 | **Related decisions** | [ADR-001](001-temporal-control-plane.md), [authoritative state](../authoritative-state.md), [runtime capability contract](../../docs/RUNTIME-CAPABILITY-CONTRACT.md) |
+| **Authoritative current state** | [`../../docs/CURRENT-POSITION.md`](../../docs/CURRENT-POSITION.md) |
 
 ## Context
 

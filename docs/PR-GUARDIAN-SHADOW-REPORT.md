@@ -2,6 +2,7 @@
 
 | | |
 |---|---|
+| **Classification** | Reference contract — calculated shadow feedback, never a promotion authority |
 | **Purpose** | Summarize retained shadow-pilot closure records into one reviewable report |
 | **Autonomy** | None — the report never changes a check, a threshold, or a merge decision |
 | **Producer** | [`.github/workflows/pr-guardian-shadow-report.yml`](../.github/workflows/pr-guardian-shadow-report.yml) |

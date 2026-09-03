@@ -4,8 +4,9 @@
 |---|---|
 | **Classification** | Current implementation state |
 | **Owner** | Platform Engineering |
-| **Reviewed** | 2026-09-01 against `origin/main` at `6d07867` (the merge of PR #107); [Reference Implementation CI run 33491436652](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33491436652) passed for that revision. This is source-level CI evidence, not deployment, pilot, or production proof. |
+| **Reviewed** | 2026-09-03 against `origin/main` at `f556e16` (the merge of PR #112); [Reference Implementation CI run 33612719371](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33612719371) passed for that revision. This is source-level CI evidence, not deployment, pilot, or production proof. |
 | **Rule** | This is the one document that answers "where are we today". Every other planning document points here instead of restating a position. |
+| **Documentation governance** | [`DOCUMENT-STATUS.md`](DOCUMENT-STATUS.md) records document authority, lifecycle, and review dispositions. |
 
 ## Two yardsticks, stated explicitly
 
@@ -14,8 +15,8 @@ other is how a reference implementation gets mistaken for a product.
 
 | Yardstick | What it counts | Position today |
 |---|---|---|
-| **Repository evidence** ([`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md), [`../architecture/MATURITY-SCORECARD.md`](../architecture/MATURITY-SCORECARD.md)) | Code, tests, and reference paths present at a revision | Reference implementations exist for most original capabilities; no capability row scores above 3.5 / 5 and none is production-capable |
-| **Operational readiness** ([`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md), [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md)) | Retained evidence from a named environment | **No evidence record exists.** No environment, secrets, or pilot repository is configured; nothing is deployed or production-proven |
+| **Repository evidence** ([`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md), [`../architecture/MATURITY-SCORECARD.md`](../architecture/MATURITY-SCORECARD.md)) | Code, tests, and reference paths present at a revision | Reference implementations exist for most Company Brain capabilities; no capability row scores above 3.5 / 5 and none is production-capable |
+| **Operational readiness** ([`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md), [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md)) | Retained evidence from a named environment | **No evidence record exists.** No named environment, external secret configuration, or pilot repository is recorded here; this checkout cannot support a deployment or production-proof claim |
 
 The [Runtime capability contract](RUNTIME-CAPABILITY-CONTRACT.md) checks the declared
 code, Helm, Terraform, and current-state boundaries for each exposed capability. It is a
@@ -31,14 +32,14 @@ request and the first observation record is retained.
 
 | Stage 0 exit item | State |
 |---|---|
-| Product contracts under test | Done in this source contract — PR Guardian, its shadow-pilot/promotion-review contracts, and `company_brain/product_contracts.py` have bounded, CI-covered records; this is not pilot evidence |
+| Product contracts under test | Done in this source contract — PR Guardian, its shadow-pilot/readiness/bootstrap/promotion-review contracts, and `company_brain/product_contracts.py` have bounded, CI-covered records; this is not pilot evidence |
 | Documentation links/anchors gated in CI | Done — `check_links.py`, `check_anchors.py` in `ci.yml` |
-| Reference CI green on `main` | Done for the reviewed upstream baseline — [Reference Implementation CI run 33491436652](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33491436652) succeeded at `6d07867`. This records checked source only; it is not deployment or pilot evidence. |
+| Reference CI green on `main` | Done for the reviewed upstream baseline — [Reference Implementation CI run 33612719371](https://github.com/hatan4ik/engineering-intelligence-platform/actions/runs/33612719371) succeeded at `f556e16`. This records checked source only; it is not deployment or pilot evidence. |
 | Every route in the release image works or is declared | Done — `/healthz` reports capabilities; startup fails closed when a capability is enabled but incomplete |
 | Release image import closure verified | Done — `app/import_closure.py` runs inside the built image in CI |
 | Legacy/unreferenced code retired | Done — `src/`, `providers/` deleted |
 | Target-pilot reviewer labels and non-enforcing configuration | **Open** — the required label names and shadow-only configuration contract are defined, but no target pilot repository is named or configured |
-| Shadow-pilot onboarding and promotion-review validators | Done in source — the validators bind a planned target scope and generated feedback report to declared external evidence references; they cannot enable a pilot or attest that evidence exists |
+| Shadow-pilot onboarding, readiness, bootstrap, and promotion-review validators | Done in source — the validators and read-only readiness/bootstrap tools bind a planned target scope and generated feedback report to declared external evidence references; they cannot enable a pilot or attest that evidence exists |
 | Named pilot repository with service owner and non-enforcement configuration | **Open** — none named |
 | Baseline metrics collection plan | Target contract defined; **open** for a named pilot scope, owner, and retained measurements |
 
@@ -54,7 +55,7 @@ fails closed and names its missing configuration when the environment it needs i
 
 | Stage | Engineering present (this revision) | Evidence still required before exit |
 |---|---|---|
-| 1 — shadow PR Guardian | The shadow report computes `shadow-only` / `advisory-candidate`, fingerprints its normalized closure-record export, and fixes `blocking_authorized` false. A target-repository manifest validator and an expiring promotion-review packet validator make the intended controls explicit; neither invokes GitHub nor changes mode — [`PR-GUARDIAN-SHADOW-PILOT.md`](PR-GUARDIAN-SHADOW-PILOT.md), [`PR-GUARDIAN-PROMOTION-REVIEW.md`](PR-GUARDIAN-PROMOTION-REVIEW.md) | Name and configure a target repository, verify least-privilege retention on a real closed PR, export artifacts to an approved immutable system, then collect ≥30 observations, ≥30 reviewer classifications, ≥5 confirmed risks, precision ≥0.50, recall ≥0.80, and independent post-merge correlation |
+| 1 — shadow PR Guardian | The shadow report computes `shadow-only` / `advisory-candidate`, fingerprints its normalized closure-record export, and fixes `blocking_authorized` false. Target-repository manifest validation, read-only readiness, and bootstrap tools plus an expiring promotion-review packet validator make the intended controls explicit; none invokes GitHub or changes mode — [`PR-GUARDIAN-PILOT-READINESS.md`](PR-GUARDIAN-PILOT-READINESS.md), [`PR-GUARDIAN-SHADOW-PILOT.md`](PR-GUARDIAN-SHADOW-PILOT.md), [`PR-GUARDIAN-PROMOTION-REVIEW.md`](PR-GUARDIAN-PROMOTION-REVIEW.md) | Name and configure a target repository, verify least-privilege retention on a real closed PR, export artifacts to an approved immutable system, then collect ≥30 observations, ≥30 reviewer classifications, ≥5 confirmed risks, precision ≥0.50, recall ≥0.80, and independent post-merge correlation |
 | 2 — advisory + knowledge plane | `ingestion/` has a runtime trigger (`scripts/ingest_repository.py`, `knowledge-ingest.yml`); the integration proof is manual-only and runs its private probe only after explicit confirmation on the approved private runner; evidence registry mechanics exist at `docs/evidence/` and `scripts/record_evidence.py` — [`INTEGRATION-PROOF-RUNBOOK.md`](INTEGRATION-PROOF-RUNBOOK.md), [`evidence/README.md`](evidence/README.md) | An Azure environment with secrets; 2–3 repositories indexed; a human advisory decision under the strategy gate; the first retained evidence record |
 | 3 — selective enforcement + Architecture Guard | Repository-owned `.eip/pr-guardian.json` selects `shadow` / `advisory` / `enforce`; one deterministic rule with owner approval, expiry, waivers, and `EIP_PR_GUARDIAN_KILL_SWITCH`; the trusted publisher is the only writer and re-derives the condition; Architecture Guard on the PR path with honest coverage counts — [`PR-GUARDIAN-REPOSITORY-CONFIG.md`](PR-GUARDIAN-REPOSITORY-CONFIG.md) | A service owner enabling `enforce` in their repository, a monitored false-negative rate over a retained window, CODEOWNERS on `.github/workflows/` and `.eip/` |
 | 4 — operational intelligence L1/L2 | `POST /v1/events/deployment` and `/v1/events/incident` behind a shared secret; L2 proposals with `requires_human` fixed true; CLIs over fixture evidence — [`OPERATIONS-INTELLIGENCE-RUNBOOK.md`](OPERATIONS-INTELLIGENCE-RUNBOOK.md) | Azure Monitor / ADO wired to a real service; owner-confirmed outcomes; measured L2 acceptance |

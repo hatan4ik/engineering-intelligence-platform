@@ -2,6 +2,7 @@
 
 | | |
 |---|---|
+| **Classification** | Operating runbook — deferred, manual, private-runner-only validation |
 | **Purpose** | Produce read-only evidence for a named integration environment |
 | **Mutation authority** | None — this runner must not apply Terraform, Helm, schemas, or source changes |
 | **Current status** | Deferred operational-validation track; manual, opt-in only; do not run during the active product-build stage |

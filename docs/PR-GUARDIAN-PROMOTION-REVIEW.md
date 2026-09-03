@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Review-packet contract; no advisory decision or retained pilot evidence exists in this repository |
+| **Classification** | Operating runbook — review-packet contract; no advisory decision or retained pilot evidence exists in this repository |
 | **Feedback source** | [`PR-GUARDIAN-SHADOW-REPORT.md`](PR-GUARDIAN-SHADOW-REPORT.md) |
 | **Pilot operation** | [`PR-GUARDIAN-SHADOW-PILOT.md`](PR-GUARDIAN-SHADOW-PILOT.md) |
 | **Evidence standard** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |

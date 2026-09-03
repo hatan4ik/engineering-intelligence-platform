@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Required evidence contract; no production readiness is implied by this document |
+| **Classification** | Evidence contract — no production readiness is implied by this document |
 | **Owners** | Platform Engineering, SRE, Security, and the relevant service owner |
 | **Applies to** | Any pilot using real organizational data and every L2–L4 capability |
 | **Source plans** | [`PRODUCTION-PROOF-PLAN.md`](PRODUCTION-PROOF-PLAN.md), [`PRODUCTION-READINESS.md`](PRODUCTION-READINESS.md), [`PERFORMANCE-EVIDENCE-CONTRACT.md`](PERFORMANCE-EVIDENCE-CONTRACT.md), [`../architecture/non-functional-requirements.md`](../architecture/non-functional-requirements.md) |

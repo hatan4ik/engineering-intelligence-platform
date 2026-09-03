@@ -1,6 +1,15 @@
 # Azure DevOps, AKS & On-Prem Kubernetes Self-Healing Reference Architecture
 
-> This file describes the **target state**. The implemented reference is intentionally smaller. See the historical [alignment review](ALIGNMENT-REVIEW.md) for the gap matrix recorded at that time.
+| | |
+|---|---|
+| **Classification** | Target proposal — Azure, AKS, and self-healing reference architecture |
+| **Owner** | Platform Engineering and SRE |
+| **Current implementation state** | [Capability Reconciliation](CAPABILITY-RECONCILIATION.md) |
+| **Evidence standard** | [Production Evidence](../docs/PRODUCTION-EVIDENCE.md) |
+| **Historical rationale** | [Architecture Alignment Review](ALIGNMENT-REVIEW.md) |
+
+This document describes target state. The implemented reference is intentionally smaller; no
+section should be read as a current deployment or autonomy claim.
 
 ## 1. Experience and SDLC integration layer
 

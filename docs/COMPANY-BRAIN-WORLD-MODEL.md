@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Local/reference read model — not a production knowledge or action authority |
+| **Classification** | Reference contract — local read model, not a production knowledge or action authority |
 | **Code** | [`company_brain/world_model.py`](../company_brain/world_model.py) |
 | **Depends on** | [Durable Store Contract](COMPANY-BRAIN-STORE.md) and [Governed Memory Synchronization](COMPANY-BRAIN-MEMORY-SYNC.md) |
 

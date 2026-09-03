@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Onboarding contract only; no named pilot or evidence record is checked into this repository |
+| **Classification** | Reference contract — onboarding only; no named pilot or evidence record is checked into this repository |
 | **Runtime boundary** | [`PR-GUARDIAN-REPOSITORY-CONFIG.md`](PR-GUARDIAN-REPOSITORY-CONFIG.md) |
 | **Operating runbook** | [`PR-GUARDIAN-SHADOW-PILOT.md`](PR-GUARDIAN-SHADOW-PILOT.md) |
 | **Evidence standard** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |

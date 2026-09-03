@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Current implementation contract — source and automated-test evidence only |
+| **Classification** | Reference contract — source and automated-test evidence only |
 | **Owner** | Platform Engineering |
 | **Scope** | Synchronous runtime adapters composed by the API, PR Guardian, and operational-intelligence services |
 | **Non-claim** | This is not an availability SLO, load test, multi-process rate limiter, or production-recovery record |

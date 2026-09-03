@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Repository-ready shadow-pilot workflow; no pilot evidence has yet been collected |
+| **Classification** | Operating runbook — repository-ready shadow-pilot workflow; no pilot evidence has yet been collected |
 | **Autonomy** | L0/L1 advisory only; it cannot approve, block, or modify a merge decision |
 | **Evidence contract** | [`PRODUCTION-EVIDENCE.md`](PRODUCTION-EVIDENCE.md) |
 | **Product scope** | [`PRODUCT-STRATEGY.md`](PRODUCT-STRATEGY.md) |

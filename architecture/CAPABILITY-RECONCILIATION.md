@@ -1,16 +1,18 @@
-# Original Product Capability Reconciliation
+# Company Brain Capability Reconciliation
 
 | | |
 |---|---|
 | **Classification** | Current implementation state — repository/reference evidence, not production certification |
 | **Owner** | Platform Engineering |
+| **Reviewed** | 2026-09-03 against `origin/main` at `f556e16`; source capability assessment only |
+| **Authoritative current state** | [`../docs/CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md) |
 | **Current design** | [`design.md`](design.md) |
 | **Production evidence contract** | [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 
-This file is the current-state reconciliation for the **original Engineering Intelligence
-Platform product architecture**. It records what is present in the repository; it must not be
-read as a claim that the capability is deployed, production-proven, or approved for a broader
-autonomy tier.
+This file is the current-source reconciliation for the **Company Brain target architecture**. It
+records what is present in the repository; it must not be read as a claim that a capability is
+deployed, production-proven, or approved for a broader autonomy tier. For the one current answer
+across source and real-world evidence, use [`../docs/CURRENT-POSITION.md`](../docs/CURRENT-POSITION.md).
 
 ## Product north-star
 
@@ -64,7 +66,7 @@ quality evidence is incomplete. **Adapter present** = a production-facing interf
 not itself proof that the dependency is provisioned, wired, or operated. **Not certified** =
 implementation may exist, but no service/environment/runbook production evidence is recorded.
 
-| Original capability | Current status | Implemented evidence | Remaining depth |
+| Company Brain capability | Current status | Implemented evidence | Remaining depth |
 |---|---|---|---|
 | Secure private Azure foundation | Implemented reference foundation | private Search/OpenAI/Key Vault, AKS Workload Identity, private endpoints/DNS | production ingress/egress, hardened AKS/workload posture, DR, and environment proof |
 | Continuous code ingestion | Strong reference | GitHub/ADO events, AST chunks, ACL metadata, ledger/DLQ/replay, source catalog lifecycle, ACL reconciliation, deletion, and missing-index repair | managed provider scheduling, shared queue/backpressure, broader source adapters, and retained source-SLA evidence |
@@ -72,7 +74,7 @@ implementation may exist, but no service/environment/runbook production evidence
 | Hybrid/vector RAG | Reference-partial | Azure Search hybrid/vector retrieval, ACL filter, suspicious-evidence quarantine, and evaluation | deterministic Guardrail SLM/equivalent, production index tuning, adversarial expansion, and quality calibration |
 | AI Gateway | Reference-partial | Entra bearer auth, trusted groups/roles, redaction, model routing, and request-budget contract | per-principal rate/concurrency enforcement, Graph group-overage resolver, operator UX, and production proof |
 | Service/resource graph | Implemented reference | persistent graph, service/resource/owner/SLO projections, blast radius | broader runtime/IaC extractors and scale tuning |
-| PR Guardian | Shadow E2E reference | GitHub event -> diff/service mapping -> graph/risk -> workflow -> neutral check/comment; local durable finding/outcome store; explicit reviewer-label closure record, canonical feedback-export/report digests, and non-authorizing pilot/promotion validators | named pilot configuration, externally retained evidence, live reviewer outcomes, authorized retrieval citations, independent post-merge correlation, and repository-specific calibration |
+| PR Guardian | Shadow E2E reference | GitHub event -> diff/service mapping -> graph/risk -> workflow -> neutral check/comment; local durable finding/outcome store; explicit reviewer-label closure record, canonical feedback-export/report digests; shadow-only onboarding, readiness, bootstrap, and promotion-review contracts | named pilot configuration, externally retained evidence, live reviewer outcomes, authorized retrieval citations, independent post-merge correlation, and repository-specific calibration |
 | Architecture Guard | Implemented reference | ADR/reference architecture rules with deterministic findings | broader rule catalog and PR publishing integration |
 | Deployment Failure Investigator | Implemented E2E | pipeline failure normalization, evidence/last-good correlation, hypotheses, durable output | additional pipeline providers and ticket UX |
 | Incident Intelligence | Implemented E2E | Azure Monitor evidence adapter, topology/change correlation, evidence-backed RCA | richer App Insights/OTel queries and incident-system publishing |
@@ -119,4 +121,4 @@ No service moves to L3 or L4 because the implementation exists. Promotion is **s
 
 ## Acceptance rule
 
-Every future PR must map to an original product capability and improve at least one measurable outcome: retrieval quality, developer workflow, change-risk precision, incident diagnosis, remediation safety, security, reliability or unit economics.
+Every future PR must map to a Company Brain capability and improve at least one measurable outcome: retrieval quality, developer workflow, change-risk precision, incident diagnosis, remediation safety, security, reliability or unit economics.

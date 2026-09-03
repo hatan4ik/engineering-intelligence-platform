@@ -2,9 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | Current product decision — reference implementation, not production proof |
+| **Classification** | Current product decision — reference implementation, not production proof |
 | **Primary owner** | Engineering Intelligence lead + Developer Experience |
 | **Decision date** | 2026-08-26 |
+| **Authoritative current state** | [`CURRENT-POSITION.md`](CURRENT-POSITION.md) |
 | **Related delivery status** | [`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md) |
 | **Product contract** | [`PR-GUARDIAN-DOMAIN-CONTRACT.md`](PR-GUARDIAN-DOMAIN-CONTRACT.md) |
 
