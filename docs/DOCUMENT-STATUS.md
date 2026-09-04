@@ -4,7 +4,7 @@
 |---|---|
 | **Classification** | Current documentation-governance policy and document register |
 | **Owner** | Platform Engineering |
-| **Reviewed** | 2026-09-03 against origin/main at f556e16 |
+| **Reviewed** | 2026-09-04 against `main` at `615c402` |
 | **Authoritative current state** | [Current Position](CURRENT-POSITION.md) |
 | **Entry point** | [Company Brain Documentation](README.md) |
 
@@ -69,6 +69,14 @@ The register's review date validates its navigation and lifecycle assignments on
 refresh a capability, operational, or production claim: those claims require the revision,
 decision date, or retained evidence named by their own authoritative document.
 
+### Abbreviations and hover help
+
+Use the [Company Brain Glossary](GLOSSARY.md) as the canonical term source. On first meaningful
+use, write out an unfamiliar term when the reader needs it for the decision. For repeated terms in
+reader-facing prose or tables, use `<span title="Expansion">TERM</span>` with the exact glossary
+expansion. The native hover hint is supplemental: it must not be the only way to understand a
+decision, and it must never wrap code, commands, paths, URLs, environment variables, or IDs.
+
 The registered documentation set is the repository README plus Markdown under `docs/`,
 `architecture/`, `roadmap/`, `governance/`, `finops/`, and `helm/temporal/`. The repository link
 check verifies that every document in that set appears in this register. Adding a document there
@@ -82,6 +90,7 @@ without registering it is therefore a CI failure, not a navigation debt for a la
 |---|---|---|
 | [Repository README](../README.md) | Entry point | Concise product overview, local reference setup, and repository map. |
 | [Documentation portal](README.md) | Entry point | Role-based reading order and navigation. |
+| [Company Brain Glossary](GLOSSARY.md) | Reference terminology | Canonical term definitions and the GitHub-compatible hover convention. |
 | [Current Position](CURRENT-POSITION.md) | Current implementation state | The single answer to “where are we today?” across source and external evidence. |
 | [Product Strategy](PRODUCT-STRATEGY.md) | Current product decision | Company Brain north star, PR Guardian wedge, and product promotion gates. |
 | [Capability Reconciliation](../architecture/CAPABILITY-RECONCILIATION.md) | Current implementation state | Capability-by-capability source assessment and remaining depth. |

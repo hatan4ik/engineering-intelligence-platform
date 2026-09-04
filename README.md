@@ -6,14 +6,17 @@
 [![License: LGPL-2.1](https://img.shields.io/badge/license-LGPL--2.1-green.svg)](LICENSE)
 
 **Company Brain** is the product built in this repository: a governed intelligence layer for the
-SDLC. Repositories, work items, ADRs, runbooks, CI/CD history, and operational telemetry become
-**evidence-backed, ACL-trimmed answers and recommendations** — and, for certified failure classes,
-**supervised self-healing** on Azure/AKS.
+<span title="Software Development Life Cycle">SDLC</span>. Repositories, work items,
+<span title="Architecture Decision Records">ADRs</span>, runbooks,
+<span title="Continuous Integration and Continuous Delivery">CI/CD</span> history, and operational
+telemetry become **evidence-backed, <span title="Access Control List">ACL</span>-trimmed answers
+and recommendations** — and, for certified failure classes, **supervised self-healing** on
+Azure/<span title="Azure Kubernetes Service">AKS</span>.
 
 > **The invariant:** AI reasons and recommends → identity and ACLs constrain evidence →
 > deterministic policy authorizes → allow-listed runbooks execute → independent signals
-> verify → rollback/escalation closes the loop. L5 unrestricted autonomy is out of scope
-> by design.
+> verify → rollback/escalation closes the loop. <span title="Autonomy Level 5 — unrestricted autonomy">L5</span>
+> unrestricted autonomy is out of scope by design.
 
 **Status:** working reference implementation plus target-state architecture — not yet a
 production-ready autonomous control plane. “Implemented” means an executable, CI-covered
@@ -68,7 +71,7 @@ curl -s http://127.0.0.1:8000/v1/query \
   -d '{"question":"How should production remediation work?"}'
 ```
 
-Run the repository reference checks that CI runs:
+Run the repository reference checks that <span title="Continuous Integration">CI</span> runs:
 
 ```bash
 pip install -r requirements/test.txt -r requirements/dev.txt -r requirements/build.txt
@@ -89,12 +92,12 @@ Set `EIP_BACKEND=azure` plus:
 
 | Variable | Purpose |
 |---|---|
-| `AZURE_SEARCH_ENDPOINT`, `AZURE_SEARCH_INDEX` | ACL-trimmed retrieval |
+| `AZURE_SEARCH_ENDPOINT`, `AZURE_SEARCH_INDEX` | <span title="Access Control List">ACL</span>-trimmed retrieval |
 | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_CHAT_DEPLOYMENT` | Grounded synthesis |
-| `EIP_GITHUB_WEBHOOK_SECRET` | PR Guardian webhook ingress (HMAC, fail closed) |
+| `EIP_GITHUB_WEBHOOK_SECRET` | <span title="Pull Request">PR</span> Guardian webhook ingress (<span title="Hash-based Message Authentication Code">HMAC</span>, fail closed) |
 
 Azure service clients use `DefaultAzureCredential` (Managed Identity in-cluster). Callers of the
-gateway use an Entra access token or configured API-key principal; request headers are a
+gateway use an Entra access token or configured <span title="Application Programming Interface">API</span>-key principal; request headers are a
 deterministic-demo affordance only and are never trusted with the Azure backend. ACL filtering is
 compiled into every search request **before** any content reaches the model.
 
@@ -106,8 +109,9 @@ state/audit, quality, and operational evidence has been retained for a named env
 The Helm chart deliberately refuses its default values. A deployment must provide a reviewed
 values file with a digest-pinned image, Workload Identity client ID, Entra tenant/audience, and
 Azure Search/OpenAI configuration; it cannot deploy the deterministic header-identity demo.
-Terraform likewise requires an explicit location, environment classification, and Entra AKS admin
-group. [`infra/terraform/terraform.tfvars.example`](infra/terraform/terraform.tfvars.example)
+Terraform likewise requires an explicit location, environment classification, and Entra
+<span title="Azure Kubernetes Service">AKS</span> admin group.
+[`infra/terraform/terraform.tfvars.example`](infra/terraform/terraform.tfvars.example)
 is a placeholder-only starting point, not an apply authorization.
 
 For the durable control plane, the selected integration path is Temporal on private AKS with
@@ -133,19 +137,20 @@ test, or maturity score.
 
 ## Documentation
 
-Use the [Company Brain Documentation portal](docs/README.md) for role-based reading paths and
-the [Documentation Governance and Register](docs/DOCUMENT-STATUS.md) for the authoritative
-source, lifecycle, and owner of every maintained document. This README intentionally stays a
-concise repository entry point rather than duplicating the portal.
+Use the [Company Brain Documentation portal](docs/README.md) for role-based reading paths, the
+[Company Brain Glossary](docs/GLOSSARY.md) for canonical terminology and hover help, and the
+[Documentation Governance and Register](docs/DOCUMENT-STATUS.md) for the authoritative source,
+lifecycle, and owner of every maintained document. This README intentionally stays a concise
+repository entry point rather than duplicating the portal.
 
 ## Repository map
 
 | Path | Responsibility | Contents |
 |---|---|---|
-| `app/` | Gateway | FastAPI composition, query API, webhook ingress, operational routes, Azure RAG adapter, and telemetry bootstrap |
+| `app/` | Gateway | FastAPI composition, query <span title="Application Programming Interface">API</span>, webhook ingress, operational routes, Azure <span title="Retrieval-Augmented Generation">RAG</span> adapter, and telemetry bootstrap |
 | `company_brain/` | Company Brain | Canonical organizational facts, evidence pointers, provenance, durable projections, and qualified world-model reads; never action authority |
-| `ingestion/` | Knowledge | Source events, AST/text chunking, ACLs, index adapters, ledger/DLQ/replay, and embedding contracts |
-| `intelligence/` | Reasoning | Change risk, PR Guardian analysis, incidents, deployments, drift, SLO context, and calibration |
+| `ingestion/` | Knowledge | Source events, AST/text chunking, <span title="Access Control Lists">ACLs</span>, index adapters, ledger/<span title="Dead-Letter Queue">DLQ</span>/replay, and embedding contracts |
+| `intelligence/` | Reasoning | Change risk, PR Guardian analysis, incidents, deployments, drift, <span title="Service Level Objective">SLO</span> context, and calibration |
 | `topology/` | Company Brain graph | Service/resource projections and blast-radius traversal over the engineering topology |
 | `product/` | Product workflows | PR Guardian and incident, deployment, drift, knowledge-maintenance, and self-healing service orchestration |
 | `integrations/` | Edge adapters | GitHub, Azure, Azure DevOps, and Azure Monitor translation layers; no product-policy ownership |
@@ -153,7 +158,7 @@ concise repository entry point rather than duplicating the portal.
 | `control_plane/` | Control | Workflow state-machine contracts, approval boundaries, and remediation coordination |
 | `state/` | Durable records | Lifecycle, audit, idempotency, and reference state-store adapters |
 | `orchestration/` | Durable execution | Temporal worker/client/workflow integration and reference job scheduling |
-| `remediation/` | Execution | Runbook catalog, deterministic/OPA policy, Kubernetes adapter, simulation, verification, and rollback |
+| `remediation/` | Execution | Runbook catalog, deterministic/<span title="Open Policy Agent">OPA</span> policy, Kubernetes adapter, simulation, verification, and rollback |
 | `resilience/` | Autonomy assurance | Certification scope, exercise, and degraded-mode contracts |
 | `security/` | Security controls | Adversarial-input, provenance, and red-team checks |
 | `telemetry/` | Observability | Operation events, OTEL wiring, and control-plane telemetry contracts |
@@ -161,10 +166,10 @@ concise repository entry point rather than duplicating the portal.
 | `portal/` | Presentation | Read-model/view contracts for operational and portfolio control towers |
 | `eval/` | Quality | Retrieval evaluation harness |
 | `validation/` | Evidence validation | Evidence registry, integration probes, soak checks, readiness evaluation, and deferred Temporal probes |
-| `supply_chain/` | Delivery integrity | Dependency, SBOM, and image-evidence verification used by CI |
+| `supply_chain/` | Delivery integrity | Dependency, <span title="Software Bill of Materials">SBOM</span>, and image-evidence verification used by CI |
 | `scripts/` | Operator tools | Versioned, reviewable maintenance, investigation, certification, and validation entry points |
-| `infra/` | Infrastructure | Terraform Azure baseline/private AI foundation and OPA policy bundle |
-| `helm/eip/` · `helm/temporal/` · `Dockerfile` | Deploy | Fail-closed API chart, pinned Temporal wrapper, and container image |
+| `infra/` | Infrastructure | Terraform Azure baseline/private AI foundation and <span title="Open Policy Agent">OPA</span> policy bundle |
+| `helm/eip/` · `helm/temporal/` · `Dockerfile` | Deploy | Fail-closed <span title="Application Programming Interface">API</span> chart, pinned Temporal wrapper, and container image |
 | `demo/aks/` | Demo | Fault/remediation scenario runner |
 | `architecture/` · `docs/` · `governance/` · `roadmap/` | Product knowledge | Design decisions, evidence rules, operating model, and outcome-gated delivery plan |
 | `slides/` | Program communication | Board-deck generator and source material |
@@ -187,8 +192,8 @@ of the EIP application version.
 pytest -q  # contracts, durability, composition, API, and policy tests
 ```
 
-- CI (`.github/workflows/ci.yml`) gates reference checks: tests, evaluation harness, scenario
-  runner, Terraform fmt/validate, Helm lint, an SBOM generated from the built image, and container
+- <span title="Continuous Integration">CI</span> (`.github/workflows/ci.yml`) gates reference checks: tests, evaluation harness, scenario
+  runner, Terraform fmt/validate, Helm lint, an <span title="Software Bill of Materials">SBOM</span> generated from the built image, and container
   smoke tests. The resulting local CI evidence is **not** a signed deployment attestation; registry
   attestation and admission enforcement are required before a production promotion.
 - **PR Guardian is a shadow pilot, not a merge gate**: the pull-request workflow evaluates the
@@ -206,9 +211,9 @@ These are the target product capabilities, not a second delivery sequence. The
 [outcome-gated roadmap](roadmap/technical-roadmap-24-months.md) is the authoritative ordering and
 requires evidence at every promotion gate.
 
-1. **Engineering Knowledge** — secure, ACL-aware organizational memory and evidence-backed RAG
-2. **AI-native SDLC** — PR Guardian, Architecture Guard, deployment intelligence
-3. **Operational Intelligence** — incident correlation, drift detection, SLO-aware RCA
+1. **Engineering Knowledge** — secure, <span title="Access Control List">ACL</span>-aware organizational memory and evidence-backed <span title="Retrieval-Augmented Generation">RAG</span>
+2. **AI-native <span title="Software Development Life Cycle">SDLC</span>** — <span title="Pull Request">PR</span> Guardian, Architecture Guard, deployment intelligence
+3. **Operational Intelligence** — incident correlation, drift detection, <span title="Service Level Objective">SLO</span>-aware <span title="Root Cause Analysis">RCA</span>
 4. **Predictive Engineering** — explainable change/deployment risk from graph + history
 5. **Supervised Self-Healing** — policy, approvals, certified runbooks, verification, rollback
-6. **Bounded Autonomy** — L4 only per service/environment/runbook, after exercised evidence
+6. **Bounded Autonomy** — <span title="Autonomy Level 4 — bounded autonomous">L4</span> only per service/environment/runbook, after exercised evidence

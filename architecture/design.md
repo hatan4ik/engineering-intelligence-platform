@@ -12,6 +12,7 @@
 | **Threat model** | [`../governance/security-threat-model.md`](../governance/security-threat-model.md) |
 | **Runtime ownership/recovery** | [`adr/003-company-brain-runtime-topology-and-recovery.md`](adr/003-company-brain-runtime-topology-and-recovery.md) |
 | **Diagrams** | Generated light/dark SVGs — [`../docs/diagrams/build_diagrams.py`](../docs/diagrams/build_diagrams.py) |
+| **Terminology** | [Company Brain Glossary](../docs/GLOSSARY.md) |
 
 ## Contents
 
@@ -39,8 +40,9 @@
 
 Engineering organizations pay a structural scaling tax: fragmented knowledge, senior-engineer
 bottlenecks, repeat incidents, and architecture drift grow faster than headcount. This platform
-turns repositories, work items, ADRs, runbooks, CI/CD history, and operational telemetry into a
-**governed intelligence layer embedded in the SDLC** — and, once its recommendations are proven
+turns repositories, work items, <span title="Architecture Decision Records">ADRs</span>, runbooks,
+<span title="Continuous Integration and Continuous Delivery">CI/CD</span> history, and operational
+telemetry into a **governed intelligence layer embedded in the <span title="Software Development Life Cycle">SDLC</span>** — and, once its recommendations are proven
 trustworthy, into **supervised self-healing** for certified failure classes.
 
 This document describes the system as designed and identifies contracts implemented in the
@@ -49,10 +51,10 @@ repository. It does not make deployment or production-readiness claims. The
 the [production-evidence registry](../docs/PRODUCTION-EVIDENCE.md) records what has actually
 been proven for a named environment and scope.
 
-**In scope:** knowledge ingestion, secure retrieval, SDLC and operational intelligence agents,
-the durable control plane, and bounded remediation execution on Azure/AKS.
+**In scope:** knowledge ingestion, secure retrieval, <span title="Software Development Life Cycle">SDLC</span> and operational intelligence agents,
+the durable control plane, and bounded remediation execution on Azure/<span title="Azure Kubernetes Service">AKS</span>.
 
-**Out of scope:** training or hosting foundation models, unrestricted (L5) autonomy, and
+**Out of scope:** training or hosting foundation models, unrestricted (<span title="Autonomy Level 5 — unrestricted autonomy">L5</span>) autonomy, and
 replacing human accountability for high-blast-radius production changes.
 
 ## 2. Goals and non-goals
@@ -62,14 +64,14 @@ replacing human accountability for high-blast-radius production changes.
 1. **Grounded answers, never ungrounded ones** — every answer and recommendation carries
    citations to authorized evidence; empty authorized retrieval returns an explicit
    insufficient-evidence result rather than a guess.
-2. **Authorization before retrieval** — identity and ACLs constrain the evidence set *before*
+2. **Authorization before retrieval** — identity and <span title="Access Control Lists">ACLs</span> constrain the evidence set *before*
    any content reaches a model; security trimming is a property of the search layer, not a
    post-filter on model output.
-3. **Deterministic authority** — an LLM may reason, correlate, and propose; only deterministic
+3. **Deterministic authority** — an <span title="Large Language Model">LLM</span> may reason, correlate, and propose; only deterministic
    policy authorizes mutation, only allow-listed runbooks execute it, and independent signals
    verify it.
 4. **Evidence-gated autonomy** — autonomy is earned per service, environment, and runbook
-   through certification exercises (L0 → L4), never granted to an agent wholesale.
+through certification exercises (<span title="Autonomy Level 0 — observe">L0</span> → <span title="Autonomy Level 4 — bounded autonomous">L4</span>), never granted to an agent wholesale.
 5. **Everything auditable** — every decision carries a correlation ID, a plan hash, and an
    append-only, hash-chained audit trail.
 
@@ -100,14 +102,14 @@ design regression, not a trade-off.
 
 | # | Invariant | Enforced by |
 |---|---|---|
-| I1 | Authorization happens **before** retrieval | ACL filter compiled into the search query (`ingestion/azure_search.py`, `app/rag/azure_backend.py`) |
-| I2 | The LLM recommends; **deterministic policy** authorizes mutation | `remediation/policy.py` `authorize()`; risk thresholds in `intelligence/pr_guardian.py` |
+| I1 | Authorization happens **before** retrieval | <span title="Access Control List">ACL</span> filter compiled into the search query (`ingestion/azure_search.py`, `app/rag/azure_backend.py`) |
+| I2 | The <span title="Large Language Model">LLM</span> recommends; **deterministic policy** authorizes mutation | `remediation/policy.py` `authorize()`; risk thresholds in `intelligence/pr_guardian.py` |
 | I3 | Production mutation is restricted to **allow-listed, reversible runbooks** | Typed catalog in `remediation/catalog.py` |
 | I4 | Every answer/action carries **evidence and an audit trail** | Plan hashes + `state/audit.py` hash chain |
 | I5 | **Verification is mandatory**; failed remediation escalates, never loops | `remediation/executor.py`; control-loop `VERIFY → ESCALATE` path |
 | I6 | Retrieved content is **data, never instructions** | Evidence delimiting and suspicious-evidence quarantine are reference controls; the dedicated Guardrail SLM remains planned |
 | I7 | **Kill switch and human override** exist at every autonomy level | Autonomy policy (`resilience/policy.py`), approval gates |
-| I8 | Autonomy is **earned per service/environment/runbook** with exercised evidence | L4 certification (`resilience/exercises.py`) |
+| I8 | Autonomy is **earned per service/environment/runbook** with exercised evidence | <span title="Autonomy Level 4 — bounded autonomous">L4</span> certification (`resilience/exercises.py`) |
 
 ## 5. Detailed design
 

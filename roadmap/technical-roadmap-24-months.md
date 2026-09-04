@@ -8,13 +8,14 @@
 | **Active product** | [PR Guardian](../docs/PRODUCT-STRATEGY.md) for one or two named repositories |
 | **Authoritative current state** | [Current Position](../docs/CURRENT-POSITION.md) |
 | **Evidence standard** | [Production evidence contract](../docs/PRODUCTION-EVIDENCE.md) |
+| **Terminology** | [Company Brain Glossary](../docs/GLOSSARY.md) |
 
 ## Decision
 
 The platform will reach high maturity by proving one valuable engineering workflow before it
-expands to other workflows or autonomy tiers. The first product is **PR Guardian**. It remains
+expands to other workflows or autonomy tiers. The first product is **<span title="Pull Request">PR</span> Guardian**. It remains
 shadow-only until its repository-specific evidence supports an advisory decision; no roadmap
-phase alone authorizes enforcement, production mutation, L3, or L4.
+phase alone authorizes enforcement, production mutation, <span title="Autonomy Level 3 — approve and execute">L3</span>, or <span title="Autonomy Level 4 — bounded autonomous">L4</span>.
 
 The time ranges below are planning horizons, not delivery promises. A failed exit gate returns the
 work to the preceding stage; it does not justify moving ahead on a different feature track.
@@ -27,7 +28,7 @@ roadmap.
 GitHub event / trusted publisher
         |
         v
-PR Guardian product workflow ──> Finding + evidence + simulated policy
+<span title="Pull Request">PR</span> Guardian product workflow ──> Finding + evidence + simulated policy
         |                                      |
         v                                      v
 Repository configuration                  Reviewer disposition
@@ -40,8 +41,8 @@ Repository configuration                  Reviewer disposition
 
 The product uses three bounded contexts:
 
-1. **Product workflow** — repository onboarding, PR findings, evidence presentation, feedback,
-   waivers, and product metrics. `product/` owns use cases; `integrations/` owns GitHub/ADO
+1. **Product workflow** — repository onboarding, <span title="Pull Request">PR</span> findings, evidence presentation, feedback,
+   waivers, and product metrics. `product/` owns use cases; `integrations/` owns GitHub/<span title="Azure DevOps">ADO</span>
    adapters.
 2. **Knowledge platform** — source lifecycle, ACLs, provenance, retrieval, and service graph.
    It provides evidence; it does not decide a merge outcome.
@@ -56,11 +57,11 @@ with PR Guardian for the first pilot's scope.
 
 | Area | Repository state | Maturity implication |
 |---|---|---|
-| PR Guardian | Read-only/shadow workflow split; repository-owned `shadow` / `advisory` / `enforce` modes with owner approval, expiry, waivers, and a kill switch; trusted publisher is the only writer; Architecture Guard on the PR path; shadow-only onboarding, readiness, and bootstrap tools | A **mode-capable shadow product** — advisory or enforce is a repository owner's decision, and no repository has made it |
+| <span title="Pull Request">PR</span> Guardian | Read-only/shadow workflow split; repository-owned `shadow` / `advisory` / `enforce` modes with owner approval, expiry, waivers, and a kill switch; trusted publisher is the only writer; Architecture Guard on the <span title="Pull Request">PR</span> path; shadow-only onboarding, readiness, and bootstrap tools | A **mode-capable shadow product** — advisory or enforce is a repository owner's decision, and no repository has made it |
 | Feedback | Reviewer labels, a closure report that computes a real decision, calibration as a recommendation, a scheduled report workflow | Calibration numbers are recommendations until a named repository accumulates ≥30 classified observations |
 | Knowledge | Runtime ingestion trigger (CLI + workflow) over the governed pipeline; evidence registry; fail-closed integration proof | Still unproven against a real Azure index; the registry is empty by design |
-| Control plane | `temporal` mode constructible over Cosmos; opt-in remediation workflow with plan-hash approval; L1/L2 operations routes | The worker remains evidence-only by default; consequential activities stay behind the flag and are unproven |
-| Rehearsal and certification | Soak, readiness, and L3 exercise runners; scoped L4 eligibility and an executor/OPA gate that refuses uncertified L4 | Simulated exercises are `rehearsal` grade and never count; nothing is certified |
+| Control plane | `temporal` mode constructible over Cosmos; opt-in remediation workflow with plan-hash approval; <span title="Autonomy Level 1 — recommend">L1</span>/<span title="Autonomy Level 2 — human execute">L2</span> operations routes | The worker remains evidence-only by default; consequential activities stay behind the flag and are unproven |
+| Rehearsal and certification | Soak, readiness, and <span title="Autonomy Level 3 — approve and execute">L3</span> exercise runners; scoped <span title="Autonomy Level 4 — bounded autonomous">L4</span> eligibility and an executor/<span title="Open Policy Agent">OPA</span> gate that refuses uncertified <span title="Autonomy Level 4 — bounded autonomous">L4</span> | Simulated exercises are `rehearsal` grade and never count; nothing is certified |
 
 Reference paths exist across later stages, but no stage's engineering exit criteria should be
 considered complete merely because a source path exists. The evidence half of no stage has been
@@ -75,7 +76,7 @@ per-stage source/evidence table.
 
 - Define and version the canonical `RepositoryConfig`, `PRFinding`, `EvidenceBundle`, `Outcome`,
   and `EvaluationRun` contracts.
-- Keep GitHub/ADO/PagerDuty-style concerns in `integrations/`; organize only PR Guardian beneath a
+- Keep GitHub/<span title="Azure DevOps">ADO</span>/PagerDuty-style concerns in `integrations/`; organize only <span title="Pull Request">PR</span> Guardian beneath a
   vertical `product/pr_guardian/` boundary as it grows. Do not perform a broad repository rewrite.
 - Make documentation links/anchors a required CI gate and set a documentation authority order.
   The unreferenced `src/` prototypes and `providers/` stubs were retired; their concepts live in
@@ -99,8 +100,8 @@ pilot repository has an owner and an explicit non-enforcement configuration.
   enabled evidence sources, and retention.
 - Record explicit reviewer disposition: confirmed risk, false positive, useful, not useful, or not
   reviewed. A lack of action is never automatically a false positive.
-- Build an offline golden corpus from approved historical PR material and gate deterministic rules,
-  evidence access, and schema compatibility in CI.
+- Build an offline golden corpus from approved historical <span title="Pull Request">PR</span> material and gate deterministic rules,
+  evidence access, and schema compatibility in <span title="Continuous Integration">CI</span>.
 
 **Exit:** a product owner can inspect a single durable PR record end-to-end—event, finding,
 evidence, policy simulation, reviewer disposition, cost/latency, and correlation ID—without
@@ -150,7 +151,7 @@ owner-approved deterministic threshold.
 - Correlate code, deployment, telemetry, incident, ownership, and runbook evidence through the
   shared graph and evidence contracts.
 - Introduce incident and deployment intelligence as **observe/recommend** workflows first.
-- At L2, prepare exact, reviewed runbook or corrective-PR proposals. Humans execute; the system
+- At <span title="Autonomy Level 2 — human execute">L2</span>, prepare exact, reviewed runbook or corrective-<span title="Pull Request">PR</span> proposals. Humans execute; the system
   has no production mutation authority.
 - Measure hypothesis correctness, time to disposition, avoided rework, evidence quality, and the
   operational cost of every product workflow.
@@ -168,7 +169,7 @@ same identity, audit, policy, evidence, and lifecycle contracts as PR Guardian.
   kill-switch, policy outage, audit outage, and error-budget behavior.
 - Retain immutable audit, durable state/queue, restore-drill, security, and operational evidence
   for the **service + environment + runbook** combination.
-- Grant L3 only when a human approval authorizes the exact, plan-bound, allow-listed action.
+- Grant <span title="Autonomy Level 3 — approve and execute">L3</span> only when a human approval authorizes the exact, plan-bound, allow-listed action.
 
 **Exit:** a scoped L3 certification packet meets the production evidence contract. No other
 service, environment, or runbook inherits that authorization.
@@ -177,7 +178,7 @@ service, environment, or runbook inherits that authorization.
 
 **Outcome:** a certified low-blast-radius runbook may execute automatically inside strict limits.
 
-L4 requires repeated L3 evidence plus service-specific error-budget enforcement, OPA policy,
+<span title="Autonomy Level 4 — bounded autonomous">L4</span> requires repeated <span title="Autonomy Level 3 — approve and execute">L3</span> evidence plus service-specific error-budget enforcement, <span title="Open Policy Agent">OPA</span> policy,
 independent verification, rollback, immutable audit, kill-switch proof, and recurring failure
 exercises. A generic success-rate target is insufficient. L5 remains unsupported.
 
