@@ -8,10 +8,11 @@
 | **Authoritative current state** | [`CURRENT-POSITION.md`](CURRENT-POSITION.md) |
 | **Related delivery status** | [`../architecture/CAPABILITY-RECONCILIATION.md`](../architecture/CAPABILITY-RECONCILIATION.md) |
 | **Product contract** | [`PR-GUARDIAN-DOMAIN-CONTRACT.md`](PR-GUARDIAN-DOMAIN-CONTRACT.md) |
+| **Terminology** | [Company Brain Glossary](GLOSSARY.md) |
 
 ## Decision
 
-The first product is **PR Guardian for Azure engineering teams**, not a general-purpose
+The first product is **<span title="Pull Request">PR</span> Guardian for Azure engineering teams**, not a general-purpose
 engineering chatbot and not production self-healing.
 
 It produces evidence-backed, reviewable change-risk feedback on pull requests for one or two
@@ -48,9 +49,9 @@ uncalibrated score into a blocking control.
 
 | In scope for the first product | Explicitly deferred |
 |---|---|
-| GitHub PR event, service mapping, deterministic risk score, evidence comment/check, feedback capture | General engineering chat or IDE productization |
+| GitHub <span title="Pull Request">PR</span> event, service mapping, deterministic risk score, evidence comment/check, feedback capture | General engineering chat or IDE productization |
 | One or two repositories with named service owners | Organization-wide source ingestion and cross-cloud expansion |
-| Shadow-mode calibration and a human-reviewed enforcement proposal | Incident automation, corrective PR generation, L3 remediation, or L4 autonomy |
+| Shadow-mode calibration and a human-reviewed enforcement proposal | Incident automation, corrective PR generation, <span title="Autonomy Level 3 — approve and execute">L3</span> remediation, or <span title="Autonomy Level 4 — bounded autonomous">L4</span> autonomy |
 | Authorized retrieval and auditability required by the system design | Claims of saved engineering capacity before measured adoption/outcomes exist |
 
 ## Success and expansion gates
@@ -61,12 +62,12 @@ copied from a generic platform target.
 
 | Stage | Required evidence | Decision |
 |---|---|---|
-| **Shadow** | Representative PR sample, reviewer disposition for every material finding, false-positive/false-negative analysis, citation review, ACL isolation checks, latency/cost distribution | Continue only if the feedback is useful and safe enough to improve; follow the [shadow-pilot runbook](PR-GUARDIAN-SHADOW-PILOT.md) |
+| **Shadow** | Representative <span title="Pull Request">PR</span> sample, reviewer disposition for every material finding, false-positive/false-negative analysis, citation review, <span title="Access Control List">ACL</span> isolation checks, latency/cost distribution | Continue only if the feedback is useful and safe enough to improve; follow the [shadow-pilot runbook](PR-GUARDIAN-SHADOW-PILOT.md) |
 | **Advisory** | Sustained precision and acceptance above the pre-agreed threshold; no unresolved high-severity ACL, provenance, or evidence defect | Enable a non-blocking check for the certified repository scope |
 | **Selective enforcement** | Service-owner approval, calibrated high-severity threshold, documented waiver/expiry path, rollback switch, and monitored false-negative rate | Block only the narrow, deterministic condition that has proved reliable |
 | **Expand to incident intelligence** | PR Guardian outcome retained over a meaningful window and a demonstrated need for operational correlation | Start L1/L2 incident intelligence; do not inherit mutation authority |
 
-Every result must be labelled **measured**, **derived**, or **modeled**. An LLM-derived
+Every result must be labelled **measured**, **derived**, or **modeled**. An <span title="Large Language Model">LLM</span>-derived
 recommendation cannot satisfy a deterministic enforcement rule by itself.
 
 ## Product metrics
@@ -74,7 +75,7 @@ recommendation cannot satisfy a deterministic enforcement rule by itself.
 The baseline is collected before a target is committed. Review weekly by repository and service,
 not as a single blended platform average.
 
-- PR Guardian precision, false-positive rate, and observed false-negative rate by severity.
+- <span title="Pull Request">PR</span> Guardian precision, false-positive rate, and observed false-negative rate by severity.
 - Reviewer acceptance/action rate and time to disposition.
 - Citation correctness and insufficient-evidence/refusal correctness.
 - Review-cycle time and rework attributable to findings.

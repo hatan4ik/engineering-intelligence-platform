@@ -24,6 +24,7 @@ jobs:
         run: |
           python check_links.py
           python check_anchors.py
+          python check_glossary.py
       - name: Validate requirements-to-evidence baseline
         run: python scripts/verify_requirements_baseline.py --check-rendered
       - name: Validate runtime capability contract
