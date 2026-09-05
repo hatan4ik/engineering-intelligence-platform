@@ -23,3 +23,6 @@ docs/diagrams/*.png
 
 # Locally-installed enterprise AI transformation skill pack (uploaded tooling, not vendored)
 .claude/skills/enterprise-ai-transformation/
+
+# Local macOS app data accidentally created at repository root
+AppDomainGroup-group.net.whatsapp.WhatsAppSMB.shared/
