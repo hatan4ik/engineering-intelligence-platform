@@ -26,3 +26,10 @@ docs/diagrams/*.png
 
 # Local macOS app data accidentally created at repository root
 AppDomainGroup-group.net.whatsapp.WhatsAppSMB.shared/
+
+# Local root artifacts generated outside the project
+724bd3b98b18518b455a87c1f3ac3a0d189c4466
+724bd3b98b18518b455a87c1f3ac3a0d189c4466-shm
+724bd3b98b18518b455a87c1f3ac3a0d189c4466-wal
+d7246a707f51ddf8b17ee2dddabd9e0a4da5c552
+b463f7c4365eefc5a8723930d97928d4e907c603
