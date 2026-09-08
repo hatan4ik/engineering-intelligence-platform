@@ -69,6 +69,9 @@ class _Admission:
     half_open_probe: bool
 
 
+DEFAULT_DEPENDENCY_LIMITS: DependencyLimits = DependencyLimits()
+
+
 class DependencyBoundary:
     """Bound one dependency's concurrency and transient-failure blast radius.
 
@@ -80,7 +83,7 @@ class DependencyBoundary:
     def __init__(
         self,
         dependency: str,
-        limits: DependencyLimits = DependencyLimits(),
+        limits: DependencyLimits = DEFAULT_DEPENDENCY_LIMITS,
         *,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:

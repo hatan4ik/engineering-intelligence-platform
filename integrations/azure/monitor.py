@@ -96,7 +96,7 @@ class AzureMonitorEvidenceClient:
         for index, row in enumerate(rows if isinstance(rows, list) else []):
             if not isinstance(row, list):
                 continue
-            values = dict(zip(columns, row))
+            values = dict(zip(columns, row, strict=False))
             out.append(self._normalize_row(query.service, index, values))
         return out
 

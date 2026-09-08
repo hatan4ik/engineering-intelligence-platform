@@ -17,7 +17,6 @@ Two independent off switches exist:
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from enum import StrEnum
@@ -142,9 +141,16 @@ class PublishDecision:
     reason: EnforcementReason | str
 
 
+_EMPTY_ENV: Mapping[str, str] = {}
+
+
 def kill_switch_enabled(environ: Mapping[str, str] | None = None) -> bool:
-    """Only the exact string ``true`` disables enforcement, case-insensitively."""
-    source = os.environ if environ is None else environ
+    """Only the exact string ``true`` disables enforcement, case-insensitively.
+
+    Pure dependency injection: defaults to an empty mapping rather than reading
+    ambient process environment.
+    """
+    source = _EMPTY_ENV if environ is None else environ
     return str(source.get(KILL_SWITCH_ENV, "")).strip().lower() == "true"
 
 

@@ -282,7 +282,7 @@ def plan_company_brain_maintenance(
     *,
     tenant_id: str,
     as_of: datetime,
-    policy: MemoryMaintenancePolicy = MemoryMaintenancePolicy(),
+    policy: MemoryMaintenancePolicy | None = None,
 ) -> MemoryMaintenancePlan:
     """Produce a deterministic, tenant-scoped plan without mutating the reader.
 
@@ -292,6 +292,7 @@ def plan_company_brain_maintenance(
     as fresh.
     """
 
+    effective_policy = MemoryMaintenancePolicy() if policy is None else policy
     tenant = _required(tenant_id, "maintenance tenant_id", maximum=200)
     reference_time = _utc(as_of, "maintenance as_of")
     entities = reader.list_entities(tenant, include_deleted=False)
@@ -314,7 +315,7 @@ def plan_company_brain_maintenance(
     )
     owners = _owners_by_source(active_relationships, entity_by_id)
     candidates = tuple(
-        item for item in active_entities if item.entity.kind in policy.eligible_kinds
+        item for item in active_entities if item.entity.kind in effective_policy.eligible_kinds
     )
 
     source_records: dict[str, StoredEntity] = {}
@@ -347,7 +348,7 @@ def plan_company_brain_maintenance(
 
     for finding in detect_knowledge_decay(
         knowledge_records,
-        stale_after_days=policy.stale_after_days,
+        stale_after_days=effective_policy.stale_after_days,
         now=reference_time,
     ):
         raw_findings.append(
@@ -363,7 +364,7 @@ def plan_company_brain_maintenance(
         sorted(
             (
                 _proposal_for(
-                    stored, finding_kind, severity, reason, tenant=tenant, policy=policy
+                    stored, finding_kind, severity, reason, tenant=tenant, policy=effective_policy
                 )
                 for stored, finding_kind, severity, reason in raw_findings
             ),
@@ -378,7 +379,7 @@ def plan_company_brain_maintenance(
     return MemoryMaintenancePlan(
         tenant_id=tenant,
         as_of=reference_time,
-        policy=policy,
+        policy=effective_policy,
         assessed_source_count=len(candidates),
         proposals=proposals,
     )

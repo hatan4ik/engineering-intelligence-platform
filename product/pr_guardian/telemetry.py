@@ -5,6 +5,7 @@ from __future__ import annotations
 from intelligence.risk import RiskAssessment
 from integrations.github.pr_guardian import PullRequestEvent
 from telemetry.events import OperationEvent, TelemetrySink
+from telemetry.trace_context import TraceContext
 
 from .company_brain import PRGuardianCompanyContext
 from .contracts import PRFinding
@@ -27,6 +28,22 @@ class PRGuardianTelemetryRecorder:
         conclusion: str,
         latency_ms: float,
     ) -> None:
+        attributes = {
+            "pr": str(event.number),
+            "head_sha": event.head_sha,
+            "score": str(assessment.score),
+            "band": assessment.band,
+            "company_brain_context": (
+                "qualified"
+                if company_context is not None and company_context.qualified
+                else "unqualified"
+            ),
+            "context_version": finding.context_version,
+        }
+        traceparent = TraceContext.current().traceparent
+        if traceparent is not None:
+            attributes["traceparent"] = traceparent
+
         self._sink.emit(
             OperationEvent(
                 correlation_id=finding.correlation_id,
@@ -37,17 +54,6 @@ class PRGuardianTelemetryRecorder:
                 repo=event.repository,
                 service=primary_service,
                 agent="pr-guardian",
-                attributes={
-                    "pr": str(event.number),
-                    "head_sha": event.head_sha,
-                    "score": str(assessment.score),
-                    "band": assessment.band,
-                    "company_brain_context": (
-                        "qualified"
-                        if company_context is not None and company_context.qualified
-                        else "unqualified"
-                    ),
-                    "context_version": finding.context_version,
-                },
+                attributes=attributes,
             )
         )

@@ -352,6 +352,15 @@ def execute_control_loop(
             error=preflight_reason,
         )
 
+    return _run_execution_and_verify(adapter, runbook, request, decision)
+
+
+def _run_execution_and_verify(
+    adapter: ActionAdapter,
+    runbook: Runbook,
+    request: ActionRequest,
+    decision: PolicyDecision,
+) -> ExecutionResult:
     try:
         execution_ref = adapter.execute(runbook.id, request)
     except Exception as exc:
