@@ -84,7 +84,7 @@ class D:
         self.parts: list[str] = []
 
     # ---- primitives -------------------------------------------------------
-    def text(self, x: float, y: float, s: str, *, size: int = 13, color: str | None = None,
+    def text(self, x: float, y: float, s: str, *, size: float = 13, color: str | None = None,
              anchor: str = "middle", weight: str = "normal", halo: bool = False,
              spacing: str | None = None) -> None:
         attrs = (
@@ -97,7 +97,7 @@ class D:
             attrs += f' paint-order="stroke" stroke="{self.th.surface}" stroke-width="5" stroke-linejoin="round"'
         self.parts.append(f"<text {attrs}>{esc(s)}</text>")
 
-    def vtext(self, x: float, y: float, s: str, *, size: int = 11, color: str | None = None) -> None:
+    def vtext(self, x: float, y: float, s: str, *, size: float = 11, color: str | None = None) -> None:
         self.parts.append(
             f'<text x="{x}" y="{y}" font-size="{size}" text-anchor="middle" '
             f'fill="{color or self.th.ink2}" transform="rotate(-90 {x} {y})" '
@@ -105,7 +105,7 @@ class D:
             f'stroke-linejoin="round">{esc(s)}</text>'
         )
 
-    def lines(self, x: float, y: float, rows: list[str], *, size: int = 12, dy: int = 16,
+    def lines(self, x: float, y: float, rows: list[str], *, size: float = 12, dy: int = 16,
               color: str | None = None, anchor: str = "middle") -> None:
         for i, row in enumerate(rows):
             self.text(x, y + i * dy, row, size=size, color=color or self.th.ink2, anchor=anchor)
@@ -120,7 +120,7 @@ class D:
         self.parts.append(s + "/>")
 
     def card(self, x: float, y: float, w: float, h: float, title: str, sub: list[str] | None = None,
-             *, accent: str = "neutral", title_size: int = 13, sub_size: int = 11) -> None:
+             *, accent: str = "neutral", title_size: float = 13, sub_size: float = 11) -> None:
         a = self.th.accents[accent]
         tint = _mix(self.th.surface, a, 0.15 if self.th.name == "light" else 0.26)
         border = _mix(self.th.hairline, a, 0.55)
@@ -143,10 +143,10 @@ class D:
         if sub:
             self.lines(cx, ty + 16, sub, size=sub_size, dy=13)
 
-    def chip(self, x: float, y: float, label: str, accent: str) -> None:
+    def chip(self, x: float, y: float, label: str, accent: str = "neutral") -> None:
         a = self.th.accents[accent]
-        w = 18 + len(label) * 7.1
-        fill = _mix(a, "#000000", 0.25)
+        fill = _mix(a, self.th.ink, 0.15 if self.th.name == "light" else 0.0)
+        w = max(88, 22 + len(label) * 7.2)
         self.parts.append(
             f'<rect x="{x}" y="{y}" width="{w}" height="20" rx="10" fill="{fill}" '
             f'filter="url(#soft-{self.th.name})"/>'
@@ -161,7 +161,7 @@ class D:
 
     def edge(self, pts: list[tuple[float, float]], *, label: str | None = None, color: str | None = None,
              dash: str | None = None, lx: float | None = None, ly: float | None = None,
-             lsize: int = 11, marker: str = "arrow") -> None:
+             lsize: float = 11, marker: str = "arrow") -> None:
         c = color or self.th.line
         d = "M " + " L ".join(f"{x} {y}" for x, y in pts)
         s = f'<path d="{d}" fill="none" stroke="{c}" stroke-width="1.7"'

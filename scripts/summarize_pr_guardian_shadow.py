@@ -17,8 +17,11 @@ def main() -> int:
     report = build_shadow_report(outcomes)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     readiness = report["promotion_readiness"]
+    sample = report["sample"]
+    if not isinstance(readiness, Mapping) or not isinstance(sample, Mapping):
+        raise TypeError("Invalid shadow report format")
     print(
-        f"PR Guardian shadow report: records={report['sample']['closure_records']} "
+        f"PR Guardian shadow report: records={sample['closure_records']} "
         f"decision={readiness['decision']} blocking_authorized={readiness['blocking_authorized']} "
         f"next_review={readiness['next_review']} output={args.output}"
     )

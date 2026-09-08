@@ -26,10 +26,11 @@ from datetime import date, datetime
 from pathlib import Path
 
 from control_plane.workflows import ControlPlaneWorkflows
-from integrations.github.pr_guardian import GitHubRestPRClient, normalize_pull_request_event
+from integrations.github.pr_guardian import GitHubRestPRClient, PullRequestEvent, normalize_pull_request_event
 from intelligence.architecture_guard import ArchitectureRule
 from product.architecture_review import (
     DEFAULT_ARCHITECTURE_RULES,
+    ChangedContentProvider,
     FileContent,
     review_changed_paths,
     skipped_records,
@@ -38,7 +39,10 @@ from product.architecture_review import (
 from product.graph_from_checkout import build_service_graph_from_checkout
 from product.pr_guardian.config import CONFIG_RELATIVE_PATH, load_effective_config
 from product.pr_guardian_service import PRGuardianService
-from product.pr_guardian_shadow import observation_from_assessment
+from product.pr_guardian_shadow import (
+    ShadowObservation,
+    observation_from_assessment,
+)
 from state.audit import SqliteAuditLog
 from state.store import SqliteStateStore
 
@@ -87,14 +91,14 @@ class GitHubFileContents:
 
 
 async def evaluate_pull_request(
-    event,
+    event: PullRequestEvent,
     *,
     service: PRGuardianService,
     audit: SqliteAuditLog,
-    contents,
+    contents: ChangedContentProvider,
     rules: tuple[ArchitectureRule, ...] = DEFAULT_ARCHITECTURE_RULES,
     now: date | datetime | None = None,
-) -> dict[str, object]:
+) -> ShadowObservation:
     """Assess risk, run Architecture Guard, and return the observation record."""
     result = await service.evaluate(event, publish=False, now=now)
     review = review_changed_paths(

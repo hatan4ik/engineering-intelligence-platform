@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from azure.core.credentials import AccessToken
 from azure.core.exceptions import ServiceRequestError
 
 from app.rag.azure_backend import (
@@ -15,8 +16,8 @@ from resilience.dependencies import DependencyBoundary, DependencyLimits, Depend
 
 
 class _Credential:
-    def get_token(self, *scopes: str) -> object:
-        return object()
+    def get_token(self, *scopes: str, **kwargs: object) -> AccessToken:
+        return AccessToken("test-token", 1893456000)
 
 
 class _SearchClient:

@@ -135,13 +135,13 @@ def main() -> None:
 
     summary = {
         "cases": len(rows),
-        "passed": sum(bool(row["passed"]) for row in rows),
-        "precision@3": sum(float(row["precision@3"]) for row in rows) / len(rows),
-        "recall@3": sum(float(row["recall@3"]) for row in rows) / len(rows),
-        "citation_coverage": all(bool(row["citation_coverage"]) for row in rows),
-        "acl_isolation": all(bool(row["acl_isolated"]) for row in rows),
+        "passed": sum(1 for row in rows if row.get("passed")),
+        "precision@3": sum(float(str(row.get("precision@3", 0.0))) for row in rows) / max(len(rows), 1),
+        "recall@3": sum(float(str(row.get("recall@3", 0.0))) for row in rows) / max(len(rows), 1),
+        "citation_coverage": all(bool(row.get("citation_coverage")) for row in rows),
+        "acl_isolation": all(bool(row.get("acl_isolated")) for row in rows),
         "refusal_accuracy": all(
-            bool(row["refusal_correct"]) == bool(row["expected_refusal"])
+            bool(row.get("refusal_correct")) == bool(row.get("expected_refusal"))
             for row in rows
         ),
     }

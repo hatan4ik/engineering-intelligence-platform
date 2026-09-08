@@ -100,7 +100,7 @@ def test_the_local_evaluator_keys_approval_on_the_effective_level():
     assert allowed.allowed is True
 
 
-def test_effective_level_mirrors_the_rego_rule():
+def test_effective_level_mirrors_the_rego_rule() -> None:
     assert AutonomyContext(autonomy_level="L3", policy_level=4).effective_level == 3
     assert AutonomyContext(autonomy_level="l3", policy_level=4).effective_level == 3
     assert AutonomyContext(autonomy_level="L3", policy_level=3).effective_level == 3

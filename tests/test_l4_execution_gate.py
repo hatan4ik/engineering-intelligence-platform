@@ -19,6 +19,7 @@ from resilience.certification import (
     certification_scope_for,
     material_inputs_hash_for,
 )
+from resilience.scope import CertificationScope
 
 
 NOW = datetime(2026, 8, 26, tzinfo=timezone.utc)
@@ -62,24 +63,38 @@ def request(runbook_id: str = RUNBOOK_ID) -> ActionRequest:
     )
 
 
-def record(catalog=None, **overrides) -> L4CertificationRecord:
+def record(
+    catalog: RunbookCatalog | None = None,
+    *,
+    scope: CertificationScope | None = None,
+    scope_hash: str | None = None,
+    inputs_hash: str | None = None,
+    exercises_digest: str = "sha256:cafe",
+    issued_on: str = "2026-08-01T00:00:00+00:00",
+    expires_on: str = "2026-11-01T00:00:00+00:00",
+    issued_by: str = "security@example.invalid",
+    evidence_ids: tuple[str, ...] = ("l4-security-review",),
+    **extra: object,
+) -> L4CertificationRecord:
     catalog = catalog or default_catalog()
     runbook = catalog.get(RUNBOOK_ID)
-    scope = certification_scope_for(policy=policy(), request=request(), runbook=runbook)
-    fields = {
-        "scope": scope,
-        "scope_hash": scope.scope_hash(),
-        "inputs_hash": material_inputs_hash_for(
-            scope, runbook, policy_bundle_version=LOCAL_REVISION
-        ),
-        "exercises_digest": "sha256:cafe",
-        "issued_on": "2026-08-01T00:00:00+00:00",
-        "expires_on": "2026-11-01T00:00:00+00:00",
-        "issued_by": "security@example.invalid",
-        "evidence_ids": ("l4-security-review",),
-    }
-    fields.update(overrides)
-    return L4CertificationRecord(**fields)
+    resolved_scope = scope or certification_scope_for(policy=policy(), request=request(), runbook=runbook)
+    resolved_scope_hash = scope_hash if scope_hash is not None else resolved_scope.scope_hash()
+    resolved_inputs_hash = (
+        inputs_hash
+        if inputs_hash is not None
+        else material_inputs_hash_for(resolved_scope, runbook, policy_bundle_version=LOCAL_REVISION)
+    )
+    return L4CertificationRecord(
+        scope=resolved_scope,
+        scope_hash=resolved_scope_hash,
+        inputs_hash=str(extra.get("inputs_hash", resolved_inputs_hash)),
+        exercises_digest=str(extra.get("exercises_digest", exercises_digest)),
+        issued_on=str(extra.get("issued_on", issued_on)),
+        expires_on=str(extra.get("expires_on", expires_on)),
+        issued_by=str(extra.get("issued_by", issued_by)),
+        evidence_ids=evidence_ids,
+    )
 
 
 def run(adapter, *, certification=None, level=AutonomyLevel.BOUNDED_AUTONOMOUS, catalog=None, **kwargs):
