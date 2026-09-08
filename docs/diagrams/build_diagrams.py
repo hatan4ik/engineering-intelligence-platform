@@ -69,7 +69,7 @@ DARK = Theme(
 def _mix(hex_a: str, hex_b: str, t: float) -> str:
     a = [int(hex_a[i:i + 2], 16) for i in (1, 3, 5)]
     b = [int(hex_b[i:i + 2], 16) for i in (1, 3, 5)]
-    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
+    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b, strict=True))
 
 
 def esc(s: str) -> str:
@@ -429,20 +429,20 @@ def pr_guardian_sequence(th: Theme) -> D:
     d = D(960, 560, th, "PR Guardian: webhook or CI event to deterministic risk, durable workflow and a published check")
     d.text(28, 40, "PR Guardian — event to published verdict", size=16, weight="700", anchor="start")
     d.text(28, 60, "The LLM plays no role in the decision; every input is bound into the workflow plan hash", size=12, color=th.ink2, anchor="start")
-    G, I, P, W, K = 110, 330, 560, 780, 890
+    pos_github, pos_ingress, pos_pr_guardian, pos_control_plane = 110, 330, 560, 780
     top, bot = 84, 530
-    d.lifeline(G, "GitHub", top, bot, "neutral")
-    d.lifeline(I, "Ingress", top, bot, "gateway")
-    d.lifeline(P, "PRGuardianService", top, bot, "intelligence")
-    d.lifeline(W, "Control plane", top, bot, "control")
-    d.msg(G, I, 170, "pull_request event", note="webhook or Actions runner")
-    d.selfmsg(I, 196, "verify HMAC signature", "X-Hub-Signature-256 — fail closed")
-    d.msg(I, P, 262, "normalized PR event")
-    d.msg(P, G, 296, "fetch changed files")
-    d.selfmsg(P, 322, "paths → services → blast radius", "deterministic risk score + evidence")
-    d.msg(P, W, 392, "start_pr_review(assessment)", note="durable record · plan hash · audit event")
-    d.msg(W, P, 438, "workflow_id · correlation_id", dash="4 3")
-    d.msg(P, G, 478, "check run + sticky comment", note="success · neutral · action_required")
+    d.lifeline(pos_github, "GitHub", top, bot, "neutral")
+    d.lifeline(pos_ingress, "Ingress", top, bot, "gateway")
+    d.lifeline(pos_pr_guardian, "PRGuardianService", top, bot, "intelligence")
+    d.lifeline(pos_control_plane, "Control plane", top, bot, "control")
+    d.msg(pos_github, pos_ingress, 170, "pull_request event", note="webhook or Actions runner")
+    d.selfmsg(pos_ingress, 196, "verify HMAC signature", "X-Hub-Signature-256 — fail closed")
+    d.msg(pos_ingress, pos_pr_guardian, 262, "normalized PR event")
+    d.msg(pos_pr_guardian, pos_github, 296, "fetch changed files")
+    d.selfmsg(pos_pr_guardian, 322, "paths → services → blast radius", "deterministic risk score + evidence")
+    d.msg(pos_pr_guardian, pos_control_plane, 392, "start_pr_review(assessment)", note="durable record · plan hash · audit event")
+    d.msg(pos_control_plane, pos_pr_guardian, 438, "workflow_id · correlation_id", dash="4 3")
+    d.msg(pos_pr_guardian, pos_github, 478, "check run + sticky comment", note="success · neutral · action_required")
     return d
 
 

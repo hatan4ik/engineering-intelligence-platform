@@ -2,6 +2,8 @@ import asyncio
 import json
 import sqlite3
 
+import pytest
+
 from intelligence.risk import RiskAssessment, RiskFactor
 from orchestration.approvals import issue_approval
 from state.audit import SqliteAuditLog
@@ -47,11 +49,8 @@ def test_pr_workflow_persists_policy_and_rejects_stale_approval(tmp_path):
         secret="secret",
         now=1000,
     )
-    try:
+    with pytest.raises(PermissionError):
         workflows.approve_plan(workflow_id=workflow.workflow_id, approval=stale, secret="secret", now=1001)
-        assert False, "stale approval must be rejected"
-    except PermissionError:
-        pass
 
     valid = issue_approval(
         workflow_id=workflow.workflow_id,

@@ -1,8 +1,32 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
+from typing import assert_never
 
 from .graph import ServiceGraph
+
+
+class RiskBand(StrEnum):
+    LOW = "low"
+    MODERATE = "moderate"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+def describe_risk_band(band: RiskBand) -> str:
+    """Exhaustive compile-time description of risk bands."""
+    match band:
+        case RiskBand.LOW:
+            return "Low risk: Routine changes within nominal boundaries."
+        case RiskBand.MODERATE:
+            return "Moderate risk: Changes impacting multiple services or dependencies."
+        case RiskBand.HIGH:
+            return "High risk: Wide blast radius or critical service changes."
+        case RiskBand.CRITICAL:
+            return "Critical risk: Tier-1 service impact or critical security boundary."
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 @dataclass(frozen=True)
@@ -27,7 +51,7 @@ class RiskFactor:
 @dataclass(frozen=True)
 class RiskAssessment:
     score: int
-    band: str
+    band: RiskBand | str
     blast_radius: tuple[str, ...]
     factors: tuple[RiskFactor, ...]
 
@@ -66,5 +90,13 @@ def assess_change(graph: ServiceGraph, ctx: ChangeContext) -> RiskAssessment:
         factors.append(RiskFactor("historical-regression", pts, f"{ctx.similar_failed_changes} similar failed changes"))
 
     score = min(100, sum(f.points for f in factors))
-    band = "low" if score < 25 else "moderate" if score < 50 else "high" if score < 75 else "critical"
+    band = (
+        RiskBand.LOW
+        if score < 25
+        else RiskBand.MODERATE
+        if score < 50
+        else RiskBand.HIGH
+        if score < 75
+        else RiskBand.CRITICAL
+    )
     return RiskAssessment(score, band, tuple(sorted(blast)), tuple(factors))

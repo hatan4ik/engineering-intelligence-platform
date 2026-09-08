@@ -6,6 +6,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Mapping
 
+from azure.core.credentials import TokenCredential
 from azure.core.exceptions import AzureError
 from azure.identity import DefaultAzureCredential
 
@@ -29,7 +30,7 @@ class AzureResourceGraphClient:
         self,
         *,
         subscriptions: tuple[str, ...],
-        credential: DefaultAzureCredential | None = None,
+        credential: TokenCredential | None = None,
         api_version: str = "2022-10-01",
         timeout_seconds: float = 30.0,
         dependency: DependencyBoundary | None = None,

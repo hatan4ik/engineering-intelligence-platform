@@ -122,5 +122,8 @@ def test_only_an_exact_pass_verdict_counts(tmp_path):
             }),
             encoding="utf-8",
         )
-    verdicts = {item.evidence_ref and path.name: item.passed for path, item in zip(sorted(evidence.glob("*.json")), load_readiness_evidence(evidence).evidence)}
+    verdicts = {
+        item.evidence_ref and path.name: item.passed
+        for path, item in zip(sorted(evidence.glob("*.json")), load_readiness_evidence(evidence).evidence, strict=True)
+    }
     assert verdicts == {"a.json": False, "b.json": True, "c.json": False}

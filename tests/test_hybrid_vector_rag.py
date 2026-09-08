@@ -39,3 +39,43 @@ def test_acl_filter_is_fail_closed_and_escapes_values():
     assert "acl_groups/any" in expression
     assert "o''hare" in expression
     assert "acl_users/any" in expression
+
+
+def test_embedder_protocol_and_hybrid_retriever():
+    from ingestion.vector_search import Embedder
+
+    class MockEmbedder:
+        def embed(self, texts: list[str]) -> list[list[float]]:
+            return [[0.1, 0.2, 0.3] for _ in texts]
+
+    mock_embedder = MockEmbedder()
+    assert isinstance(mock_embedder, Embedder)
+
+    from azure.core.credentials import AccessToken
+
+    class MockCredential:
+        def get_token(self, *scopes: str, **kwargs: object) -> AccessToken:
+            return AccessToken("token", 1000)
+
+    retriever = AzureHybridRetriever(
+        endpoint="https://mock-search.search.windows.net",
+        index_name="test-index",
+        embedder=mock_embedder,
+        credential=MockCredential(),
+    )
+    assert retriever.embedder is mock_embedder
+
+
+def test_azure_openai_embedder_pure_di_and_fail_closed():
+    import pytest
+    from ingestion.vector_search import AzureOpenAIEmbedder
+
+    # Construction with empty environment succeeds without raising KeyError at init time
+    embedder = AzureOpenAIEmbedder(environ={})
+    assert embedder.deployment == ""
+    assert embedder.endpoint == ""
+
+    # Invoking embed when unconfigured raises ValueError with actionable message
+    with pytest.raises(ValueError, match="AzureOpenAIEmbedder requires"):
+        embedder.embed(["hello world"])
+
