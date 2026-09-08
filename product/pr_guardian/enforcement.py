@@ -20,30 +20,49 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from enum import StrEnum
 from fnmatch import fnmatch
-from typing import Iterable, Mapping
+from typing import Iterable, Literal, Mapping, assert_never
 
 from intelligence.risk import RiskAssessment
 
 from .contracts import EnforcementRule, ProductMode, RepositoryConfig
 
 
+PublishConclusion = Literal["neutral", "failure"]
+
+
+class EnforcementReason(StrEnum):
+    KILL_SWITCH = "kill-switch"
+    MODE_NOT_ENFORCING = "mode-not-enforcing"
+    APPROVAL_EXPIRED = "enforcement-approval-expired"
+    CONDITION_NOT_MET = "rule-condition-not-met"
+    WAIVED = "waived-by-owner"
+    CONDITION_MET = "rule-condition-met"
+    CONTEXT_UNQUALIFIED = "company-brain-context-unqualified"
+    OBSERVATION_NOT_ENFORCING = "observation-mode-not-enforcing"
+    CONFIG_NOT_ENFORCING = "repository-config-not-enforcing"
+    RULE_MISMATCH = "rule-does-not-match-repository-config"
+    THRESHOLD_NOT_MET = "score-below-configured-threshold"
+    ENFORCED = "enforced-by-repository-config"
+
+
 KILL_SWITCH_ENV = "EIP_PR_GUARDIAN_KILL_SWITCH"
 
-REASON_KILL_SWITCH = "kill-switch"
-REASON_MODE_NOT_ENFORCING = "mode-not-enforcing"
-REASON_APPROVAL_EXPIRED = "enforcement-approval-expired"
-REASON_CONDITION_NOT_MET = "rule-condition-not-met"
-REASON_WAIVED = "waived-by-owner"
-REASON_CONDITION_MET = "rule-condition-met"
-REASON_CONTEXT_UNQUALIFIED = "company-brain-context-unqualified"
+REASON_KILL_SWITCH = EnforcementReason.KILL_SWITCH.value
+REASON_MODE_NOT_ENFORCING = EnforcementReason.MODE_NOT_ENFORCING.value
+REASON_APPROVAL_EXPIRED = EnforcementReason.APPROVAL_EXPIRED.value
+REASON_CONDITION_NOT_MET = EnforcementReason.CONDITION_NOT_MET.value
+REASON_WAIVED = EnforcementReason.WAIVED.value
+REASON_CONDITION_MET = EnforcementReason.CONDITION_MET.value
+REASON_CONTEXT_UNQUALIFIED = EnforcementReason.CONTEXT_UNQUALIFIED.value
 
 # Publisher-side reasons for declining to turn an observation into a failure.
-REASON_OBSERVATION_NOT_ENFORCING = "observation-mode-not-enforcing"
-REASON_CONFIG_NOT_ENFORCING = "repository-config-not-enforcing"
-REASON_RULE_MISMATCH = "rule-does-not-match-repository-config"
-REASON_THRESHOLD_NOT_MET = "score-below-configured-threshold"
-REASON_ENFORCED = "enforced-by-repository-config"
+REASON_OBSERVATION_NOT_ENFORCING = EnforcementReason.OBSERVATION_NOT_ENFORCING.value
+REASON_CONFIG_NOT_ENFORCING = EnforcementReason.CONFIG_NOT_ENFORCING.value
+REASON_RULE_MISMATCH = EnforcementReason.RULE_MISMATCH.value
+REASON_THRESHOLD_NOT_MET = EnforcementReason.THRESHOLD_NOT_MET.value
+REASON_ENFORCED = EnforcementReason.ENFORCED.value
 
 # The risk factor that must be present for each rule, and the predicate that
 # identifies the files the rule is actually about.  A waiver has to cover every
@@ -102,14 +121,14 @@ class EnforcementDecision:
     """Why a change would or would not be blocked, in transferable form."""
 
     would_block: bool
-    reason: str
+    reason: EnforcementReason | str
     rule: str | None = None
     waived_by: str | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
             "would_block": self.would_block,
-            "reason": self.reason,
+            "reason": str(self.reason),
             "rule": self.rule,
             "waived_by": self.waived_by,
         }
@@ -119,8 +138,8 @@ class EnforcementDecision:
 class PublishDecision:
     """The conclusion the trusted publisher is willing to stand behind."""
 
-    conclusion: str
-    reason: str
+    conclusion: PublishConclusion | str
+    reason: EnforcementReason | str
 
 
 def kill_switch_enabled(environ: Mapping[str, str] | None = None) -> bool:
@@ -222,33 +241,49 @@ def publishable_conclusion(
     return PublishDecision("failure", REASON_ENFORCED)
 
 
-_REASON_SENTENCES = {
-    REASON_KILL_SWITCH: "the operator kill switch is engaged",
-    REASON_MODE_NOT_ENFORCING: "this repository has not enabled enforcement",
-    REASON_APPROVAL_EXPIRED: "the service-owner approval for enforcement has expired",
-    REASON_CONDITION_NOT_MET: "the enforcement rule's condition was not met",
-    REASON_WAIVED: "a service owner recorded a waiver covering every affected file",
-    REASON_CONDITION_MET: "the enforcement rule's condition was met",
-    REASON_CONTEXT_UNQUALIFIED: (
-        "the Company Brain context was insufficient, stale, or conflicted for a control decision"
-    ),
-    REASON_OBSERVATION_NOT_ENFORCING: "the evaluation was not enforcing",
-    REASON_CONFIG_NOT_ENFORCING: (
-        "the trusted repository configuration is not enforcing this pull request"
-    ),
-    REASON_RULE_MISMATCH: (
-        "the evaluated rule does not match the rule in the trusted repository configuration"
-    ),
-    REASON_THRESHOLD_NOT_MET: (
-        "the reported risk score does not reach the threshold in the trusted "
-        "repository configuration"
-    ),
-    REASON_ENFORCED: "the repository configuration enforces this rule",
-}
+def explain(reason: EnforcementReason | str) -> str:
+    """Exhaustively format human explanations for each enforcement reason."""
+    try:
+        typed = EnforcementReason(reason)
+    except ValueError:
+        return str(reason)
 
-
-def explain(reason: str) -> str:
-    return _REASON_SENTENCES.get(reason, reason)
+    match typed:
+        case EnforcementReason.KILL_SWITCH:
+            return "the operator kill switch is engaged"
+        case EnforcementReason.MODE_NOT_ENFORCING:
+            return "this repository has not enabled enforcement"
+        case EnforcementReason.APPROVAL_EXPIRED:
+            return "the service-owner approval for enforcement has expired"
+        case EnforcementReason.CONDITION_NOT_MET:
+            return "the enforcement rule's condition was not met"
+        case EnforcementReason.WAIVED:
+            return "a service owner recorded a waiver covering every affected file"
+        case EnforcementReason.CONDITION_MET:
+            return "the enforcement rule's condition was met"
+        case EnforcementReason.CONTEXT_UNQUALIFIED:
+            return (
+                "the Company Brain context was insufficient, stale, or conflicted for a control decision"
+            )
+        case EnforcementReason.OBSERVATION_NOT_ENFORCING:
+            return "the evaluation was not enforcing"
+        case EnforcementReason.CONFIG_NOT_ENFORCING:
+            return (
+                "the trusted repository configuration is not enforcing this pull request"
+            )
+        case EnforcementReason.RULE_MISMATCH:
+            return (
+                "the evaluated rule does not match the rule in the trusted repository configuration"
+            )
+        case EnforcementReason.THRESHOLD_NOT_MET:
+            return (
+                "the reported risk score does not reach the threshold in the trusted "
+                "repository configuration"
+            )
+        case EnforcementReason.ENFORCED:
+            return "the repository configuration enforces this rule"
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 def _today(now: date | datetime | None) -> date:

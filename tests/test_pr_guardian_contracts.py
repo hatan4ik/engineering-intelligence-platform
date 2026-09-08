@@ -1,10 +1,11 @@
 import pytest
 
 from product.pr_guardian.contracts import (
+    EnforcementRule,
+    EvaluationRun,
     EvidenceBasis,
     EvidenceBundle,
     EvidenceReference,
-    EvaluationRun,
     FindingAction,
     FindingOutcome,
     PRFinding,
@@ -13,7 +14,16 @@ from product.pr_guardian.contracts import (
     RepositoryConfig,
     ReviewerRiskDisposition,
     ReviewerUtilityDisposition,
+    describe_enforcement_rule,
+    describe_finding_action,
+    describe_product_mode,
+    resolve_evaluation_id,
+    resolve_head_sha,
+    resolve_pr_number,
+    resolve_repository_name,
+    resolve_service_id,
 )
+from product.pr_guardian.enforcement import EnforcementReason, explain
 
 
 def evidence() -> EvidenceBundle:
@@ -133,3 +143,44 @@ def test_evaluation_is_bound_to_a_versioned_dataset_policy_and_stable_finding_se
             finding_ids=("finding-1", "finding-1"),
             methodology="Invalid duplicate finding set.",
         )
+
+
+def test_nominal_identifiers_in_pr_guardian_resolve_and_validate() -> None:
+    repo = resolve_repository_name("acme/payments")
+    service = resolve_service_id("payments")
+    pr_num = resolve_pr_number(42)
+    sha = resolve_head_sha("deadbeef")
+    eval_id = resolve_evaluation_id("eval-001")
+
+    assert repo == "acme/payments"
+    assert service == "payments"
+    assert pr_num == 42
+    assert sha == "deadbeef"
+    assert eval_id == "eval-001"
+
+    with pytest.raises(ProductContractError, match="repository is invalid"):
+        resolve_repository_name("not-a-valid-repo")
+
+    with pytest.raises(ProductContractError, match="pr_number is invalid"):
+        resolve_pr_number(0)
+
+    with pytest.raises(ProductContractError, match="head_sha is invalid"):
+        resolve_head_sha("short")
+
+
+def test_exhaustive_matching_on_pr_guardian_enums() -> None:
+    for mode in ProductMode:
+        desc = describe_product_mode(mode)
+        assert isinstance(desc, str) and desc
+
+    for action in FindingAction:
+        desc = describe_finding_action(action)
+        assert isinstance(desc, str) and desc
+
+    for rule in EnforcementRule:
+        desc = describe_enforcement_rule(rule)
+        assert isinstance(desc, str) and desc
+
+    for reason in EnforcementReason:
+        explanation = explain(reason)
+        assert isinstance(explanation, str) and explanation

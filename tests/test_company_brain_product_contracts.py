@@ -106,3 +106,24 @@ def test_company_brain_feedback_has_no_product_specific_import() -> None:
     source = (Path(__file__).resolve().parents[1] / "company_brain" / "feedback.py").read_text()
 
     assert "product.pr_guardian" not in source
+
+
+def test_nominal_identifiers_resolve_and_validate_shape() -> None:
+    evidence_id = shared_contracts.resolve_evidence_id("evidence:test-001")
+    finding_id = shared_contracts.resolve_finding_id("finding:test-001")
+    outcome_id = shared_contracts.resolve_outcome_id("outcome:test-001")
+    entity_id = shared_contracts.resolve_entity_id("entity:test-001")
+
+    assert evidence_id == "evidence:test-001"
+    assert finding_id == "finding:test-001"
+    assert outcome_id == "outcome:test-001"
+    assert entity_id == "entity:test-001"
+
+    with pytest.raises(shared_contracts.ProductContractError, match="evidence_id is invalid"):
+        shared_contracts.resolve_evidence_id("invalid/id/with\nnewline")
+
+
+def test_describe_evidence_basis_is_exhaustive() -> None:
+    for basis in EvidenceBasis:
+        desc = shared_contracts.describe_evidence_basis(basis)
+        assert desc == basis.value

@@ -12,8 +12,31 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import NewType, assert_never
 
 from .model import BrainEntity, EntityKind, RelationshipKind
+
+
+EvidenceId = NewType("EvidenceId", str)
+FindingId = NewType("FindingId", str)
+OutcomeId = NewType("OutcomeId", str)
+EntityId = NewType("EntityId", str)
+
+
+def resolve_evidence_id(value: str) -> EvidenceId:
+    return EvidenceId(_identifier(value, "evidence_id"))
+
+
+def resolve_finding_id(value: str) -> FindingId:
+    return FindingId(_identifier(value, "finding_id"))
+
+
+def resolve_outcome_id(value: str) -> OutcomeId:
+    return OutcomeId(_identifier(value, "outcome_id"))
+
+
+def resolve_entity_id(value: str) -> EntityId:
+    return EntityId(_identifier(value, "entity_id"))
 
 
 class ProductContractError(ValueError):
@@ -26,6 +49,19 @@ class EvidenceBasis(StrEnum):
     MEASURED = "measured"
     DERIVED = "derived"
     MODELED = "modeled"
+
+
+def describe_evidence_basis(basis: EvidenceBasis) -> str:
+    """Exhaustively describe an evidence basis with compile-time exhaustiveness."""
+    match basis:
+        case EvidenceBasis.MEASURED:
+            return "measured"
+        case EvidenceBasis.DERIVED:
+            return "derived"
+        case EvidenceBasis.MODELED:
+            return "modeled"
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:._/@-]{0,239}$")
@@ -61,13 +97,13 @@ def _attributes(values: tuple[tuple[str, str], ...], label: str) -> tuple[tuple[
 class EvidenceReference:
     """An ACL-authorized pointer that a product can cite without copying content."""
 
-    evidence_id: str
+    evidence_id: EvidenceId | str
     source_kind: str
     locator: str
     authorized: bool
 
     def __post_init__(self) -> None:
-        _identifier(self.evidence_id, "evidence_id")
+        _identifier(str(self.evidence_id), "evidence_id")
         _required(self.source_kind, "source_kind", 80)
         _required(self.locator, "locator", 500)
         if self.authorized is not True:
@@ -101,13 +137,13 @@ class EvidenceBundle:
 class ProductSubject:
     """A typed Company Brain entity reference owned by a product finding."""
 
-    entity_id: str
+    entity_id: EntityId | str
     kind: EntityKind
     label: str
     attributes: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
-        _identifier(self.entity_id, "subject entity_id")
+        _identifier(str(self.entity_id), "subject entity_id")
         if self.kind not in set(EntityKind):
             raise ProductContractError("subject kind is invalid")
         _required(self.label, "subject label", 500)
@@ -117,7 +153,7 @@ class ProductSubject:
         """Build the bounded entity accepted by the canonical Company Brain model."""
 
         return BrainEntity(
-            entity_id=self.entity_id,
+            entity_id=str(self.entity_id),
             kind=self.kind,
             label=self.label,
             attributes=self.attributes,
@@ -143,7 +179,7 @@ class FindingProvenance:
 class ProductFinding:
     """A product-neutral, reviewable finding projected into Company Brain memory."""
 
-    finding_id: str
+    finding_id: FindingId | str
     product: str
     scope: ProductSubject
     subject: ProductSubject
@@ -156,7 +192,7 @@ class ProductFinding:
     recommendation: str
 
     def __post_init__(self) -> None:
-        _identifier(self.finding_id, "finding_id")
+        _identifier(str(self.finding_id), "finding_id")
         if not _PRODUCT_NAME.fullmatch(_required(self.product, "product", 80)):
             raise ProductContractError("product is invalid")
         if self.scope.entity_id == self.subject.entity_id:
@@ -174,16 +210,16 @@ class ProductFinding:
 class ProductOutcome:
     """One explicit or independently-correlated outcome associated with a finding."""
 
-    outcome_id: str
-    finding_id: str
+    outcome_id: OutcomeId | str
+    finding_id: FindingId | str
     outcome_kind: str
     disposition: str
     recorded_by: str | None = None
     correlation_id: str | None = None
 
     def __post_init__(self) -> None:
-        _identifier(self.outcome_id, "outcome_id")
-        _identifier(self.finding_id, "finding_id")
+        _identifier(str(self.outcome_id), "outcome_id")
+        _identifier(str(self.finding_id), "finding_id")
         if not _PRODUCT_NAME.fullmatch(_required(self.outcome_kind, "outcome_kind", 80)):
             raise ProductContractError("outcome_kind is invalid")
         _required(self.disposition, "disposition", 160)

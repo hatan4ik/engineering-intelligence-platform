@@ -9,7 +9,7 @@ from product.pr_guardian_shadow import observation_comment, observation_from_ass
 
 from .company_brain import PRGuardianCompanyContext
 from .contracts import ProductMode
-from .enforcement import EnforcementDecision
+from .enforcement import EnforcementDecision, PublishConclusion
 
 
 class PRGuardianPublisher:
@@ -26,8 +26,8 @@ class PRGuardianPublisher:
         workflow_id: str,
         changed_services: tuple[str, ...],
         policy: PRPolicyDecision,
-        mode: str,
-        conclusion: str,
+        mode: ProductMode | str,
+        conclusion: PublishConclusion | str,
         enforcement: EnforcementDecision,
         company_context: PRGuardianCompanyContext | None,
     ) -> None:
