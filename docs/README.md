@@ -57,7 +57,7 @@ must link back rather than restate competing status.
 
 | Document set | Purpose |
 |---|---|
-| [Company Brain Core](COMPANY-BRAIN-CORE.md) · [Durable Store](COMPANY-BRAIN-STORE.md) · [Qualified World Model](COMPANY-BRAIN-WORLD-MODEL.md) | Product-neutral memory, evidence, relationship, provenance, and qualified-read boundaries. |
+| [Company Brain Core](COMPANY-BRAIN-CORE.md) · [Durable Store](COMPANY-BRAIN-STORE.md) · [Qualified World Model](COMPANY-BRAIN-WORLD-MODEL.md) · [Decision Context](DECISION-CONTEXT.md) | Product-neutral memory, evidence, relationship, provenance, qualified-read, and bounded explanation boundaries. |
 | [Memory Synchronization](COMPANY-BRAIN-MEMORY-SYNC.md) · [Memory Maintenance](COMPANY-BRAIN-MAINTENANCE.md) | Governed lifecycle projection and read-only dreaming/pruning proposals. |
 | [PR Guardian Domain Contract](PR-GUARDIAN-DOMAIN-CONTRACT.md) · [PR Guardian / Company Brain](PR-GUARDIAN-COMPANY-BRAIN.md) | PR Guardian records, limits, and safe use of qualified Company Brain context. |
 | [Repository Configuration](PR-GUARDIAN-REPOSITORY-CONFIG.md) | Repository-owned mode, waiver, kill-switch, and deterministic rule contract. |

@@ -9,6 +9,7 @@ from product.pr_guardian_shadow import observation_comment, observation_from_ass
 
 from .company_brain import PRGuardianCompanyContext
 from .contracts import ProductMode
+from .decision_context import render_decision_context
 from .enforcement import EnforcementDecision, PublishConclusion
 
 
@@ -47,12 +48,8 @@ class PRGuardianPublisher:
             enforcement=enforcement.as_dict(),
         )
         summary = observation_comment(observation)
-        if company_context is not None and not company_context.qualified:
-            summary += (
-                "\n\n> Company Brain context is insufficient for a simulated control. "
-                "This observation remains neutral. "
-                + " ".join(company_context.limitations)
-            )
+        if company_context is not None:
+            summary += "\n\n" + render_decision_context(company_context)
         self._github.publish_check(
             repository=event.repository,
             head_sha=event.head_sha,

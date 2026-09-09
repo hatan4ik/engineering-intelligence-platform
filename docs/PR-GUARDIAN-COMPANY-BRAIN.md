@@ -15,9 +15,10 @@ an unscoped vector result.
 ## Decision boundary
 
 For every PR review, the adapter produces a reproducible `context_version` fingerprint and a
-minimal `EvidenceBundle`. It uses qualified repository membership to map changed files to services;
-then it uses only fresh, authorized, sufficiently confident relationships to build the blast-radius
-graph. The fingerprint is retained with the finding, not treated as a mutable database version.
+minimal `EvidenceBundle` plus a principal-scoped [Decision Context](DECISION-CONTEXT.md). It uses
+qualified repository membership to map changed files to services; then it uses only fresh,
+authorized, sufficiently confident relationships to build the blast-radius graph. The fingerprint
+is retained with the finding, not treated as a mutable database version.
 
 A context is **unqualified** if it lacks an affected service or authorized evidence, has stale or
 low-confidence relationships, has a conflict (for example ambiguous ownership), or reports a
@@ -26,6 +27,15 @@ must use `simulated_action = none`. It cannot request tests, extra approval, or 
 
 This is deliberate: unqualified knowledge is a prompt for a human to improve organizational memory,
 not authority for the platform to invent a control.
+
+### Moment-of-truth explanation
+
+The GitHub check/comment adds a bounded **Company Brain decision context** section. It reports
+qualification, deterministic scope counts, evidence/relationship counts, fingerprint, and
+limitations. It never publishes the evidence locator or relationship statement because the
+webhook's Company Brain service identity is not evidence that every GitHub reader has access to the
+same source. The complete relation-level explanation remains a principal-scoped product result for
+a future authenticated viewer; it is not a public GitHub artifact.
 
 ## Durable learning records
 
