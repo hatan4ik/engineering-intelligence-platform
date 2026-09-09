@@ -60,6 +60,11 @@ authorization before calculating repository scope, blast radius, or ownership. S
 low-confidence, unauthorized, or directly conflicting links become explicit limitations rather
 than hidden decision inputs.
 
+[`Decision Context`](DECISION-CONTEXT.md) makes the qualified result useful at a product moment of
+truth. It preserves the difference between an evidence-backed relationship fact, a deterministic
+product derivation, and a separate policy decision; it never turns an explanation into action
+authority or a public source disclosure.
+
 [`Company Brain Memory Maintenance`](COMPANY-BRAIN-MAINTENANCE.md) adds the first bounded
 `dreaming & pruning` loop over this durable memory. It derives tenant-scoped, deterministic,
 human-review-only proposals for stale, ownerless, conflicting, or freshness-unknown ADRs,
@@ -74,6 +79,8 @@ qualified context into the PR Guardian service graph and evidence contract. It i
 - authorized evidence becomes a cited `EvidenceBundle`;
 - inaccessible evidence is omitted and produces a limitation;
 - the service/dependency graph calculates deterministic blast radius; and
+- a principal-scoped Decision Context records only fresh, authorized, conflict-free relationship
+  facts for a bounded explanation; and
 - no adapter result can approve, block, merge, deploy, or change OPA policy.
 
 This is the integration pattern for subsequent Company Brain products: consume a constrained,

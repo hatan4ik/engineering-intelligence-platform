@@ -11,7 +11,14 @@ import hashlib
 import json
 from dataclasses import dataclass
 
-from company_brain.model import BrainPrincipal, CompanyBrain, CompanyBrainError
+from company_brain.decision_context import DecisionContext, decision_context_from_world_model
+from company_brain.model import (
+    BrainPrincipal,
+    CompanyBrain,
+    CompanyBrainError,
+    EntityKind,
+    RelationshipKind,
+)
 from company_brain.projector import repository_id, service_id
 from company_brain.world_model import CompanyBrainWorldModel, QualifiedWorldModelContext
 from intelligence.graph import ServiceGraph, ServiceNode
@@ -25,11 +32,37 @@ class PRGuardianCompanyContext:
     blast_radius: tuple[str, ...]
     owner_ids: tuple[str, ...]
     graph: ServiceGraph
-    evidence: EvidenceBundle
-    context_version: str
-    qualified: bool
-    limitations: tuple[str, ...]
-    conflict_ids: tuple[str, ...]
+    decision_context: DecisionContext
+
+    @property
+    def evidence(self) -> EvidenceBundle:
+        """Authorized evidence inventory retained with the product finding."""
+
+        return self.decision_context.evidence
+
+    @property
+    def context_version(self) -> str:
+        """Reproducible fingerprint of the qualified world-model query."""
+
+        return self.decision_context.context_version
+
+    @property
+    def qualified(self) -> bool:
+        """Whether this context may support a simulated product control."""
+
+        return self.decision_context.qualified
+
+    @property
+    def limitations(self) -> tuple[str, ...]:
+        """Explicit uncertainty retained by the qualified world-model query."""
+
+        return self.decision_context.limitations
+
+    @property
+    def conflict_ids(self) -> tuple[str, ...]:
+        """Stable identifiers for conflicts that prevented qualification."""
+
+        return self.decision_context.conflict_ids
 
 
 class PRGuardianCompanyBrainAdapter:
@@ -80,14 +113,7 @@ class PRGuardianCompanyBrainAdapter:
             blast_radius=tuple(self.brain.entities[item].label for item in core_context.blast_radius),
             owner_ids=core_context.owner_ids,
             graph=graph,
-            evidence=evidence,
-            context_version="legacy-company-brain-v1",
-            # The in-memory snapshot has no source-freshness qualification.
-            # It remains compatible as a display/context adapter but cannot
-            # drive a product control decision.
-            qualified=False,
-            limitations=limitations or ("Legacy Company Brain context is not freshness-qualified.",),
-            conflict_ids=(),
+            decision_context=_legacy_decision_context(evidence, limitations),
         )
 
     def _service_graph(self, *, repository_id: str) -> ServiceGraph:
@@ -101,7 +127,7 @@ class PRGuardianCompanyBrainAdapter:
             dependencies = tuple(
                 self.brain.entities[relationship.target_id].label
                 for relationship in self.brain.outgoing(service)
-                if relationship.kind.value == "depends_on" and relationship.target_id in known
+                if relationship.kind is RelationshipKind.DEPENDS_ON and relationship.target_id in known
             )
             owners = self.brain.owner_ids_for_service(service)
             owner = self.brain.entities[owners[0]].label if owners else None
@@ -143,7 +169,7 @@ class PRGuardianWorldModelAdapter:
             sorted(
                 item.entity.entity_id
                 for item in self.world_model.store.list_entities(self.world_model.tenant_id)
-                if item.entity.kind.value == "service"
+                if item.entity.kind is EntityKind.SERVICE
             )
         )
         context = self.world_model.context_for_change(
@@ -167,7 +193,6 @@ class PRGuardianWorldModelAdapter:
             changed_services=tuple(sorted({service_id(name) for name in changed_services})),
             principal=principal,
         )
-        evidence = self._evidence(context)
         limitations = tuple(dict.fromkeys(context.limitations))
         qualified = bool(
             context.changed_services
@@ -178,16 +203,19 @@ class PRGuardianWorldModelAdapter:
         )
         if not qualified and not limitations:
             limitations = ("Company Brain context is insufficient for a control decision.",)
+        context_version = _context_version(context)
+        decision_context = decision_context_from_world_model(
+            context,
+            context_version=context_version,
+            qualified=qualified,
+            limitations=limitations,
+        )
         return PRGuardianCompanyContext(
             changed_services=self._entity_labels(context, context.changed_services),
             blast_radius=self._entity_labels(context, context.blast_radius),
             owner_ids=context.owner_ids,
             graph=self._graph(context),
-            evidence=evidence,
-            context_version=_context_version(context),
-            qualified=qualified,
-            limitations=limitations,
-            conflict_ids=tuple(conflict.conflict_id for conflict in context.conflicts),
+            decision_context=decision_context,
         )
 
     @staticmethod
@@ -196,36 +224,13 @@ class PRGuardianWorldModelAdapter:
         return tuple(sorted(labels[item] for item in entity_ids if item in labels))
 
     @staticmethod
-    def _evidence(context: QualifiedWorldModelContext) -> EvidenceBundle:
-        references = tuple(
-            EvidenceReference(
-                evidence_id=item.evidence_id,
-                source_kind=item.source_kind,
-                locator=item.citation,
-                authorized=True,
-            )
-            for item in context.evidence
-        )
-        if references:
-            return EvidenceBundle(
-                basis=EvidenceBasis.MEASURED,
-                references=references,
-                limitations=context.limitations,
-            )
-        return EvidenceBundle(
-            basis=EvidenceBasis.DERIVED,
-            references=(),
-            limitations=context.limitations or ("No qualified Company Brain evidence was available.",),
-        )
-
-    @staticmethod
     def _graph(context: QualifiedWorldModelContext) -> ServiceGraph:
         entities = {item.entity.entity_id: item.entity for item in context.entities}
         services = tuple(
             sorted(
                 entity_id
                 for entity_id in set((*context.changed_services, *context.blast_radius))
-                if entity_id in entities and entities[entity_id].kind.value == "service"
+                if entity_id in entities and entities[entity_id].kind is EntityKind.SERVICE
             )
         )
         service_set = set(services)
@@ -235,19 +240,23 @@ class PRGuardianWorldModelAdapter:
             relationship = qualification.relationship
             if not qualification.usable:
                 continue
-            if relationship.kind.value == "depends_on" and {
+            if relationship.kind is RelationshipKind.DEPENDS_ON and {
                 relationship.source_id,
                 relationship.target_id,
             }.issubset(service_set):
                 dependencies[relationship.source_id].add(relationship.target_id)
-            if relationship.kind.value == "owns" and relationship.target_id in service_set:
+            if relationship.kind is RelationshipKind.OWNS and relationship.target_id in service_set:
                 owners[relationship.target_id].add(relationship.source_id)
         graph = ServiceGraph()
         for entity_id in services:
             entity = entities[entity_id]
-            owner_ids = owners[entity_id]
+            owner_ids = tuple(sorted(owners[entity_id]))
             # Avoid selecting an owner if evidence yields an ambiguity.
-            owner = entities[next(iter(owner_ids))].label if len(owner_ids) == 1 and next(iter(owner_ids)) in entities else None
+            owner = (
+                entities[owner_ids[0]].label
+                if len(owner_ids) == 1 and owner_ids[0] in entities
+                else None
+            )
             graph.add(
                 ServiceNode(
                     name=entity.label,
@@ -257,6 +266,30 @@ class PRGuardianWorldModelAdapter:
                 )
             )
         return graph
+
+
+def _legacy_decision_context(
+    evidence: EvidenceBundle,
+    limitations: tuple[str, ...],
+) -> DecisionContext:
+    """Wrap legacy in-memory context without pretending it passed qualification."""
+
+    return DecisionContext(
+        context_version="legacy-company-brain-v1",
+        qualified=False,
+        confidence=0.0,
+        relationships=(),
+        evidence=evidence,
+        limitations=tuple(
+            sorted(
+                set(
+                    limitations
+                    or ("Legacy Company Brain context is not freshness-qualified.",)
+                )
+            )
+        ),
+        conflict_ids=(),
+    )
 
 
 def _context_version(context: QualifiedWorldModelContext) -> str:

@@ -124,6 +124,7 @@ without registering it is therefore a CI failure, not a navigation debt for a la
 | [Company Brain Core](COMPANY-BRAIN-CORE.md) | Reference contract | Product-neutral entities, relationships, evidence, provenance, and safe product use. |
 | [Company Brain Store](COMPANY-BRAIN-STORE.md) | Reference contract | Tenant-scoped durable reference-store semantics. |
 | [Company Brain World Model](COMPANY-BRAIN-WORLD-MODEL.md) | Reference contract | Qualified, read-only context and uncertainty rules. |
+| [Company Brain Decision Context](DECISION-CONTEXT.md) | Reference contract | Principal-scoped, evidence-qualified explanation and audience-safe presentation boundary. |
 | [Company Brain Memory Sync](COMPANY-BRAIN-MEMORY-SYNC.md) | Reference contract | Governed source lifecycle projection into memory. |
 | [Company Brain Maintenance](COMPANY-BRAIN-MAINTENANCE.md) | Reference contract | Read-only maintenance proposal and independent outcome correlation. |
 | [PR Guardian Domain Contract](PR-GUARDIAN-DOMAIN-CONTRACT.md) | Reference contract | Product records and safety boundary. |

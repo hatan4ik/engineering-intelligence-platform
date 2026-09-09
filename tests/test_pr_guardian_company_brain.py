@@ -120,6 +120,12 @@ def test_world_model_adapter_builds_a_qualified_graph_and_context_fingerprint(tm
     assert context.graph.nodes["checkout"].dependencies == ("payments",)
     assert context.context_version.startswith("world-model:v1:")
     assert context.evidence.references[0].authorized is True
+    assert [relationship.statement for relationship in context.decision_context.relationships] == [
+        "team-payments owns payments",
+        "checkout belongs to acme/platform",
+        "checkout depends on payments",
+        "payments belongs to acme/platform",
+    ]
 
 
 def test_pr_guardian_persists_qualified_finding_and_neutralizes_unqualified_context(tmp_path):
@@ -152,6 +158,11 @@ def test_pr_guardian_persists_qualified_finding_and_neutralizes_unqualified_cont
     assert result.finding.simulated_action is FindingAction.ADDITIONAL_APPROVAL
     assert findings.finding(result.finding.finding_id) == result.finding
     assert result.would_block is False
+    published_body = str(github.comments[-1]["body"])
+    assert "### Company Brain decision context" in published_body
+    assert "Citation visibility:" in published_body
+    assert "knowledge://" not in published_body
+    assert "checkout depends on payments" not in published_body
 
     stale_brain = SqliteCompanyBrainStore(tmp_path / "stale-brain.db")
     _seed(stale_brain, observed_at=_now() - timedelta(days=46))
@@ -174,7 +185,7 @@ def test_pr_guardian_persists_qualified_finding_and_neutralizes_unqualified_cont
     assert unqualified.finding.context_qualified is False
     assert unqualified.finding.simulated_action is FindingAction.NONE
     assert unqualified.would_block is False
-    assert "insufficient for a simulated control" in github.comments[-1]["body"]
+    assert "insufficient for a simulated control" in str(github.comments[-1]["body"])
 
 
 def test_durable_finding_and_outcome_records_are_idempotent_and_immutable(tmp_path):

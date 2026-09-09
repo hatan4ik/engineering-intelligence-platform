@@ -65,6 +65,12 @@ from .product_contracts import (
     ProductOutcome,
     ProductSubject,
 )
+from .decision_context import (
+    DecisionContext,
+    DecisionContextRelationship,
+    decision_context_from_world_model,
+    describe_relationship,
+)
 from .feedback import CompanyBrainFeedbackProjector
 from .maintenance import (
     CompanyBrainMaintenanceError,
@@ -139,6 +145,10 @@ __all__ = [
     "ProductFinding",
     "ProductOutcome",
     "ProductSubject",
+    "DecisionContext",
+    "DecisionContextRelationship",
+    "decision_context_from_world_model",
+    "describe_relationship",
     "CompanyBrainFeedbackProjector",
     "CompanyBrainMaintenanceError",
     "CompanyBrainMaintenanceReader",
