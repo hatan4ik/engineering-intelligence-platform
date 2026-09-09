@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 import pytest
 
@@ -28,6 +29,7 @@ def _evidence(evidence_id: str, *, freshness: FactFreshness = FactFreshness.FRES
         evidence_id=evidence_id,
         source_kind="repository-change",
         citation=f"knowledge://{evidence_id}",
+        revision="revision-001",
         observed_at=NOW,
         age=timedelta(),
         confidence=0.85,
@@ -152,5 +154,19 @@ def test_decision_context_rejects_a_stale_relationship_claim():
             target_label="payments",
             confidence=0.85,
             freshness=FactFreshness.STALE,
+            evidence=(),
+        )
+
+
+def test_decision_context_rejects_a_string_backed_relationship_kind() -> None:
+    with pytest.raises(ProductContractError, match="relationship kind"):
+        DecisionContextRelationship(
+            source_id="service:checkout",
+            source_label="checkout",
+            relationship=cast(RelationshipKind, "depends_on"),
+            target_id="service:payments",
+            target_label="payments",
+            confidence=0.85,
+            freshness=FactFreshness.FRESH,
             evidence=(),
         )

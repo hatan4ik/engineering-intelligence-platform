@@ -56,7 +56,7 @@ request path.
 | Governed query | `EIP_BACKEND`, header-identity flag, auth mode, request-cost estimate | Query and portal routes |
 | Trusted identity | `EIP_AUTH_MODE`, Entra identifiers/issuers/JWKS or API-key principal map | Authentication factory |
 | Azure RAG | Azure Search/OpenAI endpoints, deployments, semantic configuration, FinOps rates | Azure RAG adapter |
-| PR Guardian | enable flag, GitHub token, state/graph roots, policy version, optional qualified Company Brain context | Shadow Guardian factory |
+| PR Guardian | enable flag, GitHub token, state/graph roots, policy version, optional qualified Company Brain context | Shadow Guardian factory with durable finding and publication-outbox stores under the configured state directory |
 | Operational intelligence | webhook secret, evidence mode, state/topology paths, Azure Monitor inputs | L1 analysis and L2-proposal factory |
 | Feedback | `EIP_FEEDBACK_DB` | Outcome-feedback recorder |
 | Runtime safety | control-plane mode, OPA requirement, autonomy and PR Guardian kill switches | `/healthz` control report and execution guardrails |

@@ -205,6 +205,7 @@ def _finding_from_payload(payload: dict[str, object]) -> PRFinding:
                     evidence_id=str(item["evidence_id"]),
                     source_kind=str(item["source_kind"]),
                     locator=str(item["locator"]),
+                    revision=str(item["revision"]),
                     authorized=bool(item["authorized"]),
                 )
                 for item in references

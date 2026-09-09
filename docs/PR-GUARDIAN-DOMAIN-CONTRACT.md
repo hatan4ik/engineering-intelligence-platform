@@ -9,8 +9,8 @@
 
 ## Purpose
 
-PR Guardian needs one product contract before it gains a durable store, portal, richer retrieval,
-or additional workflow adapters. The contracts in
+PR Guardian needs one product contract while it gains durable records, richer retrieval, portal
+views, or additional workflow adapters. The contracts in
 [`product/pr_guardian/contracts.py`](../product/pr_guardian/contracts.py) define that boundary.
 They are deliberately independent of GitHub payloads, Actions artifacts, SQLite, Temporal, and
 any future portal/API implementation.
@@ -30,11 +30,13 @@ into the product records below.
 | `PRFinding` | Reviewable risk finding bound to PR SHA, correlation ID, policy version, and a simulated action | `would-block` is descriptive only and cannot authorize a merge decision |
 | `FindingOutcome` | Explicit reviewer disposition and optional independent post-merge correlation | Closure, merge, silence, and ignored advice are not inferred as correct or incorrect |
 | `EvaluationRun` | Dataset/policy/version-bound quality evaluation | Threshold changes are reviewed policy changes, not automatic learning |
+| `ProductArtifact` | Source-safe GitHub check/comment intent and independently recoverable delivery state | It is recorded before an external effect but does not mean that effect was accepted; see [Decision Experience](COMPANY-BRAIN-DECISION-EXPERIENCE.md) |
 
 ## Adoption sequence
 
 1. Retain the existing GitHub shadow workflow and its strict artifact validation.
-2. Translate every published shadow observation into one or more durable `PRFinding` records.
+2. Translate every published shadow observation into one or more durable `PRFinding` records and
+   record the source-safe GitHub artifact before attempting external publication.
 3. Resolve evidence through governed retrieval, preserving source authorization and limitations in
    the `EvidenceBundle`.
 4. Capture reviewer labels as `FindingOutcome`; separately correlate independent post-merge

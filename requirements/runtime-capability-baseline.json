@@ -91,7 +91,9 @@
       "evidence_status": "not-collected",
       "code": [
         {"path": "app/settings.py", "markers": ["EIP_PR_GUARDIAN_WEBHOOK", "EIP_SERVICE_GRAPH_ROOT", "EIP_GITHUB_WEBHOOK_SECRET"]},
-        {"path": "app/pr_guardian_api.py", "markers": ["verify_webhook_signature", "settings_for_application"]}
+        {"path": "app/pr_guardian_api.py", "markers": ["verify_webhook_signature", "settings_for_application"]},
+        {"path": "product/pr_guardian/publication.py", "markers": ["durable outbox", "def deliver_pending"]},
+        {"path": "company_brain/artifact_outbox.py", "markers": ["class SqliteArtifactOutbox", "class ArtifactDeliveryIntent"]}
       ],
       "chart": {
         "template": "helm/eip/templates/deployment.yaml",
@@ -101,6 +103,7 @@
       "terraform_markers": [],
       "documentation": [
         {"path": "docs/PR-GUARDIAN-SHADOW-PILOT.md", "markers": ["no pilot evidence has yet been collected", "non-blocking"]},
+        {"path": "docs/PR-GUARDIAN-COMPANY-BRAIN.md", "markers": ["source-safe GitHub check/comment intent before calling", "local/reference recovery behavior"]},
         {"path": "docs/CURRENT-POSITION.md", "markers": ["Runtime capability contract"]}
       ]
     },

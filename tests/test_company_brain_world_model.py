@@ -24,6 +24,7 @@ def provenance(record_id: str, observed_at: datetime = NOW) -> BrainProvenance:
         source_system="github",
         source_record_id=record_id,
         source_revision="1",
+        projection_policy_version="test-projection:v1",
         observed_at=observed_at,
         event_id=f"event:{record_id}",
     )

@@ -10,13 +10,16 @@ from datetime import date
 
 import pytest
 
+from company_brain.artifact_outbox import SqliteArtifactOutbox
 from control_plane.workflows import ControlPlaneWorkflows
 from integrations.github.pr_guardian import ChangedFile, PullRequestEvent
 from intelligence.graph import ServiceGraph, ServiceNode
 from product.architecture_review import DEFAULT_ARCHITECTURE_RULES, FileContent
 from product.pr_guardian.config import default_shadow_config, parse_repository_config
+from product.pr_guardian.contracts import ProductMode
 from product.pr_guardian.enforcement import KILL_SWITCH_ENV
 from product.pr_guardian_service import PRGuardianService
+from product.pr_guardian.store import SqlitePRGuardianStore
 from product.pr_guardian_shadow import validate_observation
 from scripts.publish_pr_guardian_shadow import (
     UntrustedEvaluation,
@@ -105,6 +108,8 @@ def build_service(tmp_path, config, files=HIGH_RISK_FILES, environ=None):
         workflows=ControlPlaneWorkflows(SqliteStateStore(tmp_path / "state.db"), audit),
         config=config,
         environ=environ if environ is not None else {},
+        findings=SqlitePRGuardianStore(tmp_path / "findings.db"),
+        publication_outbox=SqliteArtifactOutbox(tmp_path / "outbox.db"),
     )
     return service, github, audit
 
@@ -130,6 +135,7 @@ def test_shadow_mode_publishing_is_unchanged(tmp_path):
     result = run_evaluate(service, event(), now=NOW)
 
     assert result.mode == "shadow"
+    assert result.mode is ProductMode.SHADOW
     assert github.checks[0]["name"] == "Engineering Intelligence / PR Guardian (shadow)"
     assert github.checks[0]["conclusion"] == "neutral"
     assert github.checks[0]["title"].startswith("Shadow risk:")

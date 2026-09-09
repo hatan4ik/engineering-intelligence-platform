@@ -61,10 +61,12 @@ Only a relationship that is all of the following can enter `DecisionContext.rela
 appear as a Decision Context relationship. Aggregate evidence remains useful audit provenance, but
 only the relationship list identifies the facts that passed the decision-usable path.
 
-The current bound is semantic: tenant, repository, changed-service scope, and requesting
-principal. It does not yet claim a production output-size or traversal-budget policy. Any broader
-interactive experience must add and prove those operational limits before it is treated as a
-production interface.
+The Decision Context's source bound is semantic: tenant, repository, changed-service scope, and
+requesting principal. Its operational consumer boundary is now the
+[Decision Experience Contract](COMPANY-BRAIN-DECISION-EXPERIENCE.md): a deterministic
+`ContextPacket` adds byte/count limits and explicit omissions without re-querying or widening
+access. That reference byte cap is not a tokenizer/model budget or a production interface claim;
+any broader interactive experience still needs its own per-reader and model-specific limits.
 
 ## Audience safety
 
@@ -85,10 +87,11 @@ It must not reuse a service-account Decision Context as proof that a human viewe
 
 ## PR Guardian integration
 
-PR Guardian is the first consumer. The qualified adapter creates a `DecisionContext` alongside its
-service graph. `PRGuardianCompanyContext` exposes the context as its source of truth for evidence,
-context version, qualification, limitations, and conflicts; it no longer carries parallel mutable
-copies of those fields.
+PR Guardian is the first consumer. The qualified adapter creates a `DecisionContext`, its bounded
+`ContextPacket`, and a `ContextHealthReport` alongside its service graph.
+`PRGuardianCompanyContext` exposes the context as its source of truth for evidence, context
+version, qualification, limitations, and conflicts; it no longer carries parallel mutable copies
+of those fields.
 
 The publisher appends a non-authorizing **Company Brain decision context** section after the
 canonical shadow observation. The canonical workflow-transfer artifact is unchanged. When context
@@ -108,12 +111,15 @@ learning signals described in [PR Guardian / Company Brain](PR-GUARDIAN-COMPANY-
 - It does not grant a simulated policy, a merge decision, deployment authority, or remediation
   execution authority.
 - It is not yet a user-facing search endpoint, Context Room, or general-purpose agent workspace.
+- It does not replace the signed evidence-read receipt, human correction workflow, or durable
+  external-publication contract in [Decision Experience](COMPANY-BRAIN-DECISION-EXPERIENCE.md).
 - It does not prove a named pilot, useful reviewer outcomes, production readiness, or any autonomy
   tier. The authoritative position remains [Current Position](CURRENT-POSITION.md).
 
 The next product boundary is an authenticated, per-reader Decision Context viewer only after a
 named pilot establishes the required authorization, retention, audit, usability, and evidence
-requirements. It is not implied by this reference contract.
+requirements. It is not implied by this reference contract or by the source-level Decision Brief
+and Context Packet records.
 
 ## Verification
 
@@ -121,4 +127,5 @@ requirements. It is not implied by this reference contract.
 protects the invariant that unqualified relationships do not enter a Decision Context.
 [`tests/test_pr_guardian_company_brain.py`](../tests/test_pr_guardian_company_brain.py) protects
 both the private relationship explanation and the GitHub-safe summary, including the absence of
-source locators from published comments.
+source locators from published comments. The operational packet, receipt, health, correction, and
+why-answer contracts are covered in [Decision Experience](COMPANY-BRAIN-DECISION-EXPERIENCE.md).

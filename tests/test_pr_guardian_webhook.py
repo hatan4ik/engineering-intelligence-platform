@@ -1,15 +1,18 @@
 import hashlib
 import hmac
 import json
+import sqlite3
 
 from fastapi.testclient import TestClient
 
+from company_brain.artifact_outbox import SqliteArtifactOutbox
 from app.application import create_app
 from app.settings import ApplicationSettings
 from control_plane.workflows import ControlPlaneWorkflows
 from integrations.github.pr_guardian import ChangedFile
 from integrations.github.webhook import verify_webhook_signature
 from product.pr_guardian_service import PRGuardianService
+from product.pr_guardian.store import SqlitePRGuardianStore
 from intelligence.extractors import ServiceMetadata, build_graph
 from state.audit import SqliteAuditLog
 from state.store import SqliteStateStore
@@ -25,14 +28,14 @@ class FakeGitHub:
     def list_changed_files(self, repository, pr_number):
         return self.files
 
-    def publish_check(self, *, repository, head_sha, name, conclusion, title, summary):
-        self.checks.append({"head_sha": head_sha, "conclusion": conclusion, "summary": summary})
+    def publish_check(self, *, repository, head_sha, name, conclusion, title, summary, external_id=None):
+        self.checks.append({"head_sha": head_sha, "conclusion": conclusion, "summary": summary, "external_id": external_id})
 
     def publish_comment(self, *, repository, pr_number, body):
         self.comments.append(body)
 
 
-def make_guardian(tmp_path, files):
+def make_guardian(tmp_path, files, *, publication_outbox=None):
     graph = build_graph([
         ServiceMetadata(service="api", owner="platform", tier=1, dependencies=("auth",)),
         ServiceMetadata(service="auth", owner="identity", tier=1),
@@ -43,7 +46,18 @@ def make_guardian(tmp_path, files):
     )
     github = FakeGitHub(files)
     telemetry = InMemoryTelemetrySink()
-    return PRGuardianService(graph=graph, github=github, workflows=workflows, telemetry=telemetry), github, telemetry
+    return (
+        PRGuardianService(
+            graph=graph,
+            github=github,
+            workflows=workflows,
+            telemetry=telemetry,
+            findings=SqlitePRGuardianStore(tmp_path / "findings.db"),
+            publication_outbox=publication_outbox or SqliteArtifactOutbox(tmp_path / "outbox.db"),
+        ),
+        github,
+        telemetry,
+    )
 
 
 def payload(action="opened", number=9):
@@ -104,6 +118,7 @@ def test_webhook_reviews_pull_request_and_emits_telemetry(tmp_path):
         assert data["status"] == "reviewed"
         assert data["workflow_id"] == "pr:acme/platform:9"
         assert data["correlation_id"] == "d-42"
+        assert str(data["publication_artifact_id"]).startswith("artifact:")
         assert github.checks[0]["head_sha"] == "ff00"
         assert telemetry.events[0].operation == "pr-guardian-review"
         assert telemetry.events[0].correlation_id == "d-42"
@@ -127,6 +142,31 @@ def test_webhook_503_when_guardian_not_configured():
     body = json.dumps(payload()).encode()
     response = client.post("/v1/events/github", content=body, headers=signed_headers(body, "hooksecret"))
     assert response.status_code == 503
+
+
+def test_webhook_503_when_the_artifact_cannot_be_durably_recorded(tmp_path):
+    class UnavailableOutbox(SqliteArtifactOutbox):
+        def record(self, *args, **kwargs):
+            raise sqlite3.OperationalError("reference disk is unavailable")
+
+    guardian, github, _ = make_guardian(
+        tmp_path,
+        [ChangedFile(filename="infra/terraform/identity.tf", status="modified")],
+        publication_outbox=UnavailableOutbox(tmp_path / "outbox.db"),
+    )
+    application = webhook_app()
+    application.state.pr_guardian = guardian
+    try:
+        client = TestClient(application)
+        body = json.dumps(payload()).encode()
+        response = client.post("/v1/events/github", content=body, headers=signed_headers(body, "hooksecret"))
+
+        assert response.status_code == 503
+        assert response.json()["detail"] == "PR Guardian cannot persist the review; retry the delivery"
+        assert github.checks == []
+        assert github.comments == []
+    finally:
+        application.state.pr_guardian = None
 
 
 def test_webhook_ping():
