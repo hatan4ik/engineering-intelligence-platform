@@ -130,4 +130,56 @@ def default_catalog() -> RunbookCatalog:
         preconditions=("deployment.exists", "pods.oomkilled_present", "memory.profile_preapproved"),
         postconditions=("container.oom_count",),
     ))
+    catalog.register(Runbook(
+        id="k8s.etcd.defrag_and_alarm_clear",
+        description="Defragment etcd bbolt storage and clear alarms after quota compaction",
+        environments=("stage", "prod"),
+        max_blast_radius=1,
+        reversible=True,
+        required_level=AutonomyLevel.APPROVE_AND_EXECUTE,
+        verify_signal="etcd.alarm_absent",
+        rollback_id="k8s.etcd.restore_snapshot",
+        failure_class="etcd-quorum-pressure",
+        preconditions=("etcd.member_healthy", "etcd.alarm_present"),
+        postconditions=("etcd.alarm_absent",),
+    ))
+    catalog.register(Runbook(
+        id="k8s.webhook.bypass_deadlock",
+        description="Emergency bypass for failing-closed admission webhooks deadlocking cluster scheduling",
+        environments=("dev", "stage", "prod"),
+        max_blast_radius=5,
+        reversible=True,
+        required_level=AutonomyLevel.APPROVE_AND_EXECUTE,
+        verify_signal="apiserver.admission_healthy",
+        rollback_id="k8s.webhook.restore",
+        failure_class="webhook-deadlock",
+        preconditions=("webhook.failing_closed", "webhook.endpoint_unreachable"),
+        postconditions=("apiserver.admission_healthy",),
+    ))
+    catalog.register(Runbook(
+        id="k8s.coredns.autopath_scale",
+        description="Mitigate CoreDNS query storms by enabling autopath and scaling replicas",
+        environments=("dev", "stage", "prod"),
+        max_blast_radius=10,
+        reversible=True,
+        required_level=AutonomyLevel.APPROVE_AND_EXECUTE,
+        verify_signal="dns.query_latency_normal",
+        rollback_id="k8s.coredns.rollback",
+        failure_class="dns-amplification-storm",
+        preconditions=("dns.query_drop_rate_high", "coredns.cpu_saturated"),
+        postconditions=("dns.query_latency_normal",),
+    ))
+    catalog.register(Runbook(
+        id="k8s.node.drain_with_pdb_eviction",
+        description="Safely evict workload pods during node maintenance under strict PodDisruptionBudgets",
+        environments=("stage", "prod"),
+        max_blast_radius=5,
+        reversible=True,
+        required_level=AutonomyLevel.APPROVE_AND_EXECUTE,
+        verify_signal="node.unschedulable_and_empty",
+        rollback_id="k8s.node.uncordon",
+        failure_class="node-maintenance-eviction",
+        preconditions=("node.ready", "pdb.budget_available"),
+        postconditions=("node.unschedulable_and_empty",),
+    ))
     return catalog

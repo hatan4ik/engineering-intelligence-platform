@@ -157,6 +157,7 @@ without registering it is therefore a CI failure, not a navigation debt for a la
 | [Production Evidence Registry](PRODUCTION-EVIDENCE.md) | Evidence contract | Required immutable evidence and expiration rules. |
 | [Production Proof Plan](PRODUCTION-PROOF-PLAN.md) | Target promotion plan | Required sequence before a production claim. |
 | [Production Readiness](PRODUCTION-READINESS.md) | Certification requirements | Functional, security, reliability, safety, and economic gates. |
+| [Kubernetes On-Premises Troubleshooting Guide](KUBERNETES_ONPREM_FAANG_INTERVIEW_GUIDE.md) | Operating runbook | FAANG-grade on-prem Kubernetes incident troubleshooting and disaster recovery. |
 | [Evidence Registry](evidence/README.md) | Evidence contract | Registry usage; an empty registry means not proven. |
 | [Temporal Helm README](../helm/temporal/README.md) | Deployment reference | Chart-specific local/deployment boundary. |
 

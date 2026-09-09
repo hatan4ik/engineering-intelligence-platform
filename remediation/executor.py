@@ -13,7 +13,9 @@ from resilience.certification import (
     material_inputs_hash_for,
 )
 
+from .canary import CanaryStrategy, ProgressiveCanaryExecutor
 from .catalog import AutonomyLevel, Runbook, RunbookCatalog
+from .concurrency_lock import BlastRadiusLockManager, LockLease
 from .opa_policy import (
     AutonomyContext,
     CertificationClaim,
@@ -242,6 +244,9 @@ def execute_control_loop(
     autonomy_level: AutonomyLevel | int | None = None,
     now: datetime | None = None,
     environ: Mapping[str, str] | None = None,
+    concurrency_lock_manager: BlastRadiusLockManager | None = None,
+    impacted_services: tuple[str, ...] = (),
+    canary_strategy: CanaryStrategy | None = None,
 ) -> ExecutionResult:
     """Run the bounded control loop for one request.
 
@@ -352,7 +357,41 @@ def execute_control_loop(
             error=preflight_reason,
         )
 
-    return _run_execution_and_verify(adapter, runbook, request, decision)
+    lease, lockout_error = _acquire_concurrency_lease(
+        concurrency_lock_manager, policy.service, impacted_services, moment
+    )
+    if lockout_error is not None:
+        return ExecutionResult(
+            status="deferred",
+            policy=decision,
+            error=lockout_error,
+        )
+
+    try:
+        return _run_execution_and_verify(
+            adapter, runbook, request, decision, canary_strategy=canary_strategy
+        )
+    finally:
+        if concurrency_lock_manager is not None and lease is not None:
+            concurrency_lock_manager.release(lease)
+
+
+def _acquire_concurrency_lease(
+    manager: BlastRadiusLockManager | None,
+    service_id: str,
+    impacted_services: tuple[str, ...],
+    moment: datetime,
+) -> tuple[LockLease | None, str | None]:
+    if manager is None:
+        return None, None
+    lease, refusal = manager.acquire(
+        service_id=service_id,
+        impacted_services=impacted_services,
+        now=moment,
+    )
+    if refusal is not None:
+        return None, refusal.reason
+    return lease, None
 
 
 def _run_execution_and_verify(
@@ -360,7 +399,35 @@ def _run_execution_and_verify(
     runbook: Runbook,
     request: ActionRequest,
     decision: PolicyDecision,
+    canary_strategy: CanaryStrategy | None = None,
 ) -> ExecutionResult:
+    if canary_strategy is not None:
+        canary_res = ProgressiveCanaryExecutor(adapter).execute_progressive(
+            runbook, request, canary_strategy
+        )
+        if canary_res.status == "succeeded":
+            return ExecutionResult(
+                status="succeeded",
+                policy=decision,
+                execution_ref="canary-fleet-promoted",
+                verified=True,
+            )
+        if canary_res.status == "aborted":
+            return ExecutionResult(
+                status="rolled_back",
+                policy=decision,
+                execution_ref="canary-aborted",
+                verified=False,
+                error=canary_res.error,
+            )
+        return ExecutionResult(
+            status="escalate",
+            policy=decision,
+            execution_ref="canary-failed",
+            verified=False,
+            error=canary_res.error,
+        )
+
     try:
         execution_ref = adapter.execute(runbook.id, request)
     except Exception as exc:

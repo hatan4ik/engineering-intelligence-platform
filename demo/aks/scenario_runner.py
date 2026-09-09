@@ -19,6 +19,10 @@ SCENARIOS = (
     Scenario("oom", "OOMKilled repeatedly", "scale-out", True, "low"),
     Scenario("readiness", "readiness probe failing", "restart-deployment", True, "low"),
     Scenario("node-pressure", "node memory pressure across pool", None, False, "high"),
+    Scenario("etcd-stall", "etcd fsync latency >100ms with quota alarm", "etcd-defrag-alarm-clear", True, "low"),
+    Scenario("webhook-deadlock", "admission webhook failing closed and unreachable", "webhook-bypass-deadlock", True, "low"),
+    Scenario("dns-storm", "CoreDNS query storm from ndots:5 external amplification", "coredns-autopath-scale", True, "low"),
+    Scenario("pdb-drain-block", "node drain blocked by zero-disruption budget", "node-drain-pdb", True, "low"),
 )
 
 
