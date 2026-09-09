@@ -34,7 +34,15 @@ class ControlLoop:
     explicit policy conditions are satisfied.
     """
 
-    allowed_runbooks = {"restart-deployment", "rollback-deployment", "scale-out"}
+    allowed_runbooks = {
+        "restart-deployment",
+        "rollback-deployment",
+        "scale-out",
+        "etcd-defrag-alarm-clear",
+        "webhook-bypass-deadlock",
+        "coredns-autopath-scale",
+        "node-drain-pdb",
+    }
 
     def advance(self, incident: Incident, approved: bool = False, verified: bool = False) -> Phase:
         current = incident.history[-1] if incident.history else Phase.DETECT
