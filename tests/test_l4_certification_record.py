@@ -15,19 +15,27 @@ SCOPE = CertificationScope(
 )
 
 
-def record(**overrides) -> L4CertificationRecord:
-    fields = {
-        "scope": SCOPE,
-        "scope_hash": SCOPE.scope_hash(),
-        "inputs_hash": "a" * 64,
-        "exercises_digest": "sha256:deadbeef",
-        "issued_on": "2026-08-01T00:00:00+00:00",
-        "expires_on": "2026-11-01T00:00:00+00:00",
-        "issued_by": "security@example.invalid",
-        "evidence_ids": ("l4-security-review",),
-    }
-    fields.update(overrides)
-    return L4CertificationRecord(**fields)
+def record(
+    *,
+    scope: CertificationScope = SCOPE,
+    scope_hash: str | None = None,
+    inputs_hash: str = "a" * 64,
+    exercises_digest: str = "sha256:deadbeef",
+    issued_on: str = "2026-08-01T00:00:00+00:00",
+    expires_on: str = "2026-11-01T00:00:00+00:00",
+    issued_by: str = "security@example.invalid",
+    evidence_ids: tuple[str, ...] = ("l4-security-review",),
+) -> L4CertificationRecord:
+    return L4CertificationRecord(
+        scope=scope,
+        scope_hash=SCOPE.scope_hash() if scope_hash is None else scope_hash,
+        inputs_hash=inputs_hash,
+        exercises_digest=exercises_digest,
+        issued_on=issued_on,
+        expires_on=expires_on,
+        issued_by=issued_by,
+        evidence_ids=evidence_ids,
+    )
 
 
 def refusal(candidate, **kwargs):

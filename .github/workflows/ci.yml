@@ -32,6 +32,8 @@ jobs:
       - run: pytest -q
       - name: Kill targeted dependency-boundary mutants
         run: python scripts/verify_targeted_mutations.py
+      - name: Enforce workspace-wide zero lint debt
+        run: ruff check .
       - name: Enforce zero static-analysis debt
         run: python scripts/verify_static_analysis_baseline.py
       - name: Verify distributable package inventory

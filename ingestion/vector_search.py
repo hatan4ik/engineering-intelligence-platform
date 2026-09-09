@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from typing import Mapping, Protocol, runtime_checkable
+
+from azure.core.credentials import TokenCredential
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.models import VectorizedQuery
@@ -11,6 +14,14 @@ from openai import AzureOpenAI
 
 def _odata_escape(value: str) -> str:
     return value.replace("'", "''")
+
+
+@runtime_checkable
+class Embedder(Protocol):
+    """Structural protocol for embedding models, decoupling retrieval from concrete providers."""
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        ...
 
 
 @dataclass(frozen=True)
@@ -24,14 +35,32 @@ class HybridHit:
 
 
 class AzureOpenAIEmbedder:
-    def __init__(self, credential: DefaultAzureCredential | None = None) -> None:
+    """Concrete Azure OpenAI Embedder using Entra ID workload tokens."""
+
+    def __init__(
+        self,
+        credential: TokenCredential | None = None,
+        *,
+        deployment: str | None = None,
+        endpoint: str | None = None,
+        api_version: str | None = None,
+        environ: Mapping[str, str] | None = None,
+    ) -> None:
+        source = os.environ if environ is None else environ
         self.credential = credential or DefaultAzureCredential()
-        self.deployment = os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"]
-        self.client = AzureOpenAI(
-            azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
-            azure_ad_token_provider=self._token,
-        )
+        resolved_deployment = deployment or source.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+        resolved_endpoint = endpoint or source.get("AZURE_OPENAI_ENDPOINT")
+        resolved_api_version = api_version or source.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
+        self.deployment = resolved_deployment or ""
+        self.endpoint = resolved_endpoint or ""
+        self.api_version = resolved_api_version
+        self._client: AzureOpenAI | None = None
+        if resolved_endpoint and resolved_deployment:
+            self._client = AzureOpenAI(
+                azure_endpoint=resolved_endpoint,
+                api_version=resolved_api_version,
+                azure_ad_token_provider=self._token,
+            )
 
     def _token(self) -> str:
         return self.credential.get_token("https://cognitiveservices.azure.com/.default").token
@@ -39,7 +68,12 @@ class AzureOpenAIEmbedder:
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        response = self.client.embeddings.create(model=self.deployment, input=texts)
+        if not self._client or not self.deployment:
+            raise ValueError(
+                "AzureOpenAIEmbedder requires AZURE_OPENAI_ENDPOINT and "
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT to generate embeddings."
+            )
+        response = self._client.embeddings.create(model=self.deployment, input=texts)
         ordered = sorted(response.data, key=lambda item: item.index)
         return [list(item.embedding) for item in ordered]
 
@@ -56,8 +90,8 @@ class AzureHybridRetriever:
         *,
         endpoint: str,
         index_name: str,
-        embedder: AzureOpenAIEmbedder,
-        credential: DefaultAzureCredential | None = None,
+        embedder: Embedder,
+        credential: TokenCredential | None = None,
         semantic_configuration: str = "default",
     ) -> None:
         self.credential = credential or DefaultAzureCredential()

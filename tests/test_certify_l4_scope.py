@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from remediation.catalog import default_catalog
 from resilience.certification import (
     ATTESTED_CONTROLS,

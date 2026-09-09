@@ -105,7 +105,7 @@ def probe_http(name: str, url: str) -> ProbeResult:
 
 def probe_private_dns(name: str, hostname: str) -> ProbeResult:
     try:
-        addresses = sorted({item[4][0] for item in socket.getaddrinfo(hostname, None)})
+        addresses = sorted({str(item[4][0]) for item in socket.getaddrinfo(hostname, None)})
     except OSError as exc:
         return ProbeResult(name, False, str(exc))
     if not addresses:

@@ -30,17 +30,26 @@ def policy(level=AutonomyLevel.BOUNDED_AUTONOMOUS):
     return ServiceAutonomy("payments", "prod", level, ("aks.rollout.undo",), 5)
 
 
-def context(**overrides) -> AutonomyContext:
-    fields = {
-        "autonomy_level": "L4",
-        "scope_hash": "a" * 64,
-        "now": "2026-08-26T00:00:00+00:00",
-        "certification": CertificationClaim(
-            scope_hash="a" * 64, inputs_hash="b" * 64, expires_on="2026-11-01T00:00:00+00:00"
-        ),
-    }
-    fields.update(overrides)
-    return AutonomyContext(**fields)
+_DEFAULT_CERTIFICATION = CertificationClaim(
+    scope_hash="a" * 64, inputs_hash="b" * 64, expires_on="2026-11-01T00:00:00+00:00"
+)
+
+
+def context(
+    *,
+    autonomy_level: str = "L4",
+    scope_hash: str = "a" * 64,
+    now: str = "2026-08-26T00:00:00+00:00",
+    certification: CertificationClaim | None = _DEFAULT_CERTIFICATION,
+    policy_level: int = 0,
+) -> AutonomyContext:
+    return AutonomyContext(
+        autonomy_level=autonomy_level,
+        scope_hash=scope_hash,
+        now=now,
+        certification=certification,
+        policy_level=policy_level,
+    )
 
 
 def capture_input(monkeypatch, **evaluate_kwargs) -> dict:

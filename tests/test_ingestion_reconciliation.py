@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from ingestion.catalog import SourceScope, SqliteSourceCatalog
 from ingestion.events import NormalizedEvent
 from ingestion.index import InMemoryIndex
@@ -89,11 +91,8 @@ def test_catalog_does_not_advance_when_index_write_fails(tmp_path):
     pipeline = IngestionPipeline(BrokenIndex(), catalog=catalog)
     item = change("payments.py", commit="one", content="def payment(): pass")
 
-    try:
+    with pytest.raises(RuntimeError, match="index unavailable"):
         pipeline.process(NormalizedEvent("evt-1", (item,)))
-        assert False, "the index failure must propagate"
-    except RuntimeError as exc:
-        assert "index unavailable" in str(exc)
     assert catalog.get(item.source.document_id) is None
 
 
@@ -107,8 +106,5 @@ def test_reconciliation_rejects_cross_scope_manifests(tmp_path):
         content="def other(): pass",
     )
 
-    try:
+    with pytest.raises(ValueError, match="cross source scope"):
         reconciler.reconcile(SourceScope("github", "acme/payments", "main"), (foreign,))
-        assert False, "a manifest must not escape its authorized source scope"
-    except ValueError as exc:
-        assert "cross source scope" in str(exc)

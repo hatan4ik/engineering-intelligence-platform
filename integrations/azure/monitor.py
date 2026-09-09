@@ -6,6 +6,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from azure.core.credentials import TokenCredential
 from azure.core.exceptions import AzureError
 from azure.identity import DefaultAzureCredential
 
@@ -31,7 +32,7 @@ class AzureMonitorEvidenceClient:
 
     def __init__(
         self,
-        credential: DefaultAzureCredential | None = None,
+        credential: TokenCredential | None = None,
         *,
         timeout_seconds: float = 30.0,
         dependency: DependencyBoundary | None = None,
@@ -96,7 +97,7 @@ class AzureMonitorEvidenceClient:
         for index, row in enumerate(rows if isinstance(rows, list) else []):
             if not isinstance(row, list):
                 continue
-            values = dict(zip(columns, row))
+            values = dict(zip(columns, row, strict=False))
             out.append(self._normalize_row(query.service, index, values))
         return out
 

@@ -32,3 +32,19 @@ def test_security_iac_change_gets_explainable_high_risk():
     names = {f.name for f in result.factors}
     assert {"critical-service", "security-boundary-change", "infrastructure-change"} <= names
     assert "web" in result.blast_radius
+
+
+def test_risk_band_enum_and_exhaustiveness():
+    from intelligence.risk import RiskBand, describe_risk_band
+
+    for band in RiskBand:
+        description = describe_risk_band(band)
+        assert isinstance(description, str) and len(description) > 0
+
+
+def test_evidence_kind_enum_and_exhaustiveness():
+    from intelligence.incidents import EvidenceKind, describe_evidence_kind
+
+    for kind in EvidenceKind:
+        description = describe_evidence_kind(kind)
+        assert isinstance(description, str) and len(description) > 0

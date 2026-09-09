@@ -6,15 +6,18 @@ import pytest
 from resilience.scope import CertificationScope
 
 
-def scope(**overrides) -> CertificationScope:
-    fields = {
-        "service": "payments",
-        "environment": "prod",
-        "runbook_id": "aks.rollout.undo",
-        "blast_radius_budget": 2,
-    }
-    fields.update(overrides)
-    return CertificationScope(**fields)
+def scope(**overrides: object) -> CertificationScope:
+    service = str(overrides.get("service", "payments"))
+    environment = str(overrides.get("environment", "prod"))
+    runbook_id = str(overrides.get("runbook_id", "aks.rollout.undo"))
+    raw_budget = overrides.get("blast_radius_budget", 2)
+    blast_radius_budget = int(raw_budget) if isinstance(raw_budget, (int, str)) else 2
+    return CertificationScope(
+        service=service,
+        environment=environment,
+        runbook_id=runbook_id,
+        blast_radius_budget=blast_radius_budget,
+    )
 
 
 INPUTS = {

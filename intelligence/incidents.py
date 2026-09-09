@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from enum import Enum
+from enum import StrEnum
+from typing import assert_never
 
 
-class EvidenceKind(str, Enum):
+class EvidenceKind(StrEnum):
     ALERT = "alert"
     METRIC = "metric"
     LOG = "log"
@@ -13,6 +14,27 @@ class EvidenceKind(str, Enum):
     K8S_EVENT = "k8s_event"
     DEPLOYMENT = "deployment"
     INCIDENT = "incident"
+
+
+def describe_evidence_kind(kind: EvidenceKind) -> str:
+    """Exhaustive compile-time description of evidence event kinds."""
+    match kind:
+        case EvidenceKind.ALERT:
+            return "Monitoring alert triggered by service health checks."
+        case EvidenceKind.METRIC:
+            return "Quantitative time-series metric observation."
+        case EvidenceKind.LOG:
+            return "Structured diagnostic log entry."
+        case EvidenceKind.TRACE:
+            return "Distributed trace telemetry span."
+        case EvidenceKind.K8S_EVENT:
+            return "Kubernetes cluster lifecycle or state transition event."
+        case EvidenceKind.DEPLOYMENT:
+            return "Application delivery pipeline release or rollout event."
+        case EvidenceKind.INCIDENT:
+            return "Correlated service degradation or disruption record."
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 @dataclass(frozen=True)

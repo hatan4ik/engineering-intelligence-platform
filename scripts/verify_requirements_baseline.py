@@ -59,62 +59,79 @@ def load_baseline(path: Path = DEFAULT_BASELINE) -> list[dict[str, object]]:
     return [dict(item) for item in requirements]
 
 
+def _validate_requirement_fields(
+    errors: list[str],
+    label: str,
+    requirement: Mapping[str, object],
+    identifiers: set[str],
+) -> None:
+    missing = sorted(_REQUIRED_FIELDS - set(requirement))
+    unknown = sorted(set(requirement) - _REQUIRED_FIELDS)
+    if missing:
+        errors.append(f"{label}: missing fields: {', '.join(missing)}")
+    if unknown:
+        errors.append(f"{label}: unknown fields: {', '.join(unknown)}")
+    identifier = _nonempty_text(requirement.get("id"))
+    if identifier is None:
+        errors.append(f"{label}: id must be non-empty text")
+    elif identifier in identifiers:
+        errors.append(f"{label}: duplicate id {identifier}")
+    else:
+        identifiers.add(identifier)
+    _one_of(errors, label, "criticality", requirement.get("criticality"), _CRITICALITIES)
+    _one_of(errors, label, "data_sensitivity", requirement.get("data_sensitivity"), _SENSITIVITIES)
+    _one_of(errors, label, "decision_impact", requirement.get("decision_impact"), _IMPACTS)
+    _one_of(errors, label, "autonomy_tier", requirement.get("autonomy_tier"), _AUTONOMY)
+    _one_of(errors, label, "implementation_status", requirement.get("implementation_status"), _STATUSES)
+    if _nonempty_text(requirement.get("statement")) is None:
+        errors.append(f"{label}: statement must be non-empty text")
+    if _nonempty_text(requirement.get("owner")) is None:
+        errors.append(f"{label}: owner must be non-empty text")
+    days = requirement.get("review_cycle_days")
+    if type(days) is not int or not 1 <= days <= 365:
+        errors.append(f"{label}: review_cycle_days must be an integer from 1 to 365")
+    if (
+        requirement.get("decision_impact") == "consequential"
+        and requirement.get("autonomy_tier") not in {"L3/L4", "L4", "all"}
+    ):
+        errors.append(f"{label}: consequential work must name an L3/L4, L4, or all autonomy tier")
+
+
+def _validate_file_references(
+    errors: list[str],
+    label: str,
+    requirement: Mapping[str, object],
+    root: Path,
+) -> None:
+    status = requirement.get("implementation_status")
+    for field in ("design_refs", "implemented_by", "verified_by"):
+        values = requirement.get(field)
+        if not isinstance(values, list) or not all(_nonempty_text(value) for value in values):
+            errors.append(f"{label}: {field} must be a list of non-empty relative paths")
+            continue
+        for value in values:
+            assert isinstance(value, str)
+            if not _repository_path(root, value).is_file():
+                errors.append(f"{label}: {field} references missing file {value}")
+    if status != "planned":
+        for field in ("implemented_by", "verified_by"):
+            if not requirement.get(field):
+                errors.append(f"{label}: {field} must not be empty when {status}")
+
+
 def validate_baseline(
     requirements: Sequence[Mapping[str, object]],
     *,
     root: Path = ROOT,
 ) -> list[str]:
     """Return all schema, ownership, and repository-reference errors."""
-
     errors: list[str] = []
     identifiers: set[str] = set()
     for index, requirement in enumerate(requirements, start=1):
         label = f"requirements[{index}]"
-        missing = sorted(_REQUIRED_FIELDS - set(requirement))
-        unknown = sorted(set(requirement) - _REQUIRED_FIELDS)
-        if missing:
-            errors.append(f"{label}: missing fields: {', '.join(missing)}")
-        if unknown:
-            errors.append(f"{label}: unknown fields: {', '.join(unknown)}")
-        identifier = _nonempty_text(requirement.get("id"))
-        if identifier is None:
-            errors.append(f"{label}: id must be non-empty text")
-        elif identifier in identifiers:
-            errors.append(f"{label}: duplicate id {identifier}")
-        else:
-            identifiers.add(identifier)
-        _one_of(errors, label, "criticality", requirement.get("criticality"), _CRITICALITIES)
-        _one_of(errors, label, "data_sensitivity", requirement.get("data_sensitivity"), _SENSITIVITIES)
-        _one_of(errors, label, "decision_impact", requirement.get("decision_impact"), _IMPACTS)
-        _one_of(errors, label, "autonomy_tier", requirement.get("autonomy_tier"), _AUTONOMY)
-        status = requirement.get("implementation_status")
-        _one_of(errors, label, "implementation_status", status, _STATUSES)
-        if _nonempty_text(requirement.get("statement")) is None:
-            errors.append(f"{label}: statement must be non-empty text")
-        if _nonempty_text(requirement.get("owner")) is None:
-            errors.append(f"{label}: owner must be non-empty text")
-        days = requirement.get("review_cycle_days")
-        if type(days) is not int or not 1 <= days <= 365:
-            errors.append(f"{label}: review_cycle_days must be an integer from 1 to 365")
-        for field in ("design_refs", "implemented_by", "verified_by"):
-            values = requirement.get(field)
-            if not isinstance(values, list) or not all(_nonempty_text(value) for value in values):
-                errors.append(f"{label}: {field} must be a list of non-empty relative paths")
-                continue
-            for value in values:
-                assert isinstance(value, str)
-                if not _repository_path(root, value).is_file():
-                    errors.append(f"{label}: {field} references missing file {value}")
-        if status != "planned":
-            for field in ("implemented_by", "verified_by"):
-                if not requirement.get(field):
-                    errors.append(f"{label}: {field} must not be empty when {status}")
+        _validate_requirement_fields(errors, label, requirement, identifiers)
+        _validate_file_references(errors, label, requirement, root)
         _validate_operational_evidence(errors, label, requirement.get("operational_evidence"), root)
-        if (
-            requirement.get("decision_impact") == "consequential"
-            and requirement.get("autonomy_tier") not in {"L3/L4", "L4", "all"}
-        ):
-            errors.append(f"{label}: consequential work must name an L3/L4, L4, or all autonomy tier")
     return errors
 
 

@@ -49,16 +49,22 @@ def main(argv: list[str] | None = None) -> int:
             f"unexpected={sorted(covered_branches - required_branches)!r}"
         )
     for case in typed_cases:
-        kwargs = {
-            "runbook": case.runbook,
-            "policy": case.policy,
-            "request": case.request,
-            "approval_verified": case.approval_verified,
-            "control": case.control,
-            "autonomy": case.autonomy,
-        }
-        opa = authoritative.evaluate(**kwargs)
-        reference = local.evaluate(**kwargs)
+        opa = authoritative.evaluate(
+            runbook=case.runbook,
+            policy=case.policy,
+            request=case.request,
+            approval_verified=case.approval_verified,
+            control=case.control,
+            autonomy=case.autonomy,
+        )
+        reference = local.evaluate(
+            runbook=case.runbook,
+            policy=case.policy,
+            request=case.request,
+            approval_verified=case.approval_verified,
+            control=case.control,
+            autonomy=case.autonomy,
+        )
         expected = (case.allowed, case.reason)
         actual_opa = (opa.allowed, opa.reason)
         actual_reference = (reference.allowed, reference.reason)
@@ -67,15 +73,15 @@ def main(argv: list[str] | None = None) -> int:
                 f"{case.name}: expected {expected!r}; OPA={actual_opa!r}; "
                 f"local={actual_reference!r}"
             )
-    for case in raw_cases:
-        opa = authoritative.evaluate_input({"input": case.input})
-        reference = local.evaluate_input(case.input)
-        expected = (case.allowed, case.reason)
+    for raw_case in raw_cases:
+        opa = authoritative.evaluate_input({"input": raw_case.input})
+        reference = local.evaluate_input(raw_case.input)
+        expected = (raw_case.allowed, raw_case.reason)
         actual_opa = (opa.allowed, opa.reason)
         actual_reference = (reference.allowed, reference.reason)
         if actual_opa != expected or actual_reference != expected:
             failures.append(
-                f"{case.name}: expected {expected!r}; OPA={actual_opa!r}; "
+                f"{raw_case.name}: expected {expected!r}; OPA={actual_opa!r}; "
                 f"local={actual_reference!r}"
             )
     if failures:

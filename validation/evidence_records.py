@@ -131,6 +131,78 @@ def _text_violations(mapping: Mapping[str, Any], field: str) -> list[str]:
     return []
 
 
+def _validate_artifacts(mapping: Mapping[str, Any], violations: list[str]) -> None:
+    artifacts = mapping.get("artifacts")
+    if "artifacts" not in mapping:
+        violations.append("artifacts: required field is missing")
+    elif not isinstance(artifacts, (list, tuple)) or isinstance(artifacts, str):
+        violations.append("artifacts: must be a list of signed links or digests")
+    elif not artifacts:
+        violations.append("artifacts: must list at least one signed link or digest")
+    elif any(not isinstance(item, str) or not item.strip() for item in artifacts):
+        violations.append("artifacts: every entry must be a non-blank string")
+
+
+def _validate_basis_and_decision(mapping: Mapping[str, Any], violations: list[str]) -> None:
+    violations.extend(_text_violations(mapping, "basis"))
+    basis = mapping.get("basis")
+    if isinstance(basis, str) and basis.strip() and basis not in BASES:
+        violations.append(f"basis: must be one of {', '.join(BASES)}")
+
+    violations.extend(_text_violations(mapping, "decision"))
+    decision = mapping.get("decision")
+    if isinstance(decision, str) and decision.strip() and decision not in DECISIONS:
+        violations.append(f"decision: must be one of {', '.join(DECISIONS)}")
+
+
+def _validate_urls_and_keys(mapping: Mapping[str, Any], violations: list[str]) -> None:
+    source_run_url = mapping.get("source_run_url")
+    if source_run_url is not None:
+        if not isinstance(source_run_url, str) or not source_run_url.strip():
+            violations.append("source_run_url: must be a non-blank URL when present")
+        elif not source_run_url.startswith("https://"):
+            violations.append("source_run_url: must be an https URL")
+    if mapping.get("basis") == "measured" and not (isinstance(source_run_url, str) and source_run_url.strip()):
+        violations.append(
+            "source_run_url: a measured record must cite the run it was measured from"
+        )
+
+    readiness_key = mapping.get("readiness_key")
+    if readiness_key is not None:
+        if not isinstance(readiness_key, str) or not readiness_key.strip():
+            violations.append("readiness_key: must be a non-blank string when present")
+        elif readiness_key not in _readiness_keys():
+            violations.append(
+                "readiness_key: must be one of " + ", ".join(sorted(_readiness_keys()))
+            )
+
+
+def _validate_controls(mapping: Mapping[str, Any], violations: list[str]) -> tuple[str, ...]:
+    raw_controls = mapping.get("controls")
+    if raw_controls is None:
+        return ()
+    if not isinstance(raw_controls, (list, tuple)) or isinstance(raw_controls, str):
+        violations.append("controls: must be a list of control names")
+        return ()
+    if any(not isinstance(item, str) or not item.strip() for item in raw_controls):
+        violations.append("controls: every entry must be a non-blank control name")
+        return ()
+    seen: list[str] = []
+    for item in raw_controls:
+        name = item.strip()
+        if name not in seen:
+            seen.append(name)
+    unknown = [name for name in seen if name not in _attested_controls()]
+    if unknown:
+        violations.append(
+            "controls: unknown control(s) "
+            + ", ".join(unknown)
+            + "; must be one of "
+            + ", ".join(_attested_controls())
+        )
+    return tuple(seen)
+
+
 def validate_record(mapping: Mapping[str, Any]) -> EvidenceRecord:
     """Validate one record mapping, raising ``ValueError`` naming every violation."""
 
@@ -153,72 +225,16 @@ def validate_record(mapping: Mapping[str, Any]) -> EvidenceRecord:
             f"{EVIDENCE_ID.pattern} so it is a safe file name (lowercase, no spaces or path separators)"
         )
 
-    artifacts = mapping.get("artifacts")
-    if "artifacts" not in mapping:
-        violations.append("artifacts: required field is missing")
-    elif not isinstance(artifacts, (list, tuple)) or isinstance(artifacts, str):
-        violations.append("artifacts: must be a list of signed links or digests")
-    elif not artifacts:
-        violations.append("artifacts: must list at least one signed link or digest")
-    elif any(not isinstance(item, str) or not item.strip() for item in artifacts):
-        violations.append("artifacts: every entry must be a non-blank string")
-
-    violations.extend(_text_violations(mapping, "basis"))
-    basis = mapping.get("basis")
-    if isinstance(basis, str) and basis.strip() and basis not in BASES:
-        violations.append(f"basis: must be one of {', '.join(BASES)}")
-
-    violations.extend(_text_violations(mapping, "decision"))
-    decision = mapping.get("decision")
-    if isinstance(decision, str) and decision.strip() and decision not in DECISIONS:
-        violations.append(f"decision: must be one of {', '.join(DECISIONS)}")
-
-    source_run_url = mapping.get("source_run_url")
-    if source_run_url is not None:
-        if not isinstance(source_run_url, str) or not source_run_url.strip():
-            violations.append("source_run_url: must be a non-blank URL when present")
-        elif not source_run_url.startswith("https://"):
-            violations.append("source_run_url: must be an https URL")
-    if basis == "measured" and not (isinstance(source_run_url, str) and source_run_url.strip()):
-        violations.append(
-            "source_run_url: a measured record must cite the run it was measured from"
-        )
-
-    readiness_key = mapping.get("readiness_key")
-    if readiness_key is not None:
-        if not isinstance(readiness_key, str) or not readiness_key.strip():
-            violations.append("readiness_key: must be a non-blank string when present")
-        elif readiness_key not in _readiness_keys():
-            violations.append(
-                "readiness_key: must be one of " + ", ".join(sorted(_readiness_keys()))
-            )
-
-    controls: tuple[str, ...] = ()
-    raw_controls = mapping.get("controls")
-    if raw_controls is not None:
-        if not isinstance(raw_controls, (list, tuple)) or isinstance(raw_controls, str):
-            violations.append("controls: must be a list of control names")
-        elif any(not isinstance(item, str) or not item.strip() for item in raw_controls):
-            violations.append("controls: every entry must be a non-blank control name")
-        else:
-            seen: list[str] = []
-            for item in raw_controls:
-                name = item.strip()
-                if name not in seen:
-                    seen.append(name)
-            unknown = [name for name in seen if name not in _attested_controls()]
-            if unknown:
-                violations.append(
-                    "controls: unknown control(s) "
-                    + ", ".join(unknown)
-                    + "; must be one of "
-                    + ", ".join(_attested_controls())
-                )
-            controls = tuple(seen)
+    _validate_artifacts(mapping, violations)
+    _validate_basis_and_decision(mapping, violations)
+    _validate_urls_and_keys(mapping, violations)
+    controls = _validate_controls(mapping, violations)
 
     if violations:
         raise ValueError("invalid evidence record: " + "; ".join(sorted(violations)))
 
+    source_run_url = mapping.get("source_run_url")
+    readiness_key = mapping.get("readiness_key")
     return EvidenceRecord(
         evidence_id=str(mapping["evidence_id"]),
         scope=str(mapping["scope"]),

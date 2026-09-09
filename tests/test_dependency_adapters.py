@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from app.application import create_app
 from app.operations.capability import OperationsCapability
 from app.settings import ApplicationSettings
+from azure.core.credentials import AccessToken
 from integrations.azure.monitor import AzureMonitorEvidenceClient, AzureMonitorQuery
 from integrations.azure.resource_graph import AzureResourceGraphClient
 from integrations.github.pr_guardian import GitHubAPIError, GitHubRestPRClient
@@ -31,13 +32,9 @@ class _Clock:
         return self.now
 
 
-class _Token:
-    token = "test-token"
-
-
 class _Credential:
-    def get_token(self, *scopes: str) -> _Token:
-        return _Token()
+    def get_token(self, *scopes: str, **kwargs: object) -> AccessToken:
+        return AccessToken("test-token", 1893456000)
 
 
 def _single_failure_boundary(name: str) -> DependencyBoundary:

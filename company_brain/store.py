@@ -95,6 +95,9 @@ class RetentionPolicy:
             _timestamp(self.retain_until, "retain_until")
 
 
+DEFAULT_RETENTION_POLICY: RetentionPolicy = RetentionPolicy()
+
+
 @dataclass(frozen=True)
 class StoredEntity:
     tenant_id: str
@@ -196,7 +199,7 @@ class CompanyBrainStore(Protocol):
         entity: BrainEntity,
         *,
         provenance: BrainProvenance,
-        retention: RetentionPolicy = RetentionPolicy(),
+        retention: RetentionPolicy = DEFAULT_RETENTION_POLICY,
         expected_version: int | None = None,
     ) -> StoredEntity: ...
 
@@ -210,7 +213,7 @@ class CompanyBrainStore(Protocol):
         evidence: BrainEvidence,
         *,
         provenance: BrainProvenance,
-        retention: RetentionPolicy = RetentionPolicy(),
+        retention: RetentionPolicy = DEFAULT_RETENTION_POLICY,
         expected_version: int | None = None,
     ) -> StoredEvidence: ...
 
@@ -220,7 +223,7 @@ class CompanyBrainStore(Protocol):
         relationship: BrainRelationship,
         *,
         provenance: BrainProvenance,
-        retention: RetentionPolicy = RetentionPolicy(),
+        retention: RetentionPolicy = DEFAULT_RETENTION_POLICY,
         expected_version: int | None = None,
     ) -> StoredRelationship: ...
 
@@ -364,7 +367,7 @@ class SqliteCompanyBrainStore(SqliteReferenceDatabase):
         entity: BrainEntity,
         *,
         provenance: BrainProvenance,
-        retention: RetentionPolicy = RetentionPolicy(),
+        retention: RetentionPolicy = DEFAULT_RETENTION_POLICY,
         expected_version: int | None = None,
     ) -> StoredEntity:
         tenant = _required(tenant_id, "tenant_id", maximum=200)
@@ -398,7 +401,7 @@ class SqliteCompanyBrainStore(SqliteReferenceDatabase):
         evidence: BrainEvidence,
         *,
         provenance: BrainProvenance,
-        retention: RetentionPolicy = RetentionPolicy(),
+        retention: RetentionPolicy = DEFAULT_RETENTION_POLICY,
         expected_version: int | None = None,
     ) -> StoredEvidence:
         tenant = _required(tenant_id, "tenant_id", maximum=200)
@@ -472,7 +475,7 @@ class SqliteCompanyBrainStore(SqliteReferenceDatabase):
         relationship: BrainRelationship,
         *,
         provenance: BrainProvenance,
-        retention: RetentionPolicy = RetentionPolicy(),
+        retention: RetentionPolicy = DEFAULT_RETENTION_POLICY,
         expected_version: int | None = None,
     ) -> StoredRelationship:
         tenant = _required(tenant_id, "tenant_id", maximum=200)

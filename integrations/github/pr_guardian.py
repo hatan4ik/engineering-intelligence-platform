@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from resilience.dependencies import DependencyBoundary, DependencyLimits, DependencyUnavailable
+from telemetry.trace_context import TraceContext
 
 
 COMMENT_MARKER = "<!-- eip-pr-guardian -->"
@@ -113,16 +114,18 @@ class GitHubRestPRClient:
 
     def _request(self, method: str, path: str, payload: dict[str, object] | None = None) -> object:
         body = None if payload is None else json.dumps(payload).encode()
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json",
+        }
+        headers.update(TraceContext.current().headers())
         request = urllib.request.Request(
             f"{self.api_url}{path}",
             data=body,
             method=method,
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
         )
         def send() -> object:
             try:
