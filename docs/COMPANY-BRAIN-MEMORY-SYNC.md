@@ -60,6 +60,11 @@ A managed implementation must make this boundary durable with an outbox, transac
 model, or equivalent replay receipt. It must preserve the same tenant isolation, ACL, tombstone,
 provenance, and relationship-membership semantics.
 
+The [Decision Experience](COMPANY-BRAIN-DECISION-EXPERIENCE.md) artifact outbox covers a different
+failure boundary: it records product-facing external effects such as a GitHub check/comment before
+delivery. It does not make this cross-store ingestion/index projection transaction atomic and must
+not be cited as a solution for source synchronization recovery.
+
 ## Explicit non-goals
 
 - No Azure deployment, connector credential, or production source claim.

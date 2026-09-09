@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Mapping
 
+from company_brain.artifact_outbox import ArtifactOutbox
 from company_brain.model import BrainPrincipal
 from control_plane.workflows import ControlPlaneWorkflows
 from intelligence.graph import ServiceGraph
@@ -21,9 +22,10 @@ from intelligence.risk import RiskAssessment
 from integrations.github.pr_guardian import GitHubPRClient, PullRequestEvent
 from product.pr_guardian.company_brain import PRGuardianCompanyContext
 from product.pr_guardian.config import default_shadow_config
-from product.pr_guardian.contracts import PRFinding, RepositoryConfig
+from product.pr_guardian.contracts import PRFinding, ProductMode, RepositoryConfig
 from product.pr_guardian.enforcement import (
     EnforcementDecision,
+    PublishConclusion,
     REASON_CONTEXT_UNQUALIFIED,
     enforcement_decision,
 )
@@ -45,15 +47,16 @@ class PRGuardianResult:
     policy: PRPolicyDecision
     workflow_id: str
     correlation_id: str
-    conclusion: str
+    conclusion: PublishConclusion
     changed_services: tuple[str, ...]
     changed_files: tuple[str, ...]
-    mode: str
+    mode: ProductMode
     simulated_policy_would_block: bool
     repository_enforcement_would_block: bool
     enforcement: EnforcementDecision
     finding: PRFinding | None
     company_context: PRGuardianCompanyContext | None
+    publication_artifact_id: str | None
 
     @property
     def would_block(self) -> bool:
@@ -81,6 +84,7 @@ class PRGuardianDependencies:
     company_context: QualifiedCompanyContextProvider | None
     principal: BrainPrincipal | None
     findings: PRGuardianFindingStore | None
+    publication_outbox: ArtifactOutbox | None
 
 
 class PRGuardianService:
@@ -108,18 +112,21 @@ class PRGuardianService:
         workflows: ControlPlaneWorkflows,
         history: HistoricalFailureProvider | None = None,
         telemetry: TelemetrySink | None = None,
-        mode: str = "shadow",
+        mode: ProductMode | str = ProductMode.SHADOW,
         config: RepositoryConfig | None = None,
         environ: Mapping[str, str] | None = None,
         company_context: QualifiedCompanyContextProvider | None = None,
         principal: BrainPrincipal | None = None,
         findings: PRGuardianFindingStore | None = None,
+        publication_outbox: ArtifactOutbox | None = None,
         policy_version: str = "pr-policy-v1",
     ) -> None:
         if config is not None:
-            resolved = str(config.mode)
-        elif mode == "shadow":
-            resolved = mode
+            resolved = config.mode
+        elif mode is ProductMode.SHADOW or mode == ProductMode.SHADOW.value:
+            # Preserve the legacy shadow-only construction value at the public
+            # boundary while keeping every internal flow enum-typed.
+            resolved = ProductMode.SHADOW
         else:
             raise ValueError(
                 "a non-shadow PR Guardian mode must come from the repository configuration"
@@ -142,6 +149,7 @@ class PRGuardianService:
             company_context=company_context,
             principal=principal,
             findings=findings,
+            publication_outbox=publication_outbox,
         )
         self._mode = resolved
         self._policy_version = config.policy_version if config is not None else policy_version
@@ -154,11 +162,15 @@ class PRGuardianService:
             principal=self._dependencies.principal,
         )
         self._finding_factory = PRFindingFactory(policy_version=self._policy_version)
-        self._publisher = PRGuardianPublisher(self._dependencies.github)
+        self._publisher = (
+            PRGuardianPublisher(self._dependencies.github, publication_outbox)
+            if publication_outbox is not None
+            else None
+        )
         self._telemetry_recorder = PRGuardianTelemetryRecorder(self._dependencies.telemetry)
 
     @property
-    def mode(self) -> str:
+    def mode(self) -> ProductMode:
         """The repository-derived operating mode fixed at service construction."""
 
         return self._mode
@@ -179,6 +191,10 @@ class PRGuardianService:
     ) -> PRGuardianResult:
         """Evaluate one PR while keeping computation, recording, and output ordered."""
 
+        if publish and (self._dependencies.findings is None or self._publisher is None):
+            raise RuntimeError(
+                "PR Guardian publishing requires a durable finding store and artifact outbox"
+            )
         started = time.monotonic()
         config = self._config_for(event)
         review = self._preparer.prepare(event)
@@ -203,7 +219,7 @@ class PRGuardianService:
                 REASON_CONTEXT_UNQUALIFIED,
                 decision.rule,
             )
-        conclusion = "failure" if decision.would_block else "neutral"
+        conclusion: PublishConclusion = "failure" if decision.would_block else "neutral"
         finding = self._finding_factory.create(
             event=event,
             assessment=review.assessment,
@@ -213,6 +229,24 @@ class PRGuardianService:
         )
         if self._dependencies.findings is not None:
             self._dependencies.findings.record_finding(finding)
+        publication_artifact_id: str | None = None
+        if publish:
+            if self._publisher is None:  # Defensive narrowing for static and runtime safety.
+                raise RuntimeError("PR Guardian publication outbox is not configured")
+            artifact = self._publisher.publish(
+                event=event,
+                assessment=review.assessment,
+                workflow_id=workflow.workflow_id,
+                correlation_id=workflow.correlation_id,
+                changed_services=review.changed_services,
+                policy=policy,
+                mode=self.mode,
+                conclusion=conclusion,
+                enforcement=decision,
+                company_context=review.company_context,
+                now=now if isinstance(now, datetime) else None,
+            )
+            publication_artifact_id = artifact.artifact_id
         result = PRGuardianResult(
             assessment=review.assessment,
             policy=policy,
@@ -227,19 +261,8 @@ class PRGuardianService:
             enforcement=decision,
             finding=finding,
             company_context=review.company_context,
+            publication_artifact_id=publication_artifact_id,
         )
-        if publish:
-            self._publisher.publish(
-                event=event,
-                assessment=review.assessment,
-                workflow_id=workflow.workflow_id,
-                changed_services=review.changed_services,
-                policy=policy,
-                mode=self.mode,
-                conclusion=conclusion,
-                enforcement=decision,
-                company_context=review.company_context,
-            )
         self._telemetry_recorder.record(
             event=event,
             assessment=review.assessment,
@@ -250,6 +273,18 @@ class PRGuardianService:
             latency_ms=(time.monotonic() - started) * 1000.0,
         )
         return result
+
+    def recover_pending_publications(self, *, maximum_deliveries: int = 100) -> int:
+        """Deliver bounded due publication work already recorded in the outbox.
+
+        This is intentionally explicit rather than an unbounded background loop.
+        Operators or a scheduled worker invoke it to recover effects after a
+        dependency outage or process failure.
+        """
+
+        if self._publisher is None:
+            raise RuntimeError("PR Guardian publication outbox is not configured")
+        return self._publisher.deliver_pending(maximum_deliveries=maximum_deliveries)
 
     def _config_for(self, event: PullRequestEvent) -> RepositoryConfig:
         config = self._dependencies.config or default_shadow_config(event.repository)

@@ -7,6 +7,9 @@ to reintroduce collection, publishing, and telemetry into the facade.
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from company_brain.artifact_outbox import SqliteArtifactOutbox
 from integrations.github.pr_guardian import ChangedFile, PullRequestEvent
 from intelligence.graph import ServiceGraph, ServiceNode
 from intelligence.pr_guardian import PRPolicyDecision
@@ -14,6 +17,7 @@ from intelligence.risk import RiskAssessment, RiskFactor
 from product.pr_guardian.finding_factory import PRFindingFactory
 from product.pr_guardian.enforcement import EnforcementDecision
 from product.pr_guardian.publication import PRGuardianPublisher
+from product.pr_guardian.contracts import ProductMode
 from product.pr_guardian.review_pipeline import PRReviewPreparer
 from product.pr_guardian.telemetry import PRGuardianTelemetryRecorder
 from telemetry.events import InMemoryTelemetrySink
@@ -85,24 +89,28 @@ def test_preparer_collects_and_scores_without_publishing_or_recording():
     assert github.comments == []
 
 
-def test_publisher_renders_a_precomputed_decision_without_deciding_it():
+def test_publisher_renders_a_precomputed_decision_without_deciding_it(tmp_path: Path) -> None:
     github = GitHub()
 
-    PRGuardianPublisher(github).publish(
+    artifact = PRGuardianPublisher(github, SqliteArtifactOutbox(tmp_path / "outbox.db")).publish(
         event=event(),
         assessment=assessment(),
         workflow_id="pr:acme/platform:7",
+        correlation_id="corr-7",
         changed_services=(),
         policy=PRPolicyDecision(False, False, False),
-        mode="shadow",
+        mode=ProductMode.SHADOW,
         conclusion="neutral",
         enforcement=EnforcementDecision(False, "mode-not-enforcing"),
         company_context=None,
     )
 
     assert github.checks[0]["conclusion"] == "neutral"
+    external_id = github.checks[0]["external_id"]
+    assert isinstance(external_id, str) and external_id.startswith("delivery:")
     assert github.checks[0]["title"] == "Shadow risk: 12/100 (low)"
     assert "shadow observation" in str(github.comments[0]["body"])
+    assert artifact.artifact_id.startswith("artifact:")
 
 
 def test_telemetry_recorder_owns_the_stable_review_event_shape():

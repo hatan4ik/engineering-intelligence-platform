@@ -94,7 +94,7 @@ class BrainEntity:
     def __post_init__(self) -> None:
         _required(self.entity_id, "entity_id")
         _required(self.label, "entity label", maximum=300)
-        if self.kind not in set(EntityKind):
+        if not isinstance(self.kind, EntityKind):
             raise CompanyBrainError("entity kind is invalid")
         _normalized_attributes(self.attributes)
 
@@ -142,7 +142,7 @@ class BrainRelationship:
         _required(self.target_id, "relationship target_id")
         if self.source_id == self.target_id:
             raise CompanyBrainError("relationship endpoints must differ")
-        if self.kind not in set(RelationshipKind):
+        if not isinstance(self.kind, RelationshipKind):
             raise CompanyBrainError("relationship kind is invalid")
         _normalized_strings(self.evidence_ids, "relationship evidence_ids")
 

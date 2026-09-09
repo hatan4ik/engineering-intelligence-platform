@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -56,6 +57,7 @@ class GitHubPRClient(Protocol):
         conclusion: str,
         title: str,
         summary: str,
+        external_id: str | None = None,
     ) -> None: ...
     def publish_comment(self, *, repository: str, pr_number: int, body: str) -> None: ...
 
@@ -185,17 +187,57 @@ class GitHubRestPRClient:
         conclusion: str,
         title: str,
         summary: str,
+        external_id: str | None = None,
     ) -> None:
+        """Create a check, or upsert the delivery identified by ``external_id``.
+
+        The durable publication outbox can retry after a process crash between
+        GitHub accepting a check and the local acknowledgement. GitHub's check
+        ``external_id`` provides a stable idempotency boundary for that path.
+        Callers that do not have a durable delivery identity retain the legacy
+        create-only behaviour.
+        """
+
+        payload = {
+            "name": name,
+            "status": "completed",
+            "conclusion": conclusion,
+            "output": {"title": title, "summary": summary},
+        }
+        if external_id is None:
+            self._request(
+                "POST",
+                f"/repos/{repository}/check-runs",
+                {"head_sha": head_sha, **payload},
+            )
+            return
+        if not isinstance(external_id, str) or not external_id.strip() or len(external_id) > 240:
+            raise ValueError("GitHub check external_id must be a non-blank string up to 240 characters")
+
+        existing = self._request(
+            "GET",
+            "/repos/"
+            f"{repository}/commits/{head_sha}/check-runs?check_name={urllib.parse.quote(name, safe='')}&per_page=100",
+        )
+        check_runs = existing.get("check_runs") if isinstance(existing, Mapping) else None
+        if not isinstance(check_runs, list):
+            raise RuntimeError("GitHub check-runs response was not an object with a check_runs list")
+        for check_run in check_runs:
+            if not isinstance(check_run, Mapping) or check_run.get("external_id") != external_id:
+                continue
+            check_run_id = check_run.get("id")
+            if type(check_run_id) is not int or check_run_id < 1:
+                raise RuntimeError("GitHub check-runs response contained an invalid matching check id")
+            self._request(
+                "PATCH",
+                f"/repos/{repository}/check-runs/{check_run_id}",
+                {"external_id": external_id, **payload},
+            )
+            return
         self._request(
             "POST",
             f"/repos/{repository}/check-runs",
-            {
-                "name": name,
-                "head_sha": head_sha,
-                "status": "completed",
-                "conclusion": conclusion,
-                "output": {"title": title, "summary": summary},
-            },
+            {"head_sha": head_sha, "external_id": external_id, **payload},
         )
 
     def publish_sticky_comment(

@@ -43,6 +43,9 @@ records; supersede old decisions rather than silently rewriting history.
 - [ADR-003: Company Brain systems of record and recovery boundaries](003-company-brain-runtime-topology-and-recovery.md)
   assigns canonical state, rebuildable projections, workflow history, audit
   evidence, and broker ownership before a durable runtime is built.
+- [ADR-004: Bounded decision context, evidence receipts, and durable publication](004-company-brain-decision-experience-and-publication.md)
+  defines the Company Brain moment-of-truth context, human correction, and
+  recoverable product-output boundaries.
 
 ## Naming
 

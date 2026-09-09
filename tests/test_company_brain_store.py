@@ -15,6 +15,7 @@ from company_brain import (
     SqliteCompanyBrainStore,
 )
 from company_brain.model import BrainRelationship
+from company_brain.serialization import provenance_fields
 
 
 def provenance(*, record: str = "source-1", revision: str = "v1") -> BrainProvenance:
@@ -22,6 +23,7 @@ def provenance(*, record: str = "source-1", revision: str = "v1") -> BrainProven
         source_system="github",
         source_record_id=record,
         source_revision=revision,
+        projection_policy_version="test-projection:v1",
         observed_at=datetime(2026, 8, 26, 8, 0, tzinfo=timezone.utc),
         event_id=f"event:{record}:{revision}",
     )
@@ -38,10 +40,25 @@ def test_store_is_tenant_scoped_and_round_trips_provenance(tmp_path):
 
     assert stored.version == 1
     assert stored.provenance.source_record_id == "source-1"
+    assert stored.provenance.projection_policy_version == "test-projection:v1"
     assert store.get_entity("tenant-a", "service:payments") == stored
     assert store.get_entity("tenant-b", "service:payments") == other
     assert store.get_entity("tenant-c", "service:payments") is None
     assert [event.tenant_id for event in store.audit_events("tenant-a")] == ["tenant-a"]
+
+
+def test_legacy_provenance_is_explicitly_marked_unversioned() -> None:
+    fields = provenance_fields(
+        {
+            "source_system": "github",
+            "source_record_id": "acme/payments:README.md",
+            "source_revision": "deadbeef",
+            "observed_at": "2026-08-26T08:00:00+00:00",
+            "event_id": "event:legacy",
+        }
+    )
+
+    assert fields.projection_policy_version == "legacy-unversioned"
 
 
 def test_store_uses_compare_and_swap_without_resurrecting_tombstones(tmp_path):

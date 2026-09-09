@@ -102,6 +102,66 @@ def test_contract_publish_check_formats_github_check_runs_schema() -> None:
         assert sent_payload["output"]["summary"] == "Identified low risk change with zero blockers."
 
 
+def test_contract_publish_check_upserts_a_durable_external_delivery_identity() -> None:
+    client = GitHubRestPRClient(token="ghp_test_token")
+
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.side_effect = [
+            _mock_http_response(
+                200,
+                {"check_runs": [{"id": 12345, "external_id": "delivery:pr-guardian-42:check"}]},
+            ),
+            _mock_http_response(200, {"id": 12345}),
+        ]
+        client.publish_check(
+            repository="acme/payments",
+            head_sha="deadbeef42",
+            name="PR Guardian (shadow)",
+            conclusion="neutral",
+            title="Risk Assessment Complete",
+            summary="Identified low risk change with zero blockers.",
+            external_id="delivery:pr-guardian-42:check",
+        )
+
+    assert mock_urlopen.call_count == 2
+    lookup = mock_urlopen.call_args_list[0][0][0]
+    assert lookup.get_method() == "GET"
+    assert lookup.full_url.endswith(
+        "/commits/deadbeef42/check-runs?check_name=PR%20Guardian%20%28shadow%29&per_page=100"
+    )
+    patch_request = mock_urlopen.call_args_list[1][0][0]
+    assert patch_request.get_method() == "PATCH"
+    assert patch_request.full_url == "https://api.github.com/repos/acme/payments/check-runs/12345"
+    patch_payload = json.loads(patch_request.data.decode("utf-8"))
+    assert patch_payload["external_id"] == "delivery:pr-guardian-42:check"
+    assert "head_sha" not in patch_payload
+
+
+def test_contract_publish_check_creates_when_no_external_delivery_exists() -> None:
+    client = GitHubRestPRClient(token="ghp_test_token")
+
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.side_effect = [
+            _mock_http_response(200, {"check_runs": []}),
+            _mock_http_response(201, {"id": 12345}),
+        ]
+        client.publish_check(
+            repository="acme/payments",
+            head_sha="deadbeef42",
+            name="PR Guardian (shadow)",
+            conclusion="neutral",
+            title="Risk Assessment Complete",
+            summary="Identified low risk change with zero blockers.",
+            external_id="delivery:pr-guardian-42:check",
+        )
+
+    create = mock_urlopen.call_args_list[1][0][0]
+    assert create.get_method() == "POST"
+    created_payload = json.loads(create.data.decode("utf-8"))
+    assert created_payload["head_sha"] == "deadbeef42"
+    assert created_payload["external_id"] == "delivery:pr-guardian-42:check"
+
+
 def test_contract_publish_comment_creates_new_when_no_existing_marker() -> None:
     client = GitHubRestPRClient(token="ghp_test_token")
 

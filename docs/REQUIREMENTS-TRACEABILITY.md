@@ -28,6 +28,8 @@ evidence means the requirement is **not proven for a named live scope**.
 | EIP-SEC-014 | high | restricted | read-only | L0/L1 | reference-implemented | platform-security | not-collected |
 | EIP-DATA-021 | high | restricted | advisory | L0/L1 | reference-implemented | data-governance | not-collected |
 | EIP-PRG-001 | high | internal | advisory | L0/L1 | reference-implemented | developer-experience | not-collected |
+| EIP-DATA-022 | high | restricted | advisory | L0/L1 | reference-implemented | data-governance | not-collected |
+| EIP-PRG-003 | high | internal | advisory | L0/L1 | reference-implemented | developer-experience | not-collected |
 | EIP-PRG-002 | high | internal | advisory | L0/L1 | reference-implemented | developer-experience | not-collected |
 | EIP-AUD-010 | high | restricted | consequential | L3/L4 | reference-partial | platform-engineering | not-collected |
 | EIP-CTRL-018 | critical | restricted | consequential | L3/L4 | reference-partial | sre-platform | not-collected |
@@ -66,6 +68,11 @@ classification.
 The repository can validate contract shape and reference paths. It cannot
 create a real audit export, security review, or pilot outcome. Those records
 remain promotion gates in the [production evidence registry](PRODUCTION-EVIDENCE.md).
+
+For Company Brain advisory proposals, the record also identifies the bounded Context Packet,
+evidence-read receipt, evidence revisions, and known omissions. A durable external publication
+record identifies each intended effect and delivery outcome separately. These source contracts do
+not replace the managed audit/evidence system required for a named pilot or consequential action.
 
 ## Model-approval submission checklist
 

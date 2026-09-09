@@ -1,4 +1,5 @@
 import pytest
+from typing import cast
 
 from product.pr_guardian.contracts import (
     EnforcementRule,
@@ -34,6 +35,7 @@ def evidence() -> EvidenceBundle:
                 evidence_id="adr-001",
                 source_kind="adr",
                 locator="knowledge://adr/001",
+                revision="revision-001",
                 authorized=True,
             ),
         ),
@@ -62,6 +64,16 @@ def test_repository_scope_requires_named_owners_sources_and_a_non_enforcing_mode
             policy_version="pr-policy-2026-08",
         )
 
+    with pytest.raises(ProductContractError, match="mode is invalid"):
+        RepositoryConfig(
+            repository="acme/payments",
+            service_ids=("payments",),
+            owner_ids=("team-payments",),
+            evidence_sources=("engineering-knowledge",),
+            policy_version="pr-policy-2026-08",
+            mode=cast(ProductMode, "shadow"),
+        )
+
 
 def test_finding_requires_authorized_evidence_and_only_simulates_actions():
     finding = PRFinding(
@@ -85,6 +97,7 @@ def test_finding_requires_authorized_evidence_and_only_simulates_actions():
             evidence_id="private-incident",
             source_kind="incident",
             locator="knowledge://incident/1",
+            revision="revision-001",
             authorized=False,
         )
 

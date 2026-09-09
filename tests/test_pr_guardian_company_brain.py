@@ -11,6 +11,7 @@ from company_brain import (
     RelationshipKind,
     SqliteCompanyBrainStore,
 )
+from company_brain.artifact_outbox import SqliteArtifactOutbox
 from company_brain.model import BrainRelationship
 from control_plane.workflows import ControlPlaneWorkflows
 from integrations.github.pr_guardian import ChangedFile, PullRequestEvent
@@ -50,6 +51,7 @@ def _provenance(record_id: str, observed_at: datetime) -> BrainProvenance:
         source_system="github",
         source_record_id=record_id,
         source_revision="1",
+        projection_policy_version="test-projection:v1",
         observed_at=observed_at,
         event_id=f"event:{record_id}:{int(observed_at.timestamp())}",
     )
@@ -120,6 +122,8 @@ def test_world_model_adapter_builds_a_qualified_graph_and_context_fingerprint(tm
     assert context.graph.nodes["checkout"].dependencies == ("payments",)
     assert context.context_version.startswith("world-model:v1:")
     assert context.evidence.references[0].authorized is True
+    assert context.context_packet.complete is True
+    assert context.context_health.proposal_eligible is True
     assert [relationship.statement for relationship in context.decision_context.relationships] == [
         "team-payments owns payments",
         "checkout belongs to acme/platform",
@@ -147,6 +151,7 @@ def test_pr_guardian_persists_qualified_finding_and_neutralizes_unqualified_cont
         company_context=_adapter(brain),
         principal=BrainPrincipal(groups=("engineering",)),
         findings=findings,
+        publication_outbox=SqliteArtifactOutbox(tmp_path / "outbox.db"),
         policy_version="pr-policy-test",
     )
 
@@ -161,6 +166,8 @@ def test_pr_guardian_persists_qualified_finding_and_neutralizes_unqualified_cont
     published_body = str(github.comments[-1]["body"])
     assert "### Company Brain decision context" in published_body
     assert "Citation visibility:" in published_body
+    assert "Context packet:" in published_body
+    assert "Context health:" in published_body
     assert "knowledge://" not in published_body
     assert "checkout depends on payments" not in published_body
 
@@ -175,6 +182,7 @@ def test_pr_guardian_persists_qualified_finding_and_neutralizes_unqualified_cont
         company_context=_adapter(stale_brain),
         principal=BrainPrincipal(groups=("engineering",)),
         findings=findings,
+        publication_outbox=SqliteArtifactOutbox(tmp_path / "stale-outbox.db"),
         policy_version="pr-policy-test",
     )
 

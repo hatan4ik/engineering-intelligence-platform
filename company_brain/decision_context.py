@@ -53,7 +53,7 @@ class DecisionContextRelationship:
             raise ProductContractError("decision-context relationship endpoints must differ")
         _text(self.source_label, "decision-context source_label", maximum=300)
         _text(self.target_label, "decision-context target_label", maximum=300)
-        if self.relationship not in set(RelationshipKind):
+        if not isinstance(self.relationship, RelationshipKind):
             raise ProductContractError("decision-context relationship kind is invalid")
         if self.relationship is RelationshipKind.HAS_EVIDENCE:
             raise ProductContractError("evidence links are not decision-context relationship claims")
@@ -193,6 +193,7 @@ def _relationship_from_qualification(
                     evidence_id=item.evidence_id,
                     source_kind=item.source_kind,
                     locator=item.citation,
+                    revision=item.revision,
                     authorized=True,
                 )
                 for item in qualification.evidence
@@ -226,6 +227,7 @@ def _evidence_bundle(
                     evidence_id=item.evidence_id,
                     source_kind=item.source_kind,
                     locator=item.citation,
+                    revision=item.revision,
                     authorized=True,
                 )
                 for item in context.evidence
