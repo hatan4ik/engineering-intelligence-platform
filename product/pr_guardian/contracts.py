@@ -12,31 +12,53 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
+from typing import NewType, assert_never
 
 from company_brain.product_contracts import (
     EvidenceBasis,
     EvidenceBundle,
     EvidenceReference,
+    FindingId,
     ProductContractError,
 )
+
+RepositoryName = NewType("RepositoryName", str)
+ServiceId = NewType("ServiceId", str)
+PrNumber = NewType("PrNumber", int)
+EvaluationId = NewType("EvaluationId", str)
+HeadSha = NewType("HeadSha", str)
 
 
 __all__ = [
     "EnforcementPolicy",
     "EnforcementRule",
     "EnforcementWaiver",
+    "EvaluationId",
+    "EvaluationRun",
     "EvidenceBasis",
     "EvidenceBundle",
     "EvidenceReference",
-    "EvaluationRun",
     "FindingAction",
+    "FindingId",
     "FindingOutcome",
+    "HeadSha",
     "PRFinding",
+    "PrNumber",
     "ProductContractError",
     "ProductMode",
     "RepositoryConfig",
+    "RepositoryName",
     "ReviewerRiskDisposition",
     "ReviewerUtilityDisposition",
+    "ServiceId",
+    "describe_enforcement_rule",
+    "describe_finding_action",
+    "describe_product_mode",
+    "resolve_evaluation_id",
+    "resolve_head_sha",
+    "resolve_pr_number",
+    "resolve_repository_name",
+    "resolve_service_id",
 ]
 
 
@@ -50,6 +72,19 @@ class ProductMode(StrEnum):
     SHADOW = "shadow"
     ADVISORY = "advisory"
     ENFORCE = "enforce"
+
+
+def describe_product_mode(mode: ProductMode) -> str:
+    """Exhaustively describe product operational mode."""
+    match mode:
+        case ProductMode.SHADOW:
+            return "Shadow mode: observations recorded without blocking or developer interruption"
+        case ProductMode.ADVISORY:
+            return "Advisory mode: observations published as non-blocking comments/checks"
+        case ProductMode.ENFORCE:
+            return "Enforce mode: policy violations fail checks per repository owner consent"
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 class EnforcementRule(StrEnum):
@@ -66,11 +101,37 @@ class EnforcementRule(StrEnum):
     )
 
 
+def describe_enforcement_rule(rule: EnforcementRule) -> str:
+    """Exhaustively describe enforcement rule trigger."""
+    match rule:
+        case EnforcementRule.IAC_CHANGE_WITHOUT_TEST_EVIDENCE:
+            return "Infrastructure-as-Code changes requiring test evidence at high risk"
+        case EnforcementRule.SECURITY_CHANGE_WITHOUT_TEST_EVIDENCE:
+            return "Security boundary changes requiring test evidence at high risk"
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
 class FindingAction(StrEnum):
     NONE = "none"
     EXTENDED_TESTS = "extended-tests"
     ADDITIONAL_APPROVAL = "additional-approval"
     WOULD_BLOCK = "would-block"
+
+
+def describe_finding_action(action: FindingAction) -> str:
+    """Exhaustively format human-facing description for each simulated action."""
+    match action:
+        case FindingAction.NONE:
+            return "No gating action required"
+        case FindingAction.EXTENDED_TESTS:
+            return "Extended test suites required prior to merge"
+        case FindingAction.ADDITIONAL_APPROVAL:
+            return "Additional service-owner approval required"
+        case FindingAction.WOULD_BLOCK:
+            return "Merge blocked by enforcement policy"
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 class ReviewerRiskDisposition(StrEnum):
@@ -167,6 +228,34 @@ class EnforcementPolicy:
         return date.fromisoformat(self.expires_on) >= day
 
 
+def resolve_repository_name(value: str) -> RepositoryName:
+    val = _required(value, "repository", 200)
+    if not _REPOSITORY.fullmatch(val):
+        raise ProductContractError("repository is invalid")
+    return RepositoryName(val)
+
+
+def resolve_service_id(value: str) -> ServiceId:
+    return ServiceId(_required(value, "service_id", 160))
+
+
+def resolve_pr_number(value: int) -> PrNumber:
+    if type(value) is not int or value < 1:
+        raise ProductContractError("pr_number is invalid")
+    return PrNumber(value)
+
+
+def resolve_head_sha(value: str) -> HeadSha:
+    val = _required(value, "head_sha", 64)
+    if not _SHA.fullmatch(val):
+        raise ProductContractError("head_sha is invalid")
+    return HeadSha(val)
+
+
+def resolve_evaluation_id(value: str) -> EvaluationId:
+    return EvaluationId(_required(value, "evaluation_id", 240))
+
+
 @dataclass(frozen=True)
 class RepositoryConfig:
     """Named owner and scope for one product installation in one repository.
@@ -176,8 +265,8 @@ class RepositoryConfig:
     ``ProductMode.ENFORCE`` together with a complete, unexpired approval.
     """
 
-    repository: str
-    service_ids: tuple[str, ...]
+    repository: RepositoryName | str
+    service_ids: tuple[ServiceId | str, ...]
     owner_ids: tuple[str, ...]
     evidence_sources: tuple[str, ...]
     policy_version: str
@@ -185,9 +274,9 @@ class RepositoryConfig:
     enforcement: EnforcementPolicy | None = None
 
     def __post_init__(self) -> None:
-        if not _REPOSITORY.fullmatch(_required(self.repository, "repository", 200)):
+        if not _REPOSITORY.fullmatch(_required(str(self.repository), "repository", 200)):
             raise ProductContractError("repository is invalid")
-        _sorted_unique(self.service_ids, "service_ids")
+        _sorted_unique(tuple(str(s) for s in self.service_ids), "service_ids")
         _sorted_unique(self.owner_ids, "owner_ids")
         _sorted_unique(self.evidence_sources, "evidence_sources")
         _required(self.policy_version, "policy_version", 120)
@@ -211,10 +300,10 @@ class RepositoryConfig:
 class PRFinding:
     """One reviewable risk finding; it cannot authorize a merge decision."""
 
-    finding_id: str
-    repository: str
-    pr_number: int
-    head_sha: str
+    finding_id: FindingId | str
+    repository: RepositoryName | str
+    pr_number: PrNumber | int
+    head_sha: HeadSha | str
     severity: str
     summary: str
     correlation_id: str
@@ -225,12 +314,12 @@ class PRFinding:
     evidence: EvidenceBundle
 
     def __post_init__(self) -> None:
-        _required(self.finding_id, "finding_id")
-        if not _REPOSITORY.fullmatch(_required(self.repository, "repository", 200)):
+        _required(str(self.finding_id), "finding_id")
+        if not _REPOSITORY.fullmatch(_required(str(self.repository), "repository", 200)):
             raise ProductContractError("repository is invalid")
         if type(self.pr_number) is not int or self.pr_number < 1:
             raise ProductContractError("pr_number is invalid")
-        if not _SHA.fullmatch(_required(self.head_sha, "head_sha", 64)):
+        if not _SHA.fullmatch(_required(str(self.head_sha), "head_sha", 64)):
             raise ProductContractError("head_sha is invalid")
         if self.severity not in _SEVERITIES:
             raise ProductContractError("severity is invalid")
@@ -250,14 +339,14 @@ class PRFinding:
 class FindingOutcome:
     """Explicit human disposition, not an inferred merge or closure judgment."""
 
-    finding_id: str
+    finding_id: FindingId | str
     reviewer_risk: ReviewerRiskDisposition
     reviewer_utility: ReviewerUtilityDisposition
     recorded_by: str | None = None
     post_merge_correlation_id: str | None = None
 
     def __post_init__(self) -> None:
-        _required(self.finding_id, "finding_id")
+        _required(str(self.finding_id), "finding_id")
         if self.reviewer_risk not in set(ReviewerRiskDisposition):
             raise ProductContractError("reviewer_risk is invalid")
         if self.reviewer_utility not in set(ReviewerUtilityDisposition):
@@ -279,15 +368,15 @@ class FindingOutcome:
 class EvaluationRun:
     """A reproducible quality run bound to a dataset and deterministic policy."""
 
-    evaluation_id: str
+    evaluation_id: EvaluationId | str
     dataset_version: str
     policy_version: str
-    finding_ids: tuple[str, ...]
+    finding_ids: tuple[FindingId | str, ...]
     methodology: str
 
     def __post_init__(self) -> None:
-        _required(self.evaluation_id, "evaluation_id")
+        _required(str(self.evaluation_id), "evaluation_id")
         _required(self.dataset_version, "dataset_version", 120)
         _required(self.policy_version, "policy_version", 120)
-        _sorted_unique(self.finding_ids, "finding_ids")
+        _sorted_unique(tuple(str(f) for f in self.finding_ids), "finding_ids")
         _required(self.methodology, "methodology", 1_000)
