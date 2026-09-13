@@ -1,0 +1,26 @@
+[
+  {
+    "case_id": "qualified-dependency-explanation",
+    "question": "Why does a change to payments affect checkout?",
+    "expectation": {
+      "disposition": "answer",
+      "required_relationship_keys": [
+        "service:checkout|depends_on|service:payments"
+      ],
+      "required_evidence_ids": [
+        "evidence:dependency"
+      ],
+      "require_limitations_disclosed": false
+    }
+  },
+  {
+    "case_id": "unqualified-context-abstention",
+    "question": "Why is this dependency safe to change?",
+    "expectation": {
+      "disposition": "abstain",
+      "required_relationship_keys": [],
+      "required_evidence_ids": [],
+      "require_limitations_disclosed": true
+    }
+  }
+]

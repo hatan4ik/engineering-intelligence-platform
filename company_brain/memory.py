@@ -48,6 +48,10 @@ class ProjectionState(StrEnum):
     DELETED = "deleted"
 
 
+FILE_CHANGE_PROJECTION_POLICY_VERSION = "company-brain-file-change-projection:v1"
+KNOWLEDGE_DOCUMENT_PROJECTION_POLICY_VERSION = "company-brain-knowledge-document-projection:v1"
+
+
 def _required(value: str, label: str, *, maximum: int = 500) -> str:
     if not isinstance(value, str) or not value or len(value) > maximum or "\n" in value:
         raise CompanyBrainMemoryError(f"{label} is invalid")
@@ -274,6 +278,7 @@ class CompanyBrainMemoryProjector:
             source_system=source.provider,
             source_record_id=source.document_id,
             source_revision=source.commit_sha,
+            projection_policy_version=FILE_CHANGE_PROJECTION_POLICY_VERSION,
             observed_at=datetime.now(timezone.utc),
             event_id=event_id,
         )
@@ -295,6 +300,7 @@ class CompanyBrainMemoryProjector:
             source_system=document.identity.provider,
             source_record_id=document.identity.document_id,
             source_revision=document.revision,
+            projection_policy_version=KNOWLEDGE_DOCUMENT_PROJECTION_POLICY_VERSION,
             observed_at=datetime.now(timezone.utc),
             event_id=event_id,
         )
@@ -613,6 +619,7 @@ def _provenance_from_payload(payload: Mapping[str, object]) -> BrainProvenance:
         source_system=fields.source_system,
         source_record_id=fields.source_record_id,
         source_revision=fields.source_revision,
+        projection_policy_version=fields.projection_policy_version,
         observed_at=fields.observed_at,
         event_id=fields.event_id,
     )

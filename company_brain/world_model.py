@@ -87,6 +87,7 @@ class EvidenceQualification:
     evidence_id: str
     source_kind: str
     citation: str
+    revision: str
     observed_at: datetime
     age: timedelta
     confidence: float
@@ -346,6 +347,7 @@ class CompanyBrainWorldModel:
             evidence_id=evidence.evidence.evidence_id,
             source_kind=evidence.evidence.source_kind,
             citation=evidence.evidence.citation,
+            revision=evidence.evidence.revision,
             observed_at=observed_at,
             age=age,
             confidence=rule.confidence,

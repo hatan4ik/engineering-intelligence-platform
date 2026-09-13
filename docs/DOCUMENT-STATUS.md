@@ -113,6 +113,7 @@ without registering it is therefore a CI failure, not a navigation debt for a la
 | [ADR-001: Temporal Control Plane](../architecture/adr/001-temporal-control-plane.md) | Accepted decision | Durable-control-plane technology decision. |
 | [ADR-002: Prompt Injection and Caching](../architecture/adr/002-prompt-injection-and-caching.md) | Proposed decision | Guardrail and caching proposal; not an implemented-control claim. |
 | [ADR-003: Company Brain Runtime Topology](../architecture/adr/003-company-brain-runtime-topology-and-recovery.md) | Accepted decision | Durable ownership, topology, and recovery boundary. |
+| [ADR-004: Company Brain Decision Experience](../architecture/adr/004-company-brain-decision-experience-and-publication.md) | Accepted decision | Bounded context, evidence receipt, correction, and recoverable publication boundary. |
 | [Vertical Slice Milestone](../architecture/milestones/vertical-slice.md) | Historical implementation milestone | M2 reference-slice record. |
 | [Production Ingestion Milestone](../architecture/milestones/m3-production-ingestion.md) | Historical implementation milestone | M3 ingestion reference-slice record. |
 | [Secure Azure Foundation Milestone](../architecture/milestones/secure-azure-foundation.md) | Historical implementation milestone | Private Azure foundation reference-IaC record. |
@@ -125,6 +126,7 @@ without registering it is therefore a CI failure, not a navigation debt for a la
 | [Company Brain Store](COMPANY-BRAIN-STORE.md) | Reference contract | Tenant-scoped durable reference-store semantics. |
 | [Company Brain World Model](COMPANY-BRAIN-WORLD-MODEL.md) | Reference contract | Qualified, read-only context and uncertainty rules. |
 | [Company Brain Decision Context](DECISION-CONTEXT.md) | Reference contract | Principal-scoped, evidence-qualified explanation and audience-safe presentation boundary. |
+| [Company Brain Decision Experience](COMPANY-BRAIN-DECISION-EXPERIENCE.md) | Reference contract | Bounded context packets, evidence-read receipts, decision briefs, governed corrections, why evaluation, and durable product publication. |
 | [Company Brain Memory Sync](COMPANY-BRAIN-MEMORY-SYNC.md) | Reference contract | Governed source lifecycle projection into memory. |
 | [Company Brain Maintenance](COMPANY-BRAIN-MAINTENANCE.md) | Reference contract | Read-only maintenance proposal and independent outcome correlation. |
 | [PR Guardian Domain Contract](PR-GUARDIAN-DOMAIN-CONTRACT.md) | Reference contract | Product records and safety boundary. |

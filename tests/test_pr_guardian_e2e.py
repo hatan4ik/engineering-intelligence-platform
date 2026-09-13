@@ -2,9 +2,11 @@ import asyncio
 
 import pytest
 
+from company_brain.artifact_outbox import SqliteArtifactOutbox
 from integrations.github.pr_guardian import ChangedFile, PullRequestEvent, normalize_pull_request_event
 from intelligence.graph import ServiceGraph, ServiceNode
 from product.pr_guardian_service import PRGuardianService
+from product.pr_guardian.store import SqlitePRGuardianStore
 from control_plane.workflows import ControlPlaneWorkflows
 from state.audit import SqliteAuditLog
 from state.store import SqliteStateStore
@@ -63,6 +65,8 @@ def test_pr_guardian_maps_services_scores_persists_and_publishes(tmp_path):
         github=github,
         workflows=ControlPlaneWorkflows(store, audit),
         history=History(),
+        findings=SqlitePRGuardianStore(tmp_path / "findings.db"),
+        publication_outbox=SqliteArtifactOutbox(tmp_path / "outbox.db"),
     )
 
     result = asyncio.run(
@@ -80,6 +84,7 @@ def test_pr_guardian_maps_services_scores_persists_and_publishes(tmp_path):
     assert result.simulated_policy_would_block is False
     assert result.repository_enforcement_would_block is False
     assert result.repository_enforcement_would_block == result.enforcement.would_block
+    assert result.publication_artifact_id is not None
     assert github.comments and "Risk score" in github.comments[0]["body"]
 
 
@@ -96,6 +101,8 @@ def test_unmapped_delivery_change_is_not_false_low(tmp_path):
             SqliteStateStore(tmp_path / "state.db"),
             SqliteAuditLog(tmp_path / "audit.db"),
         ),
+        findings=SqlitePRGuardianStore(tmp_path / "findings.db"),
+        publication_outbox=SqliteArtifactOutbox(tmp_path / "outbox.db"),
     )
     result = asyncio.run(
         service.evaluate(PullRequestEvent("acme/platform", 9, "feedface", "opened"))
@@ -117,6 +124,8 @@ def test_low_risk_docs_only_pr_publishes_neutral_shadow_check(tmp_path):
             SqliteStateStore(tmp_path / "state.db"),
             SqliteAuditLog(tmp_path / "audit.db"),
         ),
+        findings=SqlitePRGuardianStore(tmp_path / "findings.db"),
+        publication_outbox=SqliteArtifactOutbox(tmp_path / "outbox.db"),
     )
     result = asyncio.run(
         service.evaluate(PullRequestEvent("acme/platform", 8, "cafebabe", "opened"))
@@ -138,3 +147,17 @@ def test_service_rejects_mutating_a_dependency_after_composition(tmp_path):
 
     with pytest.raises(AttributeError):
         service.graph = ServiceGraph()
+
+
+def test_service_refuses_to_publish_without_durable_finding_and_outbox_stores(tmp_path):
+    service = PRGuardianService(
+        graph=graph(),
+        github=FakeGitHub([]),
+        workflows=ControlPlaneWorkflows(
+            SqliteStateStore(tmp_path / "state.db"),
+            SqliteAuditLog(tmp_path / "audit.db"),
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="durable finding store and artifact outbox"):
+        asyncio.run(service.evaluate(PullRequestEvent("acme/platform", 7, "deadbeef", "opened")))

@@ -45,3 +45,7 @@ production data-plane fallback.
   [governed-memory synchronization boundary](COMPANY-BRAIN-MEMORY-SYNC.md). Connector scheduling,
   managed outbox/receipt storage, broader source coverage, and graph confidence/freshness remain
   separate increments.
+- The [Decision Experience Contract](COMPANY-BRAIN-DECISION-EXPERIENCE.md) adds reference SQLite
+  stores for signed evidence-read receipts, governed correction records, and external publication
+  delivery. They preserve their local contracts but do not turn this store into a transaction
+  coordinator or managed production data plane.

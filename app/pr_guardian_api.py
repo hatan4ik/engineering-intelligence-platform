@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.observability import tracer
 from app.request_context import request_correlation_id
+from company_brain.artifact_outbox import ArtifactOutboxError
 from feedback.outcome_capture import normalize_github_pr_outcome
 from integrations.github.pr_guardian import GitHubAPIError, normalize_pull_request_event
 from integrations.github.webhook import REVIEW_ACTIONS, verify_webhook_signature
@@ -81,12 +83,22 @@ async def github_webhook(
                 status_code=503,
                 detail="PR Guardian cannot reach GitHub; retry the delivery",
             ) from error
+        except (sqlite3.Error, ArtifactOutboxError) as error:
+            # A durable finding and outbox record are prerequisites for an
+            # external effect. Reject the delivery when they are unavailable
+            # instead of publishing an untracked review.
+            raise HTTPException(
+                status_code=503,
+                detail="PR Guardian cannot persist the review; retry the delivery",
+            ) from error
         span.set_attribute("eip.correlation_id", result.correlation_id)
         span.set_attribute("eip.risk_score", result.assessment.score)
+        span.set_attribute("eip.publication_artifact_id", result.publication_artifact_id or "")
     return {
         "status": "reviewed",
         "workflow_id": result.workflow_id,
         "correlation_id": result.correlation_id,
+        "publication_artifact_id": result.publication_artifact_id,
         "score": result.assessment.score,
         "band": result.assessment.band,
         "conclusion": result.conclusion,

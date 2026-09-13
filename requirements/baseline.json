@@ -59,6 +59,44 @@
       "review_cycle_days": 30
     },
     {
+      "id": "EIP-DATA-022",
+      "statement": "Every Company Brain advisory proposal is bound to a deterministic, bounded, principal-scoped evidence packet with source revisions and refuses stale, incomplete, or unqualified read evidence.",
+      "criticality": "high",
+      "data_sensitivity": "restricted",
+      "decision_impact": "advisory",
+      "autonomy_tier": "L0/L1",
+      "implementation_status": "reference-implemented",
+      "design_refs": ["architecture/design.md", "architecture/adr/004-company-brain-decision-experience-and-publication.md", "docs/COMPANY-BRAIN-DECISION-EXPERIENCE.md"],
+      "implemented_by": ["company_brain/context_packet.py", "company_brain/evidence_receipts.py", "company_brain/corrections.py"],
+      "verified_by": ["tests/test_company_brain_context_packet.py", "tests/test_company_brain_evidence_receipts.py", "tests/test_company_brain_corrections.py"],
+      "operational_evidence": {
+        "required_for": "named L0/L1 pilot",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "data-governance",
+      "review_cycle_days": 90
+    },
+    {
+      "id": "EIP-PRG-003",
+      "statement": "PR Guardian records source-safe GitHub publication intent before external delivery and independently recovers each delivery with a stable idempotency identity.",
+      "criticality": "high",
+      "data_sensitivity": "internal",
+      "decision_impact": "advisory",
+      "autonomy_tier": "L0/L1",
+      "implementation_status": "reference-implemented",
+      "design_refs": ["architecture/adr/004-company-brain-decision-experience-and-publication.md", "docs/PR-GUARDIAN-COMPANY-BRAIN.md"],
+      "implemented_by": ["company_brain/artifact_outbox.py", "product/pr_guardian/publication.py", "integrations/github/pr_guardian.py"],
+      "verified_by": ["tests/test_company_brain_artifact_outbox.py", "tests/test_pr_guardian_publication_outbox.py", "tests/test_github_rest_contract.py"],
+      "operational_evidence": {
+        "required_for": "named L0/L1 pilot",
+        "status": "not-collected",
+        "registry": "docs/PRODUCTION-EVIDENCE.md"
+      },
+      "owner": "developer-experience",
+      "review_cycle_days": 30
+    },
+    {
       "id": "EIP-PRG-002",
       "statement": "Each PR Guardian promotion decision uses retained reviewer dispositions and does not infer correctness from merge state alone.",
       "criticality": "high",

@@ -40,10 +40,15 @@ For an eligible pull request, PR Guardian may:
 2. apply deterministic risk factors and show their evidence;
 3. link authorized source evidence and state uncertainty explicitly;
 4. recommend tests, reviewers, or a follow-up ticket/plan; and
-5. publish a reviewable result with correlation ID and audit trail.
+5. record a source-safe review artifact before publishing it, with a correlation ID, audit trail,
+   and independently recoverable external deliveries.
 
 It must not claim that a merge is safe, mutate production, grant itself permissions, or turn an
 uncalibrated score into a blocking control.
+
+The Company Brain decision and publication mechanics are defined in
+[Decision Experience](COMPANY-BRAIN-DECISION-EXPERIENCE.md). They make a reference result
+reviewable and recoverable; they do not provide pilot evidence or permit a product promotion.
 
 ## Scope and non-goals
 

@@ -31,6 +31,7 @@ def provenance(record: str, revision: str) -> BrainProvenance:
         source_system="confluence",
         source_record_id=record,
         source_revision=revision,
+        projection_policy_version="test-projection:v1",
         observed_at=AS_OF,
         event_id=f"event:{record}:{revision}",
     )

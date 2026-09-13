@@ -7,6 +7,7 @@
 | **Core query** | [`company_brain/world_model.py`](../company_brain/world_model.py) |
 | **Adapter** | [`product/pr_guardian/company_brain.py`](../product/pr_guardian/company_brain.py) |
 | **Durable product records** | [`product/pr_guardian/store.py`](../product/pr_guardian/store.py) |
+| **Decision/publication boundary** | [Company Brain Decision Experience](COMPANY-BRAIN-DECISION-EXPERIENCE.md) |
 
 PR Guardian is the first user-facing Company Brain interface. It consumes a tenant-scoped,
 ACL-filtered [qualified world-model context](COMPANY-BRAIN-WORLD-MODEL.md), not raw graph data or
@@ -15,10 +16,11 @@ an unscoped vector result.
 ## Decision boundary
 
 For every PR review, the adapter produces a reproducible `context_version` fingerprint and a
-minimal `EvidenceBundle` plus a principal-scoped [Decision Context](DECISION-CONTEXT.md). It uses
-qualified repository membership to map changed files to services; then it uses only fresh,
-authorized, sufficiently confident relationships to build the blast-radius graph. The fingerprint
-is retained with the finding, not treated as a mutable database version.
+minimal `EvidenceBundle` plus a principal-scoped [Decision Context](DECISION-CONTEXT.md), bounded
+Context Packet, and Context Health report. It uses qualified repository membership to map changed
+files to services; then it uses only fresh, authorized, sufficiently confident relationships to
+build the blast-radius graph. The fingerprint is retained with the finding, not treated as a mutable
+database version.
 
 A context is **unqualified** if it lacks an affected service or authorized evidence, has stale or
 low-confidence relationships, has a conflict (for example ambiguous ownership), or reports a
@@ -31,11 +33,12 @@ not authority for the platform to invent a control.
 ### Moment-of-truth explanation
 
 The GitHub check/comment adds a bounded **Company Brain decision context** section. It reports
-qualification, deterministic scope counts, evidence/relationship counts, fingerprint, and
-limitations. It never publishes the evidence locator or relationship statement because the
-webhook's Company Brain service identity is not evidence that every GitHub reader has access to the
-same source. The complete relation-level explanation remains a principal-scoped product result for
-a future authenticated viewer; it is not a public GitHub artifact.
+qualification, deterministic scope counts, evidence/relationship counts, Context Packet digest,
+health state, fingerprint, and limitations. It never publishes the evidence locator or relationship
+statement because the webhook's Company Brain service identity is not evidence that every GitHub
+reader has access to the same source. The complete relation-level explanation remains a
+principal-scoped product result for a future authenticated viewer; it is not a public GitHub
+artifact.
 
 ## Durable learning records
 
@@ -43,6 +46,15 @@ a future authenticated viewer; it is not a public GitHub artifact.
 and append-only explicit `FindingOutcome` records. Replaying the exact same record is idempotent;
 reusing a finding ID with changed contents fails. A merge, close, or silence is not a reviewer
 judgment and is therefore never stored as one.
+
+When publishing is enabled, `PRGuardianService` also requires its durable finding store and the
+reference artifact outbox. It records the source-safe GitHub check/comment intent before calling
+GitHub and retries each delivery independently. A successful check is not replayed because a
+comment failed; GitHub check runs use a stable external delivery ID and comments use the controlled
+sticky marker. This is local/reference recovery behavior, not a managed-outbox or pilot claim.
+`python scripts/recover_pr_guardian_publications.py --state-dir "$EIP_STATE_DIR"` performs one
+bounded local/reference recovery pass for due retained deliveries; it does not re-evaluate a pull
+request or change product authority.
 
 Findings bind all of the following:
 
@@ -54,8 +66,9 @@ Findings bind all of the following:
 ## Runtime configuration
 
 `EIP_PR_GUARDIAN_WEBHOOK=enabled` always retains findings in
-`$EIP_STATE_DIR/pr-guardian.db`. To replace the checkout-derived graph with qualified Company Brain
-context, configure all three values together:
+`$EIP_STATE_DIR/pr-guardian.db` and publication intent in
+`$EIP_STATE_DIR/pr-guardian-publication-outbox.db`. To replace the checkout-derived graph with
+qualified Company Brain context, configure all three values together:
 
 ```text
 EIP_COMPANY_BRAIN_DB=/secure/state/company-brain.db

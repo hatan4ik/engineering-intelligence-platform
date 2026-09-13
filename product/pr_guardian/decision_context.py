@@ -35,6 +35,12 @@ def render_decision_context(context: PRGuardianCompanyContext) -> str:
             "- **Evidence inventory:** "
             f"`{len(decision_context.evidence.references)}` authorized evidence pointer(s) retained with the finding."
         ),
+        (
+            "- **Context packet:** "
+            f"`{'complete' if context.context_packet.complete else 'limited'}`; "
+            f"digest `{context.context_packet.digest}`."
+        ),
+        f"- **Context health:** `{context.context_health.state.value}`",
         f"- **Context version:** `{decision_context.context_version}`",
         (
             "- **Citation visibility:** Individual source locations and relationship details are omitted "

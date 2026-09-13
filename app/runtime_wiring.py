@@ -114,6 +114,7 @@ def _build_shadow_pr_guardian(settings: PRGuardianSettings):
     """Build the shadow-only guardian after settings validation has completed."""
 
     from control_plane.workflows import ControlPlaneWorkflows
+    from company_brain.artifact_outbox import SqliteArtifactOutbox
     from integrations.github.pr_guardian import GitHubRestPRClient
     from product.graph_from_checkout import build_service_graph_from_checkout
     from product.pr_guardian.store import SqlitePRGuardianStore
@@ -140,10 +141,10 @@ def _build_shadow_pr_guardian(settings: PRGuardianSettings):
         ),
         github=GitHubRestPRClient(token),
         workflows=workflows,
-        mode="shadow",
         company_context=company_context,
         principal=principal,
         findings=SqlitePRGuardianStore(state_dir / "pr-guardian.db"),
+        publication_outbox=SqliteArtifactOutbox(state_dir / "pr-guardian-publication-outbox.db"),
         policy_version=settings.policy_version,
     )
 

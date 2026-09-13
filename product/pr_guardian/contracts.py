@@ -212,7 +212,7 @@ class EnforcementPolicy:
     waivers: tuple[EnforcementWaiver, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.rule not in set(EnforcementRule):
+        if not isinstance(self.rule, EnforcementRule):
             raise ProductContractError("enforcement.rule is invalid")
         if type(self.threshold) is not int or not 0 <= self.threshold <= 100:
             raise ProductContractError("enforcement.threshold is invalid")
@@ -280,7 +280,7 @@ class RepositoryConfig:
         _sorted_unique(self.owner_ids, "owner_ids")
         _sorted_unique(self.evidence_sources, "evidence_sources")
         _required(self.policy_version, "policy_version", 120)
-        if self.mode not in set(ProductMode):
+        if not isinstance(self.mode, ProductMode):
             raise ProductContractError("mode is invalid")
         if self.mode is ProductMode.ENFORCE:
             if self.enforcement is None:
@@ -329,7 +329,7 @@ class PRFinding:
         _required(self.context_version, "context_version", 200)
         if type(self.context_qualified) is not bool:
             raise ProductContractError("context_qualified is invalid")
-        if self.simulated_action not in set(FindingAction):
+        if not isinstance(self.simulated_action, FindingAction):
             raise ProductContractError("simulated_action is invalid")
         if not self.context_qualified and self.simulated_action is not FindingAction.NONE:
             raise ProductContractError("unqualified context cannot simulate a control")
@@ -347,9 +347,9 @@ class FindingOutcome:
 
     def __post_init__(self) -> None:
         _required(str(self.finding_id), "finding_id")
-        if self.reviewer_risk not in set(ReviewerRiskDisposition):
+        if not isinstance(self.reviewer_risk, ReviewerRiskDisposition):
             raise ProductContractError("reviewer_risk is invalid")
-        if self.reviewer_utility not in set(ReviewerUtilityDisposition):
+        if not isinstance(self.reviewer_utility, ReviewerUtilityDisposition):
             raise ProductContractError("reviewer_utility is invalid")
         if self.recorded_by is not None:
             _required(self.recorded_by, "recorded_by", 200)

@@ -11,6 +11,7 @@
 | **NFRs and production evidence** | [`non-functional-requirements.md`](non-functional-requirements.md) · [`../docs/PRODUCTION-EVIDENCE.md`](../docs/PRODUCTION-EVIDENCE.md) |
 | **Threat model** | [`../governance/security-threat-model.md`](../governance/security-threat-model.md) |
 | **Runtime ownership/recovery** | [`adr/003-company-brain-runtime-topology-and-recovery.md`](adr/003-company-brain-runtime-topology-and-recovery.md) |
+| **Decision experience/publication** | [`adr/004-company-brain-decision-experience-and-publication.md`](adr/004-company-brain-decision-experience-and-publication.md) |
 | **Diagrams** | Generated light/dark SVGs — [`../docs/diagrams/build_diagrams.py`](../docs/diagrams/build_diagrams.py) |
 | **Terminology** | [Company Brain Glossary](../docs/GLOSSARY.md) |
 
@@ -105,7 +106,7 @@ design regression, not a trade-off.
 | I1 | Authorization happens **before** retrieval | <span title="Access Control List">ACL</span> filter compiled into the search query (`ingestion/azure_search.py`, `app/rag/azure_backend.py`) |
 | I2 | The <span title="Large Language Model">LLM</span> recommends; **deterministic policy** authorizes mutation | `remediation/policy.py` `authorize()`; risk thresholds in `intelligence/pr_guardian.py` |
 | I3 | Production mutation is restricted to **allow-listed, reversible runbooks** | Typed catalog in `remediation/catalog.py` |
-| I4 | Every answer/action carries **evidence and an audit trail** | Plan hashes + `state/audit.py` hash chain |
+| I4 | Every answer/action carries **evidence and an audit trail**; external presentation is recorded before delivery | Plan hashes + `state/audit.py` hash chain + `company_brain/artifact_outbox.py` |
 | I5 | **Verification is mandatory**; failed remediation escalates, never loops | `remediation/executor.py`; control-loop `VERIFY → ESCALATE` path |
 | I6 | Retrieved content is **data, never instructions** | Evidence delimiting and suspicious-evidence quarantine are reference controls; the dedicated Guardrail SLM remains planned |
 | I7 | **Kill switch and human override** exist at every autonomy level | Autonomy policy (`resilience/policy.py`), approval gates |
@@ -195,6 +196,13 @@ The full E2E path for the flagship agent:
 Score thresholds map to controls: `≥55` extended tests, `≥70` additional approval,
 `≥90` merge block. The repository runs this agent on itself
 (`.github/workflows/pr-guardian.yml`).
+
+For a Company Brain decision at a moment of truth, the full authorized result becomes a bounded
+Context Packet with explicit omissions before it reaches a consumer. A signed evidence-read receipt
+can bind a later proposal to the exact packet and evidence revisions it used; it is not an approval.
+Decision Briefs, context health, human corrections, why-answer evaluation, and durable publication
+are defined by [ADR-004](adr/004-company-brain-decision-experience-and-publication.md). The current
+SQLite adapters are reference contracts, not a deployed user experience or managed delivery plane.
 
 Incident intelligence (`intelligence/incidents.py`) reconstructs an ordered evidence
 timeline (alerts, Prometheus metrics, Kubelet logs, eBPF network flows, K8s events, deployments, prior incidents), correlates
@@ -293,6 +301,9 @@ Threat-to-control mapping (full model in
 | `AuditEvent` | `state/models.py` | Actor, action, resource, payload, `previous_hash` → `event_hash` chain |
 | `Approval` | `orchestration/approvals.py` | HMAC over workflow + approver + plan hash + timestamp |
 | `Job` | `orchestration/jobs.py` | Lease, attempts/max-attempts, backoff, DLQ status |
+| `ContextPacket` | `company_brain/context_packet.py` | Deterministic bounded subset, full retained relationship citations, omission disclosure, digest |
+| `EvidenceReadReceipt` | `company_brain/evidence_receipts.py` | Short-lived signed binding of principal/scope/packet/evidence revisions; never an approval |
+| `ProductArtifact` | `company_brain/artifact_outbox.py` | Immutable source-safe external delivery intent, fenced lease, retry state |
 | `OperationEvent` | `telemetry/events.py` | Correlation ID, latency, tokens, model/search/tool cost, per repo/service/agent/user |
 
 System-of-record rule: **Azure AI Search is never the system of record** for services,
@@ -309,6 +320,7 @@ do not mean that target topology is deployed.
 | Search unavailable at query time | Explicit error; never silent fallback to ungrounded answers | Fail fast through the dependency boundary; retry only through an operation-specific, idempotency-reviewed policy; deterministic mode is local/CI only |
 | Empty authorized retrieval | Explicit insufficient-evidence answer (by design, not a failure) | — |
 | Worker crash holding a job lease | Lease expires → job reclaimed by next worker | Automatic; attempts counted toward DLQ bound |
+| GitHub check/comment delivery fails or process crashes | Immutable artifact/delivery remains pending; a completed sibling delivery stays delivered | Bounded outbox recovery uses the same delivery identity; managed retry/DLQ proof remains required |
 | Poisoned event crash-looping | Bounded attempts → dead-letter, never infinite retry | Operator replay after fix |
 | Plan changed after approval issued | Plan hash mismatch → approval invalid → `PermissionError` | Re-approve the new plan |
 | Remediation verification fails | Rollback, then escalate; never re-execute in a loop | Human on-call owns escalation |
@@ -327,7 +339,7 @@ do not mean that target topology is deployed.
 | Layer | Approach | Examples |
 |---|---|---|
 | Contracts | Pure-unit over dataclass contracts, no I/O | risk scoring, chunk identity, approval HMAC |
-| Durability | Real SQLite in `tmp_path`; crash/redelivery simulated | ledger DLQ, job lease expiry, audit chain |
+| Durability | Real SQLite in `tmp_path`; crash/redelivery simulated | ledger DLQ, job lease expiry, audit chain, artifact delivery lease/fencing |
 | Composition | Fake providers, real control plane | PR Guardian E2E, incident workflow |
 | API | FastAPI `TestClient` against the real app | webhook signature, ACL headers, error paths |
 | Policy | Deterministic scenario tables | autonomy gates, L4 certification evidence |

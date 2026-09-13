@@ -11,6 +11,7 @@ from company_brain import (
     SqliteBrainProjectionJournal,
     SqliteCompanyBrainStore,
 )
+from company_brain.memory import FILE_CHANGE_PROJECTION_POLICY_VERSION
 from company_brain.projector import repository_id, service_id
 from ingestion.catalog import SourceScope, SqliteSourceCatalog
 from ingestion.documents import KnowledgeChange, KnowledgeDocument, KnowledgeIdentity, KnowledgeSourceType
@@ -67,6 +68,9 @@ def test_file_ingestion_writes_after_index_success_and_replays_idempotently(tmp_
         principal=BrainPrincipal(groups=("payments",)),
     )
     assert len(context.evidence) == 1
+    stored_evidence = store.get_evidence(TENANT, context.evidence[0].evidence_id)
+    assert stored_evidence is not None
+    assert stored_evidence.provenance.projection_policy_version == FILE_CHANGE_PROJECTION_POLICY_VERSION
     before_events = len(store.audit_events(TENANT))
 
     replay = projector.project_file_change(item, event_id="evt-1")

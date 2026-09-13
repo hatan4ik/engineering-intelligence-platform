@@ -48,7 +48,7 @@ def finding() -> PRFinding:
         evidence=EvidenceBundle(
             basis=EvidenceBasis.MEASURED,
             references=(
-                EvidenceReference("adr-001", "adr", "knowledge://adr/001", authorized=True),
+                EvidenceReference("adr-001", "adr", "knowledge://adr/001", "revision-001", authorized=True),
             ),
             limitations=(),
         ),

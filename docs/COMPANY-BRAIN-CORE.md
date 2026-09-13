@@ -65,6 +65,12 @@ truth. It preserves the difference between an evidence-backed relationship fact,
 product derivation, and a separate policy decision; it never turns an explanation into action
 authority or a public source disclosure.
 
+The [Decision Experience Contract](COMPANY-BRAIN-DECISION-EXPERIENCE.md) adds the operational
+boundary around that read: deterministic Context Packets with visible omissions, signed evidence
+read receipts, reviewable decision briefs, source-revalidation corrections, and a durable outbox
+for product-facing effects. These are reference contracts, not a deployed Company Brain user
+experience or a managed data-plane claim.
+
 [`Company Brain Memory Maintenance`](COMPANY-BRAIN-MAINTENANCE.md) adds the first bounded
 `dreaming & pruning` loop over this durable memory. It derives tenant-scoped, deterministic,
 human-review-only proposals for stale, ownerless, conflicting, or freshness-unknown ADRs,

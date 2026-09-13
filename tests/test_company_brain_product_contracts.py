@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 import company_brain.product_contracts as shared_contracts
 from company_brain import (
+    BrainEntity,
+    CompanyBrainError,
     EvidenceBasis,
     EvidenceBundle,
     EvidenceReference,
@@ -16,7 +19,7 @@ from company_brain import (
     ProductFinding,
     ProductSubject,
 )
-from company_brain.model import EntityKind, RelationshipKind
+from company_brain.model import BrainRelationship, EntityKind, RelationshipKind
 from product.pr_guardian.company_brain_records import finding_record, outcome_records
 from product.pr_guardian.contracts import (
     EvidenceBundle as PRGuardianEvidenceBundle,
@@ -32,7 +35,7 @@ def _evidence() -> EvidenceBundle:
     return EvidenceBundle(
         basis=EvidenceBasis.MEASURED,
         references=(
-            EvidenceReference("evidence:adr-001", "adr", "knowledge://adr/001", authorized=True),
+            EvidenceReference("evidence:adr-001", "adr", "knowledge://adr/001", "revision-001", authorized=True),
         ),
         limitations=(),
     )
@@ -127,3 +130,34 @@ def test_describe_evidence_basis_is_exhaustive() -> None:
     for basis in EvidenceBasis:
         desc = shared_contracts.describe_evidence_basis(basis)
         assert desc == basis.value
+
+
+def test_strenum_backing_strings_are_rejected_at_domain_boundaries() -> None:
+    with pytest.raises(CompanyBrainError, match="entity kind"):
+        BrainEntity("service:payments", cast(EntityKind, "service"), "payments")
+    with pytest.raises(CompanyBrainError, match="relationship kind"):
+        BrainRelationship("service:checkout", "service:payments", cast(RelationshipKind, "depends_on"))
+    with pytest.raises(ProductContractError, match="evidence basis"):
+        EvidenceBundle(cast(EvidenceBasis, "measured"), _evidence().references, ())
+    with pytest.raises(ProductContractError, match="subject kind"):
+        ProductSubject(
+            "repository:github:acme/payments",
+            cast(EntityKind, "repository"),
+            "acme/payments",
+        )
+
+    valid = ProductFinding(
+        finding_id="operations:incident:42",
+        product="operations",
+        scope=ProductSubject("repository:github:acme/payments", EntityKind.REPOSITORY, "acme/payments"),
+        subject=ProductSubject("incident:payments:42", EntityKind.INCIDENT, "Incident 42"),
+        scope_relationship=RelationshipKind.CHANGED_BY,
+        severity="high",
+        summary="A typed operational finding.",
+        correlation_id="corr-42",
+        evidence=EvidenceBundle(EvidenceBasis.DERIVED, (), ("No authorized source was available.",)),
+        provenance=FindingProvenance("ops-policy-v1", "world-model:v1:test", False),
+        recommendation="ticket",
+    )
+    with pytest.raises(ProductContractError, match="scope_relationship"):
+        ProductFinding(**{**valid.__dict__, "scope_relationship": cast(RelationshipKind, "changed_by")})

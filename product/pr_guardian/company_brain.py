@@ -11,6 +11,8 @@ import hashlib
 import json
 from dataclasses import dataclass
 
+from company_brain.context_health import ContextHealthReport, context_health_report
+from company_brain.context_packet import ContextPacket, context_packet_from_decision_context
 from company_brain.decision_context import DecisionContext, decision_context_from_world_model
 from company_brain.model import (
     BrainPrincipal,
@@ -33,6 +35,8 @@ class PRGuardianCompanyContext:
     owner_ids: tuple[str, ...]
     graph: ServiceGraph
     decision_context: DecisionContext
+    context_packet: ContextPacket
+    context_health: ContextHealthReport
 
     @property
     def evidence(self) -> EvidenceBundle:
@@ -90,6 +94,7 @@ class PRGuardianCompanyBrainAdapter:
                 evidence_id=item.evidence_id,
                 source_kind=item.source_kind,
                 locator=item.citation,
+                revision=item.revision,
                 authorized=True,
             )
             for item in core_context.evidence
@@ -108,12 +113,16 @@ class PRGuardianCompanyBrainAdapter:
                 limitations=limitations or ("No authorized Company Brain evidence was available.",),
             )
         graph = self._service_graph(repository_id=repo)
+        decision_context = _legacy_decision_context(evidence, limitations)
+        context_packet = context_packet_from_decision_context(decision_context)
         return PRGuardianCompanyContext(
             changed_services=tuple(self.brain.entities[item].label for item in core_context.changed_services),
             blast_radius=tuple(self.brain.entities[item].label for item in core_context.blast_radius),
             owner_ids=core_context.owner_ids,
             graph=graph,
-            decision_context=_legacy_decision_context(evidence, limitations),
+            decision_context=decision_context,
+            context_packet=context_packet,
+            context_health=context_health_report(decision_context, context_packet),
         )
 
     def _service_graph(self, *, repository_id: str) -> ServiceGraph:
@@ -210,12 +219,15 @@ class PRGuardianWorldModelAdapter:
             qualified=qualified,
             limitations=limitations,
         )
+        context_packet = context_packet_from_decision_context(decision_context)
         return PRGuardianCompanyContext(
             changed_services=self._entity_labels(context, context.changed_services),
             blast_radius=self._entity_labels(context, context.blast_radius),
             owner_ids=context.owner_ids,
             graph=self._graph(context),
             decision_context=decision_context,
+            context_packet=context_packet,
+            context_health=context_health_report(decision_context, context_packet),
         )
 
     @staticmethod

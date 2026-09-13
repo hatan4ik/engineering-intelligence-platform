@@ -100,12 +100,14 @@ class EvidenceReference:
     evidence_id: EvidenceId | str
     source_kind: str
     locator: str
+    revision: str
     authorized: bool
 
     def __post_init__(self) -> None:
         _identifier(str(self.evidence_id), "evidence_id")
         _required(self.source_kind, "source_kind", 80)
         _required(self.locator, "locator", 500)
+        _required(self.revision, "evidence revision", 200)
         if self.authorized is not True:
             raise ProductContractError("unauthorized evidence cannot enter a product finding")
 
@@ -119,7 +121,7 @@ class EvidenceBundle:
     limitations: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if self.basis not in set(EvidenceBasis):
+        if not isinstance(self.basis, EvidenceBasis):
             raise ProductContractError("evidence basis is invalid")
         if self.references != tuple(sorted(self.references, key=lambda item: item.evidence_id)):
             raise ProductContractError("evidence references must be sorted by evidence_id")
@@ -144,7 +146,7 @@ class ProductSubject:
 
     def __post_init__(self) -> None:
         _identifier(str(self.entity_id), "subject entity_id")
-        if self.kind not in set(EntityKind):
+        if not isinstance(self.kind, EntityKind):
             raise ProductContractError("subject kind is invalid")
         _required(self.label, "subject label", 500)
         _attributes(self.attributes, "subject attributes")
@@ -197,7 +199,7 @@ class ProductFinding:
             raise ProductContractError("product is invalid")
         if self.scope.entity_id == self.subject.entity_id:
             raise ProductContractError("finding scope and subject must be distinct")
-        if self.scope_relationship not in set(RelationshipKind):
+        if not isinstance(self.scope_relationship, RelationshipKind):
             raise ProductContractError("scope_relationship is invalid")
         if self.severity not in _SEVERITIES:
             raise ProductContractError("severity is invalid")

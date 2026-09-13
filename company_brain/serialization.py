@@ -32,6 +32,9 @@ class ProvenanceLike(Protocol):
     def source_revision(self) -> str: ...
 
     @property
+    def projection_policy_version(self) -> str: ...
+
+    @property
     def observed_at(self) -> datetime: ...
 
     @property
@@ -45,6 +48,7 @@ class ProvenanceFields:
     source_system: str
     source_record_id: str
     source_revision: str
+    projection_policy_version: str
     observed_at: datetime
     event_id: str | None
 
@@ -178,6 +182,7 @@ def provenance_payload(provenance: ProvenanceLike) -> dict[str, object]:
         "source_system": provenance.source_system,
         "source_record_id": provenance.source_record_id,
         "source_revision": provenance.source_revision,
+        "projection_policy_version": provenance.projection_policy_version,
         "observed_at": utc_timestamp(provenance.observed_at, label="provenance observed_at").isoformat(),
         "event_id": provenance.event_id,
     }
@@ -190,6 +195,11 @@ def provenance_fields(payload: Payload) -> ProvenanceFields:
         source_system=required_text(payload, "source_system", label="provenance"),
         source_record_id=required_text(payload, "source_record_id", label="provenance"),
         source_revision=required_text(payload, "source_revision", label="provenance"),
+        # Existing reference databases predate policy provenance. Preserve that
+        # fact explicitly rather than inventing a current policy version.
+        projection_policy_version=(
+            optional_text(payload, "projection_policy_version", label="provenance") or "legacy-unversioned"
+        ),
         observed_at=parse_timestamp(payload.get("observed_at"), label="provenance.observed_at"),
         event_id=optional_text(payload, "event_id", label="provenance"),
     )

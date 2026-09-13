@@ -66,11 +66,12 @@ def _parse_timestamp(value: str) -> datetime:
 
 @dataclass(frozen=True)
 class BrainProvenance:
-    """The source revision that made a Company Brain record eligible to exist."""
+    """The source and deterministic projection policy that created a record."""
 
     source_system: str
     source_record_id: str
     source_revision: str
+    projection_policy_version: str
     observed_at: datetime
     event_id: str | None = None
 
@@ -78,6 +79,7 @@ class BrainProvenance:
         _required(self.source_system, "provenance source_system", maximum=100)
         _required(self.source_record_id, "provenance source_record_id")
         _required(self.source_revision, "provenance source_revision", maximum=200)
+        _required(self.projection_policy_version, "provenance projection_policy_version", maximum=200)
         _timestamp(self.observed_at, "provenance observed_at")
         if self.event_id is not None:
             _required(self.event_id, "provenance event_id", maximum=200)
@@ -1123,6 +1125,7 @@ def _provenance_from_payload(payload: Mapping[str, object]) -> BrainProvenance:
         source_system=fields.source_system,
         source_record_id=fields.source_record_id,
         source_revision=fields.source_revision,
+        projection_policy_version=fields.projection_policy_version,
         observed_at=fields.observed_at,
         event_id=fields.event_id,
     )
